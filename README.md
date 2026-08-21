@@ -145,6 +145,7 @@ pnpm dsh web --patch ./cordis.patch.yml   # 热重载：改 src/ 或 skills/ 即
 - `skills/` 中文化后需重跑 `build` 与 `verify`（已处理 BOM 与 `\r\n`）
 - HMR：改 `src/*.ts` 或 `skills/**/SKILL.md` 后旧 provider/section 自动清理
 - 发布：`pnpm build && npm publish --access public --provenance`（需 npm Trusted Publisher 或带 2FA 的 granular token）；或走 GitHub Actions `publish.yml`（`v*` tag 自动发布）
+- 版本后缀：上游未发新版时用 `pnpm run bump:dsh` 递增为 `4.9.0-dsh.1`，上游发版后回归纯版本（如 `4.10.0`）
 
 ## 📂 目录
 

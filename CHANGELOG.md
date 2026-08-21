@@ -2,6 +2,8 @@
 
 所有重要变更记录于此，格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号与上游 [DietrichGebert/ponytail](https://github.com/DietrichGebert/ponytail) 同步。
 
+> **版本策略**：默认与上游完全一致（如 `4.9.0`）。当需要仅在 DSH 侧迭代（上游未发新版）时，在上游版本后追加 `-dsh.N` 后缀（如 `4.9.0-dsh.1`、`4.9.0-dsh.2`），遵循 SemVer 预发布语义；上游发布新版本后回归纯上游版本号（如 `4.10.0`），后缀计数重置。
+
 ## [4.9.0] - 2026-08-21
 
 ### Added

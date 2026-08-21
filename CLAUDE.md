@@ -4,7 +4,7 @@
 
 ## 1. 项目定位
 
-- **名称**：`dsh-ponytail`，版本 `4.9.0`，对齐上游 `DietrichGebert/ponytail` v4.9.0（MIT）。
+- **名称**：`@wenaixi/dsh-ponytail`（npm scoped），仓库 `Wenaixi/dsh-ponytail`，版本 `4.9.0`，对齐上游 `DietrichGebert/ponytail` v4.9.0（MIT）。
 - **一句话**：把「懒惰的资深工程师」完整移植到 DeepSeek Harness（DSH），开箱即用的 always-on 梯子 + 6 个中文 Skill，无空 tool。
 - **上游口号**：The best code is the code you never wrote. 梯子 7 阶：YAGNI → 复用 → 标准库 → 平台原生 → 已有依赖 → 一行 → 最小实现。
 - **DSH 形态**：单一插件包 `dsh-ponytail`，`dsh.bundle.patch = ./cordis.patch.yml`，以包名引用挂载，不使用绝对路径。
@@ -120,6 +120,8 @@ pnpm dsh web --patch ./cordis.patch.yml                     # 热重载
 - 2026-08-21：初始移植 `dietrichgebert/ponytail 4.9.0`，6 技能 + 4 hooks 全量复刻，`ponytail-instructions/config/runtime` 逐行对齐上游边界（BOM 去除、`review` 不可默认、全句失活、shell 白名单）。
 - 2026-08-21：中文化：6 个 `SKILL.md` 的 `description` 与正文全部中文，触发词兼容中英文，`getFallbackInstructions` 中文化；`CLAUDE.md` 建为核心记忆库。
 - 2026-08-21：`initialMode` 优先级修正为 `env > cordis 显式 config > 文件 > full`，与上游 `ponytail-config.js` 三级语义对齐。
+- 2026-08-21：包名切换至 `@wenaixi/dsh-ponytail`（原 `dsh-ponytail` 被占用），`cordis.patch.yml` 与 README 三渠道安装同步；`lib` 已提交，GitHub 直装无需构建（移除 `prepare` 钩子避免 pnpm `onlyBuiltDependencies` 拦截）；npm `@wenaixi/dsh-ponytail@4.9.0` 已发布；CI 拆为 `ci.yml`（push 跑 verify）与 `publish.yml`（tag 才发 npm，支持 `NPM_TOKEN`/OIDC）。
+- 2026-08-21：版本策略确立：与上游一致为默认，上游未发版时用 `-dsh.N` 后缀（`4.9.0-dsh.1`），脚本 `scripts/bump-dsh.mjs` + `pnpm run bump:dsh` 一键递增。
 
 ## 10. 边界与不做之事
 
