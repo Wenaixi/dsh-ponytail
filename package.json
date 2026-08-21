@@ -20,7 +20,6 @@
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src --ext .ts 2>&1 || echo \"(no eslint config — skipped)\"",
-    "prepare": "npm run build",
     "verify": "node scripts/verify.mjs",
     "prepublishOnly": "npm run build && npm run verify"
   },
