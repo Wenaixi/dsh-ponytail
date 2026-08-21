@@ -1,9 +1,9 @@
-# 依赖与产物
+# 依赖
 node_modules/
-lib/
 dist/
 *.tgz
 *.tsbuildinfo
+# 注意：lib/ 已提交到 Git，保证 GitHub 直装无需构建（见下方说明）
 
 # 环境与本地配置
 .env

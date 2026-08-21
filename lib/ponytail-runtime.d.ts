@@ -1,0 +1,16 @@
+/**
+ * ponytail-runtime — 移植自 hooks/ponytail-runtime.js
+ *
+ * flag 文件 + 多平台环境识别。
+ * DSH 侧以文件为真源，保持与 Claude/Codex/Qoder 共存语义；
+ * HMR 卸载时不残留句柄。
+ */
+export declare const isCopilot: boolean;
+export declare const isCodex: boolean;
+export declare const isQoder: boolean;
+export declare function setMode(mode: string): void;
+export declare function clearMode(): void;
+export declare function readMode(): string | null;
+export declare function writeHookOutput(_event: string, _mode: string, _context?: string): void;
+export declare function getStatePath(): string;
+//# sourceMappingURL=ponytail-runtime.d.ts.map
