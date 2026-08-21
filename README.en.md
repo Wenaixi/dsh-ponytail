@@ -11,6 +11,7 @@
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-111111?style=flat-square" alt="MIT"/></a>
+  <a href="https://www.npmjs.com/package/@wenaixi/dsh-ponytail"><img src="https://img.shields.io/npm/v/@wenaixi/dsh-ponytail?color=111111&style=flat-square" alt="npm"/></a>
   <img src="https://img.shields.io/badge/version-4.9.0-111111?style=flat-square" alt="version"/>
   <img src="https://img.shields.io/badge/DSH-0.1.1--rc.2-333333?style=flat-square" alt="DSH"/>
   <img src="https://img.shields.io/badge/skills-6-008080?style=flat-square" alt="skills"/>
@@ -18,7 +19,7 @@
 </p>
 
 <p align="center">
-  <a href="README.md">中文</a> · English · <a href="CHANGELOG.md">Changelog</a> · <a href="https://github.com/DietrichGebert/ponytail">Upstream</a>
+  <a href="README.md">中文</a> · English · <a href="CHANGELOG.md">Changelog</a> · <a href="https://github.com/DietrichGebert/ponytail">Upstream</a> · <a href="https://www.npmjs.com/package/@wenaixi/dsh-ponytail">npm</a>
 </p>
 
 ---
@@ -47,23 +48,40 @@
 
 ## 🚀 Install
 
+### npm (recommended)
+
+```bash
+dsh plugin --profile demo add @wenaixi/dsh-ponytail
+npm i @wenaixi/dsh-ponytail
+pnpm add @wenaixi/dsh-ponytail
+```
+
+### GitHub (no build, lib committed)
+
+```bash
+dsh plugin --profile demo add github:Wenaixi/dsh-ponytail
+dsh plugin --profile demo add github:Wenaixi/dsh-ponytail#v4.9.0
+```
+
+### Local / tarball
+
 ```bash
 pnpm install && pnpm build
 dsh plugin --profile demo add ./
-dsh --profile demo --dump-config  # should show ponytail
-dsh --profile demo
-```
-
-Or from a tarball:
-
-```bash
-pnpm pack && dsh plugin --profile demo add ./dsh-ponytail-4.9.0.tgz
+pnpm pack && dsh plugin --profile demo add ./wenaixi-dsh-ponytail-4.9.0.tgz
 ```
 
 Remove:
 
 ```bash
-dsh plugin --profile demo remove dsh-ponytail
+dsh plugin --profile demo remove @wenaixi/dsh-ponytail
+```
+
+Verify (no restart of :3080):
+
+```bash
+pnpm build && pnpm typecheck && node scripts/verify.mjs
+dsh --profile demo --dump-config | grep -A2 ponytail
 ```
 
 ## ⚙️ Configure
@@ -71,7 +89,7 @@ dsh plugin --profile demo remove dsh-ponytail
 ```yaml
 - insert:
     - id: ponytail
-      name: dsh-ponytail
+      name: "@wenaixi/dsh-ponytail"
       config:
         providerName: ponytail
         skillDir: /path/to/skills

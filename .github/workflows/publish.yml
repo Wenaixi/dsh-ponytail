@@ -1,0 +1,34 @@
+name: publish
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish-npm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org
+
+      - run: npm install -g pnpm@10
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: node scripts/verify.mjs
+
+      - name: Publish to npm (OIDC trusted publisher)
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          # 若已在 npm 配置 Trusted Publisher（Wenaixi/dsh-ponytail, workflow publish.yml），
+          # 则无需 NPM_TOKEN，OIDC 自动鉴权；保留 env 兼容两种模式

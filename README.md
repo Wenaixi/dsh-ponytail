@@ -11,6 +11,7 @@
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-111111?style=flat-square" alt="MIT"/></a>
+  <a href="https://www.npmjs.com/package/@wenaixi/dsh-ponytail"><img src="https://img.shields.io/npm/v/@wenaixi/dsh-ponytail?color=111111&style=flat-square" alt="npm"/></a>
   <img src="https://img.shields.io/badge/version-4.9.0-111111?style=flat-square" alt="version"/>
   <img src="https://img.shields.io/badge/DSH-0.1.1--rc.2-333333?style=flat-square" alt="DSH"/>
   <img src="https://img.shields.io/badge/skills-6-008080?style=flat-square" alt="skills"/>
@@ -18,7 +19,7 @@
 </p>
 
 <p align="center">
-  <a href="README.md">中文</a> · <a href="README.en.md">English</a> · <a href="CHANGELOG.md">Changelog</a> · <a href="https://github.com/DietrichGebert/ponytail">上游</a>
+  <a href="README.md">中文</a> · <a href="README.en.md">English</a> · <a href="CHANGELOG.md">Changelog</a> · <a href="https://github.com/DietrichGebert/ponytail">上游</a> · <a href="https://www.npmjs.com/package/@wenaixi/dsh-ponytail">npm</a>
 </p>
 
 ---
@@ -49,26 +50,55 @@
 
 ## 🚀 安装
 
-### 方式一：本地联调（推荐）
+### 方式一：npm（推荐）
+
+```bash
+# 作为 DSH 插件安装（自动走 dsh.bundle）
+dsh plugin --profile demo add @wenaixi/dsh-ponytail
+
+# 或作为普通 npm 包
+npm i @wenaixi/dsh-ponytail
+pnpm add @wenaixi/dsh-ponytail
+```
+
+> 版本与上游同步，当前 `4.9.0`，`npm view @wenaixi/dsh-ponytail version` 可查。
+
+### 方式二：GitHub 直装（无需构建，lib 已提交）
+
+```bash
+dsh plugin --profile demo add github:Wenaixi/dsh-ponytail
+# 指定 tag / 分支亦可
+dsh plugin --profile demo add github:Wenaixi/dsh-ponytail#v4.9.0
+```
+
+### 方式三：本地联调 / tarball
 
 ```bash
 pnpm install && pnpm build
 dsh plugin --profile demo add ./
 dsh --profile demo --dump-config  # 应能看到 ponytail 行
-dsh --profile demo                # 启动后 skill 自动可用
-```
 
-### 方式二：从目录 / tarball 安装
-
-```bash
-dsh plugin --profile demo add /path/to/dsh-ponytail
-# 或 pnpm pack && dsh plugin --profile demo add ./dsh-ponytail-4.9.0.tgz
+# 或
+pnpm pack && dsh plugin --profile demo add ./wenaixi-dsh-ponytail-4.9.0.tgz
 ```
 
 ### 卸载
 
 ```bash
-dsh plugin --profile demo remove dsh-ponytail
+dsh plugin --profile demo remove @wenaixi/dsh-ponytail
+```
+
+### 验证（不重启 3080）
+
+```bash
+pnpm build && pnpm typecheck && node scripts/verify.mjs
+dsh --profile demo --dump-config | grep -A2 ponytail
+# 隔离 profile 验证 GitHub 直装（不影响 web/3080）
+dsh plugin --profile ponytail-test add github:Wenaixi/dsh-ponytail
+dsh --profile ponytail-test --dump-config | grep -A2 ponytail
+# 验证 npm 直装（隔离 profile）
+dsh plugin --profile ponytail-npm-test add @wenaixi/dsh-ponytail
+dsh --profile ponytail-npm-test --dump-config | grep -A2 ponytail
 ```
 
 ## ⚙️ 配置
@@ -78,7 +108,7 @@ dsh plugin --profile demo remove dsh-ponytail
 ```yaml
 - insert:
     - id: ponytail
-      name: dsh-ponytail
+      name: "@wenaixi/dsh-ponytail"
       config:
         providerName: ponytail
         skillDir: E:/path/to/skills   # 调试用，默认包内 skills/
@@ -114,6 +144,7 @@ pnpm dsh web --patch ./cordis.patch.yml   # 热重载：改 src/ 或 skills/ 即
 
 - `skills/` 中文化后需重跑 `build` 与 `verify`（已处理 BOM 与 `\r\n`）
 - HMR：改 `src/*.ts` 或 `skills/**/SKILL.md` 后旧 provider/section 自动清理
+- 发布：`pnpm build && npm publish --access public --provenance`（需 npm Trusted Publisher 或带 2FA 的 granular token）；或走 GitHub Actions `publish.yml`（`v*` tag 自动发布）
 
 ## 📂 目录
 
@@ -124,8 +155,8 @@ src/ponytail-instructions.ts # 按 mode 裁剪 SKILL.md + 中文 fallback
 src/ponytail-runtime.ts      # flag 文件 + 多平台识别（Claude/Codex/Qoder）
 skills/ponytail/*.md         # 6 个中文 Skill
 assets/                      # logo / benchmark 图
-lib/                         # 构建产物
-cordis.patch.yml             # - insert: { id: ponytail, name: dsh-ponytail }
+lib/                         # 构建产物（已提交，支持 GitHub 直装）
+cordis.patch.yml             # - insert: { id: ponytail, name: "@wenaixi/dsh-ponytail" }
 ```
 
 ## 🔗 上游
