@@ -1,41 +1,31 @@
 ---
 name: ponytail-audit
 description: >
-  Whole-repo audit for over-engineering. Like ponytail-review, but scans the
-  entire codebase instead of a diff: a ranked list of what to delete, simplify,
-  or replace with stdlib/native equivalents. Use when the user says "audit this
-  codebase", "audit for over-engineering", "what can I delete from this repo",
-  "find bloat", "ponytail-audit", or "/ponytail-audit". One-shot report, does
-  not apply fixes.
+  全仓过度设计审计，类似 ponytail-review，但扫描的是整个代码库而非 diff：按可删行数排序，列出能删、能简化、能用标准库/原生替代的地方。触发词：审计代码库 / 审计过度设计 / 这个仓库能删什么 / 找臃肿 / ponytail-audit / /ponytail-audit。一次性报告，不直接改代码。
 ---
 
-ponytail-review, repo-wide. Scan the whole tree instead of a diff. Rank
-findings biggest cut first.
+ponytail-review 的全仓版，扫描整棵目录树而非 diff，按可删收益从大到小排序。
 
-## Tags
+## 标签
 
-Same as ponytail-review:
+与 ponytail-review 相同：
 
-- `delete:` dead code, unused flexibility, speculative feature. Replacement: nothing.
-- `stdlib:` hand-rolled thing the standard library ships. Name the function.
-- `native:` dependency or code doing what the platform already does. Name the feature.
-- `yagni:` abstraction with one implementation, config nobody sets, layer with one caller.
-- `shrink:` same logic, fewer lines. Show the shorter form.
+- `delete:` 死代码、未使用的灵活性、臆想功能。替代：无。
+- `stdlib:` 标准库已有的东西被手写了一遍，写出函数名。
+- `native:` 依赖或代码在做平台已有的事，写出平台特性名。
+- `yagni:` 只有一个实现的抽象、没人改的配置、只有一个调用方的分层。
+- `shrink:` 同样逻辑，更少行数，给出更短写法。
 
-## Hunt
+## 猎物
 
-Deps the stdlib or platform already ships, single-implementation interfaces,
-factories with one product, wrappers that only delegate, files exporting one
-thing, dead flags and config, hand-rolled stdlib.
+标准库或平台已能覆盖的依赖、只有一个实现的接口、只有一个产品的工厂、只做转发的包装、只导出一个东西的文件、僵死的开关和配置、手写的标准库。
 
-## Output
+## 输出
 
-One line per finding, ranked: `<tag> <what to cut>. <replacement>. [path]`.
-End with `net: -<N> lines, -<M> deps possible.` Nothing to cut: `Lean already. Ship.`
+每条发现一行，按可删行数排序：`<标签> <该删什么>。<替代方案>。[路径]`。
+结尾汇总 `net: -<N> 行，-<M> 个依赖可删。` 若无可删之处：`已足够精简，直接发版。`
 
-## Boundaries
+## 边界
 
-Scope: over-engineering and complexity only. Correctness bugs, security holes,
-and performance are explicitly out of scope. Route them to a normal review
-pass. Lists findings, applies nothing. One-shot.
-"stop ponytail-audit" or "normal mode" to revert.
+范围：只看过度设计和复杂度。正确性 bug、安全漏洞、性能问题明确不在范围内，请走常规评审通道。只列发现，不动手改。一次性报告。
+「stop ponytail-audit / 正常模式」可退出。

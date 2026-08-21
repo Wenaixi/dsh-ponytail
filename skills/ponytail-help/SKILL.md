@@ -1,71 +1,65 @@
 ---
 name: ponytail-help
 description: >
-  Quick-reference card for all ponytail modes, skills, and commands.
-  One-shot display, not a persistent mode. Trigger: /ponytail-help,
-  "ponytail help", "what ponytail commands", "how do I use ponytail".
+  ponytail 全量模式、技能与命令的速查卡，一次性展示，非持久模式。触发词：/ponytail-help / ponytail help / ponytail 有哪些命令 / 怎么用 ponytail。
 ---
 
-# Ponytail Help
+# Ponytail Help · 速查卡
 
-Display this reference card when invoked. One-shot, do NOT change mode,
-write flag files, or persist anything.
+被调用时展示此速查卡。一次性展示，不要切换模式、写 flag 文件或做任何持久化。
 
-## Levels
+## 等级
 
-| Level | Trigger | What change |
-|-------|---------|-------------|
-| **Lite** | `/ponytail lite` | Build what's asked, name the lazier alternative in one line. |
-| **Full** | `/ponytail` | The ladder enforced: YAGNI → stdlib → native → one line → minimum. Default. |
-| **Ultra** | `/ponytail ultra` | YAGNI extremist. Deletion before addition. Challenges requirements before building. |
+| 等级 | 触发 | 变化 |
+|-------|---------|------|
+| **Lite** | `/ponytail lite` | 按要求构建，但在同一行里点出更懒的替代方案。 |
+| **Full** | `/ponytail` | 强制走梯子：YAGNI → 标准库 → 原生 → 一行 → 最小实现。默认。 |
+| **Ultra** | `/ponytail ultra` | YAGNI 极端派，先删后加，在构建前先挑战需求本身。 |
 
-Level sticks until changed or session end.
+等级会保持到被修改或会话结束。
 
-## Skills
+## 技能
 
-| Skill | Trigger | What it does |
-|-------|---------|--------------|
-| **ponytail** | `/ponytail` | Lazy mode itself. Simplest solution that works. |
-| **ponytail-review** | `/ponytail-review` | Over-engineering review: `L42: yagni: factory, one product. Inline.` |
-| **ponytail-audit** | `/ponytail-audit` | Whole-repo over-engineering audit: ranked list of what to delete. |
-| **ponytail-debt** | `/ponytail-debt` | Harvest `ponytail:` shortcut comments into a tracked ledger. |
-| **ponytail-gain** | `/ponytail-gain` | Measured-impact scoreboard: less code, less cost, more speed. |
-| **ponytail-help** | `/ponytail-help` | This card. |
+| 技能 | 触发 | 作用 |
+|-------|---------|------|
+| **ponytail** | `/ponytail` | 懒人模式本体，用最简可用的解法。 |
+| **ponytail-review** | `/ponytail-review` | 过度设计评审：`L42: yagni: 工厂只有一个产品，直接内联。` |
+| **ponytail-audit** | `/ponytail-audit` | 全仓过度设计审计：按可删行数排序的清单。 |
+| **ponytail-debt** | `/ponytail-debt` | 收割 `ponytail:` 捷径注释，生成待办台账。 |
+| **ponytail-gain** | `/ponytail-gain` | 实测收益看板：更少代码、更低成本、更快速度。 |
+| **ponytail-help** | `/ponytail-help` | 本卡片。 |
 
-Codex uses `@ponytail`, `@ponytail-review`, and `@ponytail-help`; Claude Code
-and OpenCode use the slash-command forms above (OpenCode ships all six as
-slash commands).
+Codex 使用 `@ponytail`、`@ponytail-review`、`@ponytail-help`；Claude Code 与 OpenCode 使用上述斜杠形式（OpenCode 将六个技能均作为斜杠命令提供）。
 
-## Deactivate
+## 退出
 
-Say "stop ponytail" or "normal mode". Resume anytime with `/ponytail`.
-`/ponytail off` also works.
+说「stop ponytail / 正常模式」即可退出，随时用 `/ponytail` 恢复。
+`/ponytail off` 同样可用。
 
-## Configure Default Mode
+## 配置默认等级
 
-Default mode = `full`, auto-active every session. Change it:
+默认等级为 `full`，每会话自动激活。修改方式：
 
-**Environment variable** (highest priority):
+**环境变量**（优先级最高）：
 ```bash
 export PONYTAIL_DEFAULT_MODE=ultra
 ```
 
-**Config file** (`~/.config/ponytail/config.json`, Windows: `%APPDATA%\ponytail\config.json`):
+**配置文件**（`~/.config/ponytail/config.json`，Windows：`%APPDATA%\ponytail\config.json`）：
 ```json
 { "defaultMode": "lite" }
 ```
 
-Set `"off"` to disable auto-activation on session start, activate manually
-with `/ponytail` when wanted.
+设为 `"off"` 可关闭会话启动时的自动激活，需要时再用 `/ponytail` 手动开启。
 
-Resolution: env var > config file > `full`.
+优先级：环境变量 > 配置文件 > `full`。
 
-## Update
+## 更新
 
-Enable auto-update once: open `/plugin`, go to Marketplaces, pick ponytail, Enable auto-update. Claude Code then pulls new versions at startup (run `/reload-plugins` when it prompts). Manual refresh: `/plugin marketplace update ponytail` then `/reload-plugins`.
+启用一次自动更新：打开 `/plugin`，进入 Marketplaces，选择 ponytail，开启 Enable auto-update。Claude Code 会在启动时拉取新版本（提示时执行 `/reload-plugins`）。手动刷新：`/plugin marketplace update ponytail` 然后 `/reload-plugins`。
 
-If `/plugin` is not recognized, your Claude Code is out of date. Update it (`npm install -g @anthropic-ai/claude-code@latest`, or `brew upgrade claude-code`) and restart. Other hosts use their own update flow.
+若无法识别 `/plugin`，说明 Claude Code 过旧，请先更新（`npm install -g @anthropic-ai/claude-code@latest` 或 `brew upgrade claude-code`）并重启。其他宿主请走各自的更新流程。
 
-## More
+## 更多
 
-Full docs + examples: https://github.com/DietrichGebert/ponytail
+完整文档与示例：https://github.com/DietrichGebert/ponytail

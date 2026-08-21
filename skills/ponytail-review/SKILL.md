@@ -1,57 +1,45 @@
 ---
 name: ponytail-review
 description: >
-  Code review focused exclusively on over-engineering. Finds what to delete:
-  reinvented standard library, unneeded dependencies, speculative abstractions,
-  dead flexibility. One line per finding: location, what to cut, what replaces
-  it. Use when the user says "review for over-engineering", "what can we
-  delete", "is this over-engineered", "simplify review", or invokes
-  /ponytail-review. Complements correctness-focused review, this one only
-  hunts complexity.
+  专挑过度设计的代码评审，只找能删的东西：重复造的标准库、没必要的依赖、臆想的抽象、闲置的灵活性。每条发现一行写完：位置、该删什么、用什么替代。触发词：过度设计评审 / 能删什么 / 是否过度设计 / 简化评审 / ponytail-review / /ponytail-review。配合面向正确性的评审使用，本技能只猎复杂度。
 ---
 
-Review diffs for unnecessary complexity. One line per finding: location, what
-to cut, what replaces it. The diff's best outcome is getting shorter.
+只评审 diff 中的不必要复杂度，每条发现一行写完：位置、该删什么、用什么替代。diff 的最好结局是变短。
 
-## Format
+## 格式
 
-`L<line>: <tag> <what>. <replacement>.`, or `<file>:L<line>: ...` for
-multi-file diffs.
+`L<行号>: <标签> <该删什么>。<替代方案>。` 多文件 diff 用 `<文件>:L<行号>: ...`。
 
-Tags:
+标签：
 
-- `delete:` dead code, unused flexibility, speculative feature. Replacement: nothing.
-- `stdlib:` hand-rolled thing the standard library ships. Name the function.
-- `native:` dependency or code doing what the platform already does. Name the feature.
-- `yagni:` abstraction with one implementation, config nobody sets, layer with one caller.
-- `shrink:` same logic, fewer lines. Show the shorter form.
+- `delete:` 死代码、未使用的灵活性、臆想功能。替代：无。
+- `stdlib:` 标准库已有的东西被手写了一遍，写出函数名。
+- `native:` 依赖或代码在做平台已有的事，写出平台特性名。
+- `yagni:` 只有一个实现的抽象、没人改的配置、只有一个调用方的分层。
+- `shrink:` 同样逻辑，更少行数，给出更短写法。
 
-## Examples
+## 示例
 
-❌ "This EmailValidator class might be more complex than necessary, have you
-considered whether all these validation rules are needed at this stage?"
+❌ 「这个 EmailValidator 类是不是有点复杂，要不要考虑现阶段是否真的需要这么多校验规则？」
 
-✅ `L12-38: stdlib: 27-line validator class. "@" in email, 1 line, real validation is the confirmation mail.`
+✅ `L12-38: stdlib: 27 行的校验类。邮箱里有 "@" 就算 1 行，真正的校验是发确认邮件。`
 
-✅ `L4: native: moment.js imported for one format call. Intl.DateTimeFormat, 0 deps.`
+✅ `L4: native: 为了一次格式化就引入 moment.js。用 Intl.DateTimeFormat，0 依赖。`
 
-✅ `repo.py:L88: yagni: AbstractRepository with one implementation. Inline it until a second one exists.`
+✅ `repo.py:L88: yagni: 只有一个实现的 AbstractRepository。先内联，等第二个实现出现再说。`
 
-✅ `L52-71: delete: retry wrapper around an idempotent local call. Nothing replaces it.`
+✅ `L52-71: delete: 在幂等的本地调用外包了一层重试。删掉即可。`
 
-✅ `L30-44: shrink: manual loop builds dict. dict(zip(keys, values)), 1 line.`
+✅ `L30-44: shrink: 手写循环拼 dict。用 dict(zip(keys, values))，1 行。`
 
-## Scoring
+## 评分
 
-End with the only metric that matters: `net: -<N> lines possible.`
+最后只留一个关心的指标：`net: -<N> 行可删。`
 
-If there is nothing to cut, say `Lean already. Ship.` and stop.
+若无可删之处，直接说 `已足够精简，直接发版。` 并结束。
 
-## Boundaries
+## 边界
 
-Scope: over-engineering and complexity only. Correctness bugs, security holes,
-and performance are explicitly out of scope. Route them to a normal review
-pass, not this one. A single smoke test or `assert`-based
-self-check is the ponytail minimum, not bloat, never flag it for deletion.
-Does not apply the fixes, only lists them.
-"stop ponytail-review" or "normal mode": revert to verbose review style.
+范围：只看过度设计和复杂度。正确性 bug、安全漏洞、性能问题明确不在范围内，请走常规评审通道。单个冒烟测试或基于 `assert` 的自检是 ponytail 的最低要求，不算臃肿，永远不要标为可删。
+只列发现，不直接改代码。
+「stop ponytail-review / 正常模式」可切回啰嗦的评审风格。

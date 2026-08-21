@@ -1,50 +1,37 @@
 ---
 name: ponytail-gain
 description: >
-  Show ponytail's measured impact as a compact scoreboard: less code, less
-  cost, more speed, from the benchmark medians. One-shot display, not a
-  persistent mode, and not a per-repo number. Trigger: /ponytail-gain,
-  "ponytail gain", "what does ponytail save", "show ponytail impact",
-  "ponytail scoreboard".
+  以精简看板展示 ponytail 的实测收益：更少代码、更低成本、更快速度，数据来自 benchmark 中位数。一次性展示，非持久模式，也非本仓实时统计。触发词：/ponytail-gain / ponytail gain / ponytail 能省多少 / 展示 ponytail 收益 / ponytail 看板。
 ---
 
-# Ponytail Gain
+# Ponytail Gain · 收益看板
 
-Display this scoreboard when invoked. One-shot: do NOT change mode, write flag
-files, or persist anything.
+被调用时展示此看板。一次性展示：不要切换模式、写 flag 文件或做任何持久化。
 
-The figures are the published benchmark medians (5 everyday tasks: email
-validator, debounce, CSV sum, countdown timer, rate limiter; three models:
-Haiku, Sonnet, Opus). They are measured, not computed from the current repo.
-Source: `benchmarks/` and the README.
+数据为已发布的 benchmark 中位数（5 个日常任务：邮箱校验、防抖、CSV 求和、倒计时、限流器；3 个模型：Haiku、Sonnet、Opus），是实测值而非基于当前仓库计算。来源：`benchmarks/` 与 README。
 
-## Scoreboard
+## 看板
 
-Render plain ASCII bars. The bar length shows the measured range; the label
-carries the exact figure:
+用纯 ASCII 条形图渲染，条形长度表示实测区间，标签给出精确数值：
 
 ```
-  ponytail gain                     benchmark median · 5 tasks · 3 models
+  ponytail gain                     benchmark 中位数 · 5 任务 · 3 模型
 
-  Lines of code   no-skill  ████████████████████  100%
-                  ponytail  ██▌·················    6–20%   ▼ 80–94%
-  Cost            no-skill  ████████████████████  100%
-                  ponytail  █████▌··············   23–53%  ▼ 47–77%
-  Speed           ponytail  ▸ 3–6× faster
+  代码行数    无技能  ████████████████████  100%
+              ponytail  ██▌·················    6–20%   ▼ 80–94%
+  成本        无技能  ████████████████████  100%
+              ponytail  █████▌··············   23–53%  ▼ 47–77%
+  速度        ponytail  ▸ 3–6× 更快
 
-  This repo:  /ponytail-debt  (shortcuts you deferred)
-              /ponytail-audit (what's still cuttable)
+  本仓：  /ponytail-debt （已延期的捷径）
+          /ponytail-audit（仍可删的地方）
 ```
 
-## Honesty boundary
+## 诚实边界
 
-These are benchmark medians, not this repo. NEVER print a per-repo savings
-number ("you saved X lines/tokens here"): the unbuilt version was never
-written, so there is no real baseline to subtract from in a live repo. The
-only real per-repo figures come from `/ponytail-debt` (a counted ledger), and
-this card points there instead of inventing one.
+这些是 benchmark 中位数，不是本仓数据。永远不要打印针对本仓的节省数字（例如「本仓节省了 X 行/Token」）：没写的版本从未存在，因此在真实仓库中没有可对比的基线。唯一真实的本仓数字来自 `/ponytail-debt`（已计数的台账），本卡片也会指向那里，而不是凭空捏造。
 
-## Boundaries
+## 边界
 
-One-shot display. Edits nothing, changes no mode.
-"stop ponytail" or "normal mode": revert.
+一次性展示，不改任何东西，不切换模式。
+「stop ponytail / 正常模式」可退出。
