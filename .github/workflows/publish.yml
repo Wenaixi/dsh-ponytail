@@ -13,6 +13,8 @@ permissions:
 jobs:
   publish-npm:
     runs-on: ubuntu-latest
+    # 避免 publish 在非 tag 的 push 上被触发（workflow_dispatch 手动触发除外）
+    if: startsWith(github.ref, 'refs/tags/v')
     steps:
       - uses: actions/checkout@v4
 
@@ -21,14 +23,27 @@ jobs:
           node-version: 20
           registry-url: https://registry.npmjs.org
 
-      - run: npm install -g pnpm@10
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm build
-      - run: node scripts/verify.mjs
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
 
-      - name: Publish to npm (OIDC trusted publisher)
-        run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-          # 若已在 npm 配置 Trusted Publisher（Wenaixi/dsh-ponytail, workflow publish.yml），
-          # 则无需 NPM_TOKEN，OIDC 自动鉴权；保留 env 兼容两种模式
+      - name: Install deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+
+      - name: Verify (6 skills + 无空 tool)
+        run: node scripts/verify.mjs
+
+      - name: Publish to npm
+        # 优先使用 NPM_TOKEN（granular bypass 2FA），未配置时回退到 OIDC Trusted Publisher
+        run: |
+          if [ -n "${{ secrets.NPM_TOKEN }}" ]; then
+            echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > ~/.npmrc
+            npm publish --provenance --access public
+          else
+            echo "NPM_TOKEN 未配置，尝试 OIDC Trusted Publisher"
+            npm publish --provenance --access public
+          fi
