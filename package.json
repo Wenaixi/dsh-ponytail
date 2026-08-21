@@ -1,7 +1,7 @@
 {
   "name": "dsh-ponytail",
   "version": "4.9.0",
-  "description": "DSH port of dietrichgebert/ponytail — lazy senior dev mode, full skill set, no empty tools",
+  "description": "DSH 完整移植版 dietrichgebert/ponytail — 懒惰 senior 模式，6 个中文 Skill，无空 tool",
   "type": "module",
   "main": "lib/ponytail.js",
   "types": "lib/ponytail.d.ts",
@@ -11,14 +11,18 @@
     "assets/",
     "cordis.patch.yml",
     "AGENTS.md",
-    "README.md"
+    "README.md",
+    "README.en.md",
+    "CHANGELOG.md",
+    "LICENSE"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src --ext .ts 2>&1 || echo \"(no eslint config — skipped)\"",
     "prepare": "npm run build",
-    "verify": "node scripts/verify.mjs"
+    "verify": "node scripts/verify.mjs",
+    "prepublishOnly": "npm run build && npm run verify"
   },
   "dsh": {
     "bundle": {
@@ -41,16 +45,34 @@
     "@types/node": "^22.0.0"
   },
   "license": "MIT",
+  "author": {
+    "name": "Dietrich Gebert",
+    "url": "https://github.com/DietrichGebert"
+  },
   "repository": {
     "type": "git",
-    "url": "https://github.com/DietrichGebert/ponytail"
+    "url": "git+https://github.com/Wenaixi/dsh-ponytail.git"
+  },
+  "homepage": "https://github.com/Wenaixi/dsh-ponytail#readme",
+  "bugs": {
+    "url": "https://github.com/Wenaixi/dsh-ponytail/issues"
   },
   "keywords": [
     "dsh",
     "dsh-plugin",
+    "deepseek-harness",
     "ponytail",
     "yagni",
     "skills",
-    "agent"
-  ]
+    "agent-skills",
+    "claude-code",
+    "lazy",
+    "over-engineering"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
 }

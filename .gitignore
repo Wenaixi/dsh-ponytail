@@ -1,5 +1,36 @@
+# 依赖与产物
 node_modules/
 lib/
+dist/
 *.tgz
-.DS_Store
+*.tsbuildinfo
+
+# 环境与本地配置
 .env
+.env.*
+!.env.example
+.DSH_HOME/
+.dsh/
+
+# 系统与编辑器
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 日志与临时
+logs/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+tmp/
+temp/
+coverage/
+.nyc_output/
+.cache/
+
+# GitHub
+# （保留 .github/）
