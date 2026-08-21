@@ -33,12 +33,16 @@ dsh-ponytail/
     ponytail-gain/SKILL.md
     ponytail-help/SKILL.md
   assets/                    # logo、benchmark 图，原样拷贝
-  lib/                       # 构建产物，不入库
-  cordis.patch.yml           # - insert: { id: ponytail, name: dsh-ponytail }
+  lib/                       # 构建产物，已提交，支持 GitHub 直装无需构建
+  cordis.patch.yml           # - insert: { id: ponytail, name: "@wenaixi/dsh-ponytail" }
   package.json / tsconfig.json / tsconfig.build.json
   scripts/verify.mjs         # 6 技能 + 产物 + 无空 tool 校验
+  scripts/bump-dsh.mjs       # DSH 独立迭代版本递增（4.9.0 -> 4.9.0-dsh.1）
+  .github/workflows/ci.yml      # push 到 main / PR 时跑 typecheck+build+verify
+  .github/workflows/publish.yml # 仅 tag 推送 v* 时发布到 npm（需 NPM_TOKEN）
   AGENTS.md                  # 上游梯子原文（英文，供 OpenCode 等读取）
-  README.md                  # 中文安装与使用说明
+  README.md / README.en.md   # 中文/英文安装与使用说明（含三渠道安装）
+  CHANGELOG.md               # 版本策略与变更记录
   CLAUDE.md                  # 本文件
 ```
 
