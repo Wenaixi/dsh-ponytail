@@ -195,7 +195,7 @@ class PonytailProvider implements SkillProvider {
     } catch (err: unknown) {
       const code = (err as NodeJS.ErrnoException)?.code
       if (code === 'ENOENT' || code === 'ENOTDIR') {
-        this.ctx.logger.warn(`[ponytail] skillDir not found: ${this.skillDir}`)
+        this.ctx.logger.warn(`[ponytail] 未找到 skill 目录：${this.skillDir}`)
         return []
       }
       throw err
@@ -212,30 +212,30 @@ class PonytailProvider implements SkillProvider {
       }
       const parsed = await parseSkillFile(skillPath)
       if (!parsed) {
-        this.ctx.logger.warn(`[ponytail] skip ${entry.name}: missing or invalid frontmatter`)
+        this.ctx.logger.warn(`[ponytail] 跳过 ${entry.name}：缺少或无效的 frontmatter`)
         continue
       }
       const { data, body } = parsed
       const skillName = stringField(data, 'name')
       const description = stringField(data, 'description')
       if (!skillName || !description) {
-        this.ctx.logger.warn(`[ponytail] skip ${skillPath}: frontmatter requires name and description`)
+        this.ctx.logger.warn(`[ponytail] 跳过 ${skillPath}：frontmatter 必须包含 name 和 description`)
         continue
       }
       if (!isSkillName(skillName)) {
-        this.ctx.logger.warn(`[ponytail] skip ${skillPath}: invalid skill name "${skillName}"`)
+        this.ctx.logger.warn(`[ponytail] 跳过 ${skillPath}：无效的 skill 名称 "${skillName}"`)
         continue
       }
       if (skillName !== entry.name) {
         this.ctx.logger.warn(
-          `[ponytail] skill name "${skillName}" != directory "${entry.name}" (using frontmatter)`,
+          `[ponytail] skill 名称 "${skillName}" 与目录 "${entry.name}" 不一致（以 frontmatter 为准）`,
         )
       }
       let invocation: { modelInvocable: boolean; userInvocable: boolean }
       try {
         invocation = parseInvocationPolicy(data)
       } catch (e) {
-        this.ctx.logger.warn(`[ponytail] skip ${skillPath}: ${String(e)}`)
+        this.ctx.logger.warn(`[ponytail] 跳过 ${skillPath}：${String(e)}`)
         continue
       }
 
@@ -347,18 +347,18 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
     } catch {
       // best-effort
     }
-    ctx.logger.info(`[ponytail] active — level: ${currentMode} (skillDir: ${skillDir})`)
+    ctx.logger.info(`[ponytail] 已激活 — 等级：${currentMode}（skillDir: ${skillDir}）`)
   } else {
     try {
       clearMode()
     } catch {
       // best-effort
     }
-    ctx.logger.info('[ponytail] off — no injection until /ponytail')
+    ctx.logger.info('[ponytail] 已关闭 — 直到 /ponytail 再次激活前不注入')
   }
 
   if (skillDir && !isShellSafe(skillDir)) {
-    ctx.logger.warn(`[ponytail] skillDir contains shell metacharacters, verify path: ${skillDir}`)
+    ctx.logger.warn(`[ponytail] skillDir 包含 shell 元字符，请检查路径：${skillDir}`)
   }
 
   // SkillProvider 注册
@@ -369,7 +369,7 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
   const anyCtx = ctx as unknown as { on: (event: string, handler: (...args: unknown[]) => unknown) => void }
 
   anyCtx.on('skills/change', (..._args: unknown[]) => {
-    ctx.logger.debug('[ponytail] skills catalog changed')
+    ctx.logger.debug('[ponytail] 技能目录已变更')
   })
 
   // Always-on 注入：systemPrompt section，order 50 位于 persona(0) 之后
@@ -392,11 +392,11 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
       }
       if (!currentMode || currentMode === 'off') return ''
       if (currentMode === 'review') {
-        return 'PONYTAIL MODE ACTIVE — level: review. Behavior defined by /ponytail-review skill.'
+        return 'PONYTAIL 已激活 — 等级：review，行为由 /ponytail-review 技能定义。'
       }
       try {
         const raw = readFileSync(mainSkillPath, 'utf8')
-        return 'PONYTAIL MODE ACTIVE — level: ' + currentMode + '\n\n' + filterSkillBodyForMode(raw, currentMode)
+        return 'PONYTAIL 已激活 — 等级：' + currentMode + '\n\n' + filterSkillBodyForMode(raw, currentMode)
       } catch {
         return getFallbackInstructions(currentMode)
       }
@@ -455,7 +455,7 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
       if (isDefaultPersist) {
         if (persistMode === 'off' || persistMode === 'lite' || persistMode === 'full' || persistMode === 'ultra') {
           const written = writeDefaultMode(persistMode)
-          ctx.logger.info(`[ponytail] default persisted: ${written}`)
+          ctx.logger.info(`[ponytail] 默认等级已持久化：${written}`)
           currentMode = persistMode
           try {
             setMode(persistMode)
@@ -465,7 +465,7 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
       }
 
       if (isReportOnly) {
-        ctx.logger.info(`[ponytail] mode report — level: ${mode}`)
+        ctx.logger.info(`[ponytail] 当前等级：${mode}`)
         return { handled: true, switched: false }
       }
 
@@ -474,7 +474,7 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
         try {
           setMode(mode)
         } catch {}
-        ctx.logger.info(`[ponytail] mode switched — level: ${mode}`)
+        ctx.logger.info(`[ponytail] 已切换 — 等级：${mode}`)
         return { handled: true, switched: true }
       }
       if (mode === 'off') {
@@ -482,7 +482,7 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
         try {
           clearMode()
         } catch {}
-        ctx.logger.info('[ponytail] mode off')
+        ctx.logger.info('[ponytail] 已关闭')
         return { handled: true, switched: true }
       }
 
@@ -494,7 +494,7 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
       try {
         clearMode()
       } catch {}
-      ctx.logger.info('[ponytail] deactivated via: ' + text)
+      ctx.logger.info('[ponytail] 已通过指令退出：' + text)
       return { handled: true, switched: true }
     }
 
@@ -550,7 +550,7 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
     try {
       setMode(currentMode)
     } catch {}
-    ctx.logger.debug(`[ponytail] session-start (${payload.source}) — level: ${currentMode}`)
+    ctx.logger.debug(`[ponytail] 会话启动（${payload.source}）— 等级：${currentMode}`)
   })
 
   // 子 agent 注入：对齐 ponytail-subagent.js 的 PONYTAIL_SUBAGENT_MATCHER
@@ -561,20 +561,20 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
       subagentRe = new RegExp(subagentMatcherEnv, 'i')
     } catch {
       subagentRe = null
-      ctx.logger.warn(`[ponytail] invalid PONYTAIL_SUBAGENT_MATCHER: ${subagentMatcherEnv}`)
+      ctx.logger.warn(`[ponytail] PONYTAIL_SUBAGENT_MATCHER 正则无效：${subagentMatcherEnv}`)
     }
   }
 
   anyCtx.on('agent/created', (...args: unknown[]) => {
     const [payload] = args as [{ agent: { id: unknown } }]
     if (!subagentRe) return
-    ctx.logger.debug(`[ponytail] subagent created: ${String((payload.agent as { id: unknown }).id)} — matcher: ${subagentMatcherEnv}`)
+    ctx.logger.debug(`[ponytail] 子智能体已创建：${String((payload.agent as { id: unknown }).id)} — 匹配器：${subagentMatcherEnv}`)
   })
 
   // 清理：HMR 卸载时自动通过 ctx 逆序清理所有注册；额外标记
   ctx.effect(() => {
     return () => {
-      ctx.logger.info('[ponytail] disposed — provider and prompt section removed')
+      ctx.logger.info('[ponytail] 已卸载 — provider 与 prompt 段已移除')
     }
   })
 }
