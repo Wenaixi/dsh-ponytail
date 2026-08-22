@@ -21,6 +21,9 @@ Thumbs.db
 *.swo
 *~
 
+# 本地记忆（不提交）
+CLAUDE.md
+
 # 日志与临时
 logs/
 *.log
