@@ -50,11 +50,13 @@
 
 ## 🚀 安装
 
+> 默认装到 `web`（你日常的 DSH Web UI，3080 端口）。`demo` 仅为文档示例，可换成任意 `--profile <name>`。
+
 ### 方式一：npm（推荐）
 
 ```bash
-# 作为 DSH 插件安装（自动走 dsh.bundle）
-dsh plugin --profile demo add @wenaixi/dsh-ponytail
+# 作为 DSH 插件安装到 web（自动走 dsh.bundle，下次启动 web 生效，无需手动重启 3080）
+dsh plugin --profile web add @wenaixi/dsh-ponytail
 
 # 或作为普通 npm 包
 npm i @wenaixi/dsh-ponytail
@@ -62,30 +64,31 @@ pnpm add @wenaixi/dsh-ponytail
 ```
 
 > 版本与上游同步，当前 `4.9.0`，`npm view @wenaixi/dsh-ponytail version` 可查。
+> 若看到 `WARN missing peer @deepseek-ai/...` 属正常：peer 由 DSH 运行时提供，不影响安装；看到 `Packages: +2 Done` 即成功。
 
 ### 方式二：GitHub 直装（无需构建，lib 已提交）
 
 ```bash
-dsh plugin --profile demo add github:Wenaixi/dsh-ponytail
+dsh plugin --profile web add github:Wenaixi/dsh-ponytail
 # 指定 tag / 分支亦可
-dsh plugin --profile demo add github:Wenaixi/dsh-ponytail#v4.9.0
+dsh plugin --profile web add github:Wenaixi/dsh-ponytail#v4.9.0
 ```
 
 ### 方式三：本地联调 / tarball
 
 ```bash
 pnpm install && pnpm build
-dsh plugin --profile demo add ./
-dsh --profile demo --dump-config  # 应能看到 ponytail 行
+dsh plugin --profile web add ./
+dsh --profile web --dump-config  # 应能看到 ponytail 行
 
 # 或
-pnpm pack && dsh plugin --profile demo add ./wenaixi-dsh-ponytail-4.9.0.tgz
+pnpm pack && dsh plugin --profile web add ./wenaixi-dsh-ponytail-4.9.0.tgz
 ```
 
 ### 卸载
 
 ```bash
-dsh plugin --profile demo remove @wenaixi/dsh-ponytail
+dsh plugin --profile web remove @wenaixi/dsh-ponytail
 ```
 
 ### 验证（不重启 3080）

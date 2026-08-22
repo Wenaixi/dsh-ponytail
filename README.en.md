@@ -48,40 +48,45 @@
 
 ## 🚀 Install
 
+> Default target is `web` (your daily DSH Web UI on :3080). `demo` in examples is just a placeholder — replace with any `--profile <name>`.
+
 ### npm (recommended)
 
 ```bash
-dsh plugin --profile demo add @wenaixi/dsh-ponytail
+# As a DSH plugin (via dsh.bundle, takes effect on next web start — no need to restart :3080 manually)
+dsh plugin --profile web add @wenaixi/dsh-ponytail
 npm i @wenaixi/dsh-ponytail
 pnpm add @wenaixi/dsh-ponytail
 ```
 
+> `WARN missing peer @deepseek-ai/...` is expected: those peers are provided by the DSH runtime. `Packages: +2 Done` means success.
+
 ### GitHub (no build, lib committed)
 
 ```bash
-dsh plugin --profile demo add github:Wenaixi/dsh-ponytail
-dsh plugin --profile demo add github:Wenaixi/dsh-ponytail#v4.9.0
+dsh plugin --profile web add github:Wenaixi/dsh-ponytail
+dsh plugin --profile web add github:Wenaixi/dsh-ponytail#v4.9.0
 ```
 
 ### Local / tarball
 
 ```bash
 pnpm install && pnpm build
-dsh plugin --profile demo add ./
-pnpm pack && dsh plugin --profile demo add ./wenaixi-dsh-ponytail-4.9.0.tgz
+dsh plugin --profile web add ./
+pnpm pack && dsh plugin --profile web add ./wenaixi-dsh-ponytail-4.9.0.tgz
 ```
 
 Remove:
 
 ```bash
-dsh plugin --profile demo remove @wenaixi/dsh-ponytail
+dsh plugin --profile web remove @wenaixi/dsh-ponytail
 ```
 
 Verify (no restart of :3080):
 
 ```bash
 pnpm build && pnpm typecheck && node scripts/verify.mjs
-dsh --profile demo --dump-config | grep -A2 ponytail
+dsh --profile web --dump-config | grep -A2 ponytail
 ```
 
 ## ⚙️ Configure
