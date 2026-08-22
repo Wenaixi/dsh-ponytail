@@ -1,7 +1,10 @@
 # dsh-ponytail
 
 <p align="center">
-  <img src="assets/logo.png" width="180" alt="Ponytail" />
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/Wenaixi/dsh-ponytail/main/assets/logo-dark.png">
+    <img src="https://raw.githubusercontent.com/Wenaixi/dsh-ponytail/main/assets/logo.png" width="180" alt="Ponytail" />
+  </picture>
 </p>
 
 <p align="center">
@@ -35,6 +38,106 @@
 - **Upstream-faithful behavior**: `PONYTAIL_DEFAULT_MODE` env > cordis config > config file > `full`; `review` not allowed as default; whole-sentence deactivation; `ponytail:` debt ledger; `PONYTAIL_SUBAGENT_MATCHER` filtering.
 - **No empty tools**: no `ctx.tools` placeholder — everything via `ctx.skills`.
 
+---
+
+## 🪜 What is “The Ladder”
+
+> **Ladder = decision ladder.** It doesn't make the model talk less — it makes it **stop at the first rung that holds** *before* writing any code. The higher the rung, the less code; only step down when the higher one doesn't hold.
+
+```
+1. Does this need to exist?   → No: skip (YAGNI), one-line reason
+2. Already in this codebase?  → Reuse existing helper / util / pattern
+3. Stdlib does it?            → Use stdlib
+4. Native platform feature?   → Use native (<input type=date> over a picker lib)
+5. Installed dependency?      → Use what's already installed, never add one for a few lines
+6. One line?                  → One line
+7. Only then: the minimum     → The shortest working diff
+```
+
+| Rung | Name | Meaning | Example |
+|---|---|---|---|
+| 1 | YAGNI | Don't build what you don't need | "Add a config center?" → "Not needed, YAGNI" |
+| 2 | Reuse | Find it first | `formatDate` already exists — don't write another |
+| 3 | Stdlib | Use the stdlib | `path.join` over manual string concat |
+| 4 | Native | Use platform | `<input type="date">` over `flatpickr` |
+| 5 | Installed dep | Use what's installed | Already have `dayjs` → don't add `moment` |
+| 6 | One-liner | One line if you can | `arr.filter(Boolean)` |
+| 7 | Minimal | Only here write new code | Shortest diff that works |
+
+**Key rule**: the ladder runs *after* understanding the problem, not instead of it. Trace the real call chain first, then climb. Bug fixes fix the root — one guard in the shared function beats a guard in every caller.
+
+Intensities:
+
+| Level | Behavior |
+|---|---|
+| `lite` | Build what's asked, name the lazier alternative in one line |
+| `full` (default) | Enforce the ladder, stdlib/native first |
+| `ultra` | Extreme YAGNI — challenge the requirement, then ship the one-liner |
+
+---
+
+## 🪝 Hook Injection Deep Dive
+
+> Upstream ponytail injects via `hooks/` for Claude Code / Codex / Copilot / Qoder. This port merges all 4 lifecycle hooks into a single DSH plugin — no host hook config needed.
+
+### Upstream → DSH Mapping
+
+| Upstream | Responsibility | DSH side |
+|---|---|---|
+| `ponytail-config.js` | `env > file > full`, `review` not allowed as default, BOM / allowlist | `src/ponytail-config.ts` |
+| `ponytail-instructions.js` | Slice `SKILL.md` by `lite/full/ultra`, `review` standalone | `src/ponytail-instructions.ts` + CN fallback |
+| `ponytail-runtime.js` | `.ponytail-active` flag + 3-platform detection | `src/ponytail-runtime.ts` |
+| `ponytail-activate.js` + `mode-tracker.js` + `subagent.js` | SessionStart, UserPromptSubmit, SubagentStart | `src/ponytail.ts` unified |
+
+### Injection Pipeline
+
+```
+Startup: env PONYTAIL_DEFAULT_MODE
+          → cordis config defaultMode
+          → config file ~/.config/ponytail/config.json
+          → fallback full
+          → setMode(flag file) + ctx.logger
+
+Before every model request:
+  agent/pre-step (waterfall, must return next())
+    ├─ Parse payload.messages text
+    ├─ Match /ponytail family / stop ponytail → switch currentMode + write flag
+    └─ next() to continue
+
+  systemPrompt:section { name: ponytail, order: 50 }
+    ├─ order 50 sits after persona(0), before tool guidance(100)
+    ├─ Synchronously read skills/ponytail/SKILL.md → slice by currentMode
+    ├─ off → empty string (silent)
+    ├─ review → pointer to /ponytail-review skill
+    ├─ fallback → CN built-in instruction on read failure
+    └─ Re-sync via readMode() vs currentMode before each assembly (cross-process)
+
+Persistence:
+  /ponytail default <mode> → writeDefaultMode() → config.json
+  Subagents: PONYTAIL_SUBAGENT_MATCHER regex (warn on invalid, fallback to no filter),
+             all agents share the same section on DSH — log-only distinction
+
+HMR:
+  Everything via ctx (registerProvider / section / on / effect),
+  auto-cleaned in reverse order on hot reload — no residue.
+```
+
+**Why `systemPrompt` over `agent.inject`?**
+- Logged and replayable — satisfies "model-visible is durable" invariant;
+- `order: 50` puts the constraint after the persona but before tool docs, so the model sees it first;
+- `text` is a function, evaluated on every `assemble`; zero cost when `off`.
+
+Flag file (upstream-compatible, cross-process):
+
+```
+CLAUDE_PLUGIN_ROOT contains agent-plugins + .vscode  → VS Code Copilot
+PLUGIN_DATA                                      → Codex
+QODER_SESSION_ID                                 → Qoder
+otherwise                                        → ~/.claude / $CLAUDE_CONFIG_DIR
+```
+
+---
+
 ## 📦 Skills
 
 | Skill | Type | Notes |
@@ -45,6 +148,8 @@
 | `ponytail-debt` | skill | harvest `ponytail:` comments |
 | `ponytail-gain` | skill | scoreboard (benchmark medians) |
 | `ponytail-help` | skill | quick reference |
+
+---
 
 ## 🚀 Install
 
@@ -89,6 +194,8 @@ pnpm build && pnpm typecheck && node scripts/verify.mjs
 dsh --profile web --dump-config | grep -A2 ponytail
 ```
 
+---
+
 ## ⚙️ Configure
 
 ```yaml
@@ -103,12 +210,16 @@ dsh --profile web --dump-config | grep -A2 ponytail
 
 Priority: `PONYTAIL_DEFAULT_MODE` env > explicit cordis `defaultMode` > `~/.config/ponytail/config.json` (`%APPDATA%` on Windows, `XDG_CONFIG_HOME` wins) > `full`. `/ponytail default <mode>` persists to that file.
 
+---
+
 ## 🎮 Usage
 
 - Active by default on every coding turn. Explicit: `/ponytail [lite|full|ultra|off]`, `/ponytail default <mode>`, `/ponytail-review` etc.
 - One-shot skills: `/ponytail-review`, `/ponytail-audit`, `/ponytail-debt`, `/ponytail-gain`, `/ponytail-help`
 - Deactivate: `stop ponytail` / `normal mode` (whole sentence) or `/ponytail off`
 - Subagents: `PONYTAIL_SUBAGENT_MATCHER` regex, same as upstream
+
+---
 
 ## 🛠️ Dev
 
@@ -117,6 +228,8 @@ pnpm typecheck && pnpm build && node scripts/verify.mjs
 dsh --profile web --patch ./cordis.patch.yml --dump-config
 pnpm dsh web --patch ./cordis.patch.yml
 ```
+
+---
 
 ## 📄 License
 
