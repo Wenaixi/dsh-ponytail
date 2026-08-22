@@ -4,7 +4,7 @@
 
 > **版本策略**：每个版本固定带 `-dsh.N` 后缀（如 `4.9.0-dsh.0`、`4.9.0-dsh.1`），初始即 `-dsh.0`。上游发新版时重置为新上游版本的 `-dsh.0`（如 `4.10.0-dsh.0`），用 `pnpm run bump:dsh -- 4.10.0`。递增：`pnpm run bump:dsh`。遵循 SemVer 预发布语义。
 
-## [Unreleased]
+## [4.9.0-dsh.5] - 2026-08-22
 
 ### Fixed
 - `isDeactivationCommand` 去除正则重复 `\s`，保持 spec `.!?。！？` + 空白
