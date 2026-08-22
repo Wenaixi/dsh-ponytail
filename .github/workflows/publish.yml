@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   id-token: write
 
 jobs:
@@ -43,7 +43,6 @@ jobs:
         run: |
           if [ -n "${{ secrets.NPM_TOKEN }}" ]; then
             echo "Publishing with NPM_TOKEN (without --provenance)"
-            # setup-node 会把 NPM_CONFIG_USERCONFIG 指向临时文件，同时写 ~/.npmrc 做双保险
             echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > ~/.npmrc
             echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > "$NPM_CONFIG_USERCONFIG" 2>/dev/null || true
             VERSION=$(node -p "require('./package.json').version")
@@ -56,3 +55,12 @@ jobs:
             echo "Publishing with OIDC Trusted Publisher (--provenance)"
             npm publish --provenance --access public
           fi
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: false
+          body: |
+            📝 完整更新内容见 [CHANGELOG.md](https://github.com/Wenaixi/dsh-ponytail/blob/${{ github.ref_name }}/CHANGELOG.md)
+
+            Tag: `${{ github.ref_name }}`
