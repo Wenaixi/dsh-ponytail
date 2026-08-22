@@ -15,7 +15,7 @@
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-111111?style=flat-square" alt="MIT"/></a>
   <a href="https://www.npmjs.com/package/@wenaixi/dsh-ponytail"><img src="https://img.shields.io/npm/v/@wenaixi/dsh-ponytail?color=111111&style=flat-square" alt="npm"/></a>
-  <img src="https://img.shields.io/badge/DSH-0.1.1--rc.2-333333?style=flat-square" alt="DSH"/>
+  <img src="https://img.shields.io/badge/DSH-333333?style=flat-square" alt="DSH"/>
   <img src="https://img.shields.io/badge/skills-6-008080?style=flat-square" alt="skills"/>
 </p>
 
@@ -25,7 +25,7 @@
 
 ---
 
-> [DietrichGebert/ponytail](https://github.com/DietrichGebert/ponytail) v4.9.0 的 DSH 完整移植版 — always-on 注入 + 6 个中文 Skill，无空 tool。
+> [DietrichGebert/ponytail](https://github.com/DietrichGebert/ponytail) 的 DSH 完整移植版 — always-on 注入 + 6 个中文 Skill，无空 tool。
 
 ## 🚀 安装（默认装到 `web`）
 
@@ -131,9 +131,9 @@ pnpm dsh web --patch ./cordis.patch.yml  # 热重载
 
 ## 🔗 上游
 
-原仓 https://github.com/DietrichGebert/ponytail
+原仓 https://github.com/DietrichGebert/ponytail（MIT）
 
 ## 📄 许可
 
-[MIT](LICENSE) 
+[MIT](LICENSE)
 © DietrichGebert / Wenaixi
