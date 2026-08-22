@@ -38,12 +38,21 @@ jobs:
         run: node scripts/verify.mjs
 
       - name: Publish to npm
-        # 优先使用 NPM_TOKEN（granular bypass 2FA），未配置时回退到 OIDC Trusted Publisher
+        # NPM_TOKEN（granular bypass 2FA）与 --provenance 不兼容：
+        # --provenance 只能走 OIDC Trusted Publisher，用 token 时必须去掉该参数，否则 npm 返回 404
         run: |
           if [ -n "${{ secrets.NPM_TOKEN }}" ]; then
+            echo "Publishing with NPM_TOKEN (without --provenance)"
+            # setup-node 会把 NPM_CONFIG_USERCONFIG 指向临时文件，同时写 ~/.npmrc 做双保险
             echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > ~/.npmrc
-            npm publish --provenance --access public
+            echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > "$NPM_CONFIG_USERCONFIG" 2>/dev/null || true
+            VERSION=$(node -p "require('./package.json').version")
+            if npm view @wenaixi/dsh-ponytail versions --json 2>/dev/null | grep -q "\"$VERSION\""; then
+              echo "Version $VERSION already published, skipping"
+              exit 0
+            fi
+            npm publish --access public
           else
-            echo "NPM_TOKEN 未配置，尝试 OIDC Trusted Publisher"
+            echo "Publishing with OIDC Trusted Publisher (--provenance)"
             npm publish --provenance --access public
           fi
