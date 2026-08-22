@@ -32,7 +32,7 @@
 > `web` 即日常的 DSH Web UI（3080）。示例中的 `demo` 可换成任意 `--profile <name>`。
 
 ```bash
-# 方式一：npm（推荐，下次启动 web 生效，无需手动重启 3080）
+# 方式一：npm
 dsh plugin --profile web add @wenaixi/dsh-ponytail
 
 # 方式二：GitHub 直装（lib 已提交，无需构建）
@@ -45,7 +45,7 @@ pnpm pack && dsh plugin --profile web add ./wenaixi-dsh-ponytail-*.tgz
 # 卸载
 dsh plugin --profile web remove @wenaixi/dsh-ponytail
 
-# 验证（不重启 3080）
+# 验证
 dsh --profile web --dump-config | grep -A2 ponytail
 ```
 
