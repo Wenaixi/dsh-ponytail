@@ -40,42 +40,6 @@
 
 ---
 
-## 🪜 什么是「梯子」
-
-> **The Ladder — 中文常称「梯子」或「决策梯」**。不是让模型少说话，而是让它在**写任何代码前**，自上而下站在「第一个站得住的横档」上。站得越高，代码越少；站不住才往下走。
-
-```
-1. Does this need to exist?   → 否：跳过（YAGNI），一句话说明原因
-2. Already in this codebase?  → 复用已有 helper / util / 模式，别重写
-3. Stdlib does it?            → 用标准库
-4. Native platform feature?   → 用平台原生（<input type=date> 胜过日期库）
-5. Installed dependency?      → 用已安装依赖，绝不为几行代码新增依赖
-6. One line?                  → 能一行就一行
-7. Only then: the minimum     → 只有到这里，再写能工作的最小代码
-```
-
-| 横档 | 英文原名 | 中文 | 含义 | 典型例子 |
-|---|---|---|---|---|
-| 1 | YAGNI | 需要存在吗 | 推测性需求直接不做 | “加个配置中心？”→“暂不需要，YAGNI” |
-| 2 | Reuse | 已有吗 | 先在仓库里找 | 已有 `formatDate` 就别再写一个 |
-| 3 | Stdlib | 标准库能做吗 | 优先标准库 | `path.join` 胜过手拼字符串 |
-| 4 | Native | 原生能覆盖吗 | 优先平台能力 | `<input type="date">` 胜过 `flatpickr` |
-| 5 | Installed dep | 已装依赖能解吗 | 用已装的，不新增 | 已有 `dayjs` 就别再装 `moment` |
-| 6 | One-liner | 能一行吗 | 能一行就一行 | `arr.filter(Boolean)` |
-| 7 | Minimal | 最小实现 | 只有这里才写新代码 | 最短可工作的 diff |
-
-**关键规则**：梯子跑在「理解问题之后」，不是代替理解。先读懂任务、走通真实调用链，再选横档。修 Bug 修根因——在共享函数里加一个守卫，胜过在每个调用方各打一个补丁。
-
-三档强度如何影响梯子：
-
-| 等级 | 行为 |
-|---|---|
-| `lite` | 按要求做，但在同一行点出更懒的替代，让人决定 |
-| `full`（默认） | 强制走梯子，标准库/原生优先，最短 diff |
-| `ultra` | 极端 YAGNI，先挑战需求，再用一行交付 |
-
----
-
 ## 🪝 Hook 注入深度解析
 
 > 上游 ponytail 通过 `hooks/` 在 Claude Code / Codex / Copilot / Qoder 等宿主中注入；本移植把全部 4 个生命周期 Hook 融进单一 DSH 插件，无需宿主钩子配置。
