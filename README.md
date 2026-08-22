@@ -22,7 +22,7 @@
 </p>
 
 <p align="center">
-  <a href="README.md">中文</a> · <a href="README.en.md">English</a> · <a href="CHANGELOG.md">Changelog</a> · <a href="https://github.com/DietrichGebert/ponytail">上游</a> · <a href="https://www.npmjs.com/package/@wenaixi/dsh-ponytail">npm</a>
+  <a href="CHANGELOG.md">Changelog</a> · <a href="https://github.com/DietrichGebert/ponytail">上游</a> · <a href="https://www.npmjs.com/package/@wenaixi/dsh-ponytail">npm</a>
 </p>
 
 ---
@@ -40,9 +40,9 @@
 
 ---
 
-## 🪜 什么是「梯子」（The Ladder）
+## 🪜 什么是「梯子」
 
-> **Ladder = 决策梯**。不是让模型少说话，而是让它在**写任何代码前**，自上而下站在「第一个站得住的横档」上。站得越高，代码越少；站不住才往下走。
+> **The Ladder — 中文常称「梯子」或「决策梯」**。不是让模型少说话，而是让它在**写任何代码前**，自上而下站在「第一个站得住的横档」上。站得越高，代码越少；站不住才往下走。
 
 ```
 1. Does this need to exist?   → 否：跳过（YAGNI），一句话说明原因

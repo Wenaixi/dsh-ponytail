@@ -41,7 +41,7 @@ dsh-ponytail/
   .github/workflows/ci.yml      # push 到 main / PR 时跑 typecheck+build+verify
   .github/workflows/publish.yml # 仅 tag 推送 v* 时发布到 npm（需 NPM_TOKEN）
   AGENTS.md                  # 上游梯子原文（英文，供 OpenCode 等读取）
-  README.md / README.en.md   # 中文/英文安装与使用说明（含三渠道安装）
+  README.md                # 安装与使用说明（单一中文版，梯子与 Hook 深度解析）
   CHANGELOG.md               # 版本策略与变更记录
   CLAUDE.md                  # 本文件
 ```
