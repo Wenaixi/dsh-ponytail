@@ -15,7 +15,6 @@
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-111111?style=flat-square" alt="MIT"/></a>
   <a href="https://www.npmjs.com/package/@wenaixi/dsh-ponytail"><img src="https://img.shields.io/npm/v/@wenaixi/dsh-ponytail?color=111111&style=flat-square" alt="npm"/></a>
-  <img src="https://img.shields.io/badge/version-4.9.0--dsh.1-111111?style=flat-square" alt="version"/>
   <img src="https://img.shields.io/badge/DSH-0.1.1--rc.2-333333?style=flat-square" alt="DSH"/>
   <img src="https://img.shields.io/badge/skills-6-008080?style=flat-square" alt="skills"/>
 </p>
@@ -38,11 +37,10 @@ dsh plugin --profile web add @wenaixi/dsh-ponytail
 
 # 方式二：GitHub 直装（lib 已提交，无需构建）
 dsh plugin --profile web add github:Wenaixi/dsh-ponytail
-dsh plugin --profile web add github:Wenaixi/dsh-ponytail#v4.9.0-dsh.0
 
 # 方式三：本地 / tarball
 pnpm install && pnpm build && dsh plugin --profile web add ./
-pnpm pack && dsh plugin --profile web add ./wenaixi-dsh-ponytail-4.9.0-dsh.0.tgz
+pnpm pack && dsh plugin --profile web add ./wenaixi-dsh-ponytail-*.tgz
 
 # 卸载
 dsh plugin --profile web remove @wenaixi/dsh-ponytail
@@ -133,8 +131,9 @@ pnpm dsh web --patch ./cordis.patch.yml  # 热重载
 
 ## 🔗 上游
 
-原仓 https://github.com/DietrichGebert/ponytail（MIT，v4.9.0）· 本包 MIT · `ponytail:` 债务台账、`ponytail-gain` 永不输出本仓实时值
+原仓 https://github.com/DietrichGebert/ponytail
 
 ## 📄 许可
 
-[MIT](LICENSE) © DietrichGebert / Wenaixi
+[MIT](LICENSE) 
+© DietrichGebert / Wenaixi
