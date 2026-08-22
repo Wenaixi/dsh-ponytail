@@ -19,17 +19,23 @@ function isVsCodeCopilotRoot(pluginRoot: string | undefined): boolean {
   return pluginRoot.split(/[\\/]+/).includes('agent-plugins') && pluginRoot.toLowerCase().includes('.vscode')
 }
 
-export const isCopilot: boolean =
-  Boolean(process.env['COPILOT_PLUGIN_DATA']) || isVsCodeCopilotRoot(process.env['CLAUDE_PLUGIN_ROOT'])
+export function isCopilot(): boolean {
+  return Boolean(process.env['COPILOT_PLUGIN_DATA']) || isVsCodeCopilotRoot(process.env['CLAUDE_PLUGIN_ROOT'])
+}
 
-export const isCodex: boolean = !isCopilot && Boolean(process.env['PLUGIN_DATA'])
-export const isQoder: boolean = !isCopilot && !isCodex && Boolean(process.env['QODER_SESSION_ID'])
+export function isCodex(): boolean {
+  return !isCopilot() && Boolean(process.env['PLUGIN_DATA'])
+}
+
+export function isQoder(): boolean {
+  return !isCopilot() && !isCodex() && Boolean(process.env['QODER_SESSION_ID'])
+}
 
 function resolveStateDir(): string {
   let dir = getClaudeDir()
-  if (isCodex) dir = process.env['PLUGIN_DATA']!
-  if (isCopilot) dir = process.env['COPILOT_PLUGIN_DATA'] ?? getClaudeDir()
-  if (isQoder) dir = path.join(os.homedir(), '.qoder')
+  if (isCodex()) dir = process.env['PLUGIN_DATA']!
+  if (isCopilot()) dir = process.env['COPILOT_PLUGIN_DATA'] ?? getClaudeDir()
+  if (isQoder()) dir = path.join(os.homedir(), '.qoder')
   return dir
 }
 

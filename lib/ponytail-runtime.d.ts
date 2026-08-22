@@ -5,9 +5,9 @@
  * DSH 侧以文件为真源，保持与 Claude/Codex/Qoder 共存语义；
  * HMR 卸载时不残留句柄。
  */
-export declare const isCopilot: boolean;
-export declare const isCodex: boolean;
-export declare const isQoder: boolean;
+export declare function isCopilot(): boolean;
+export declare function isCodex(): boolean;
+export declare function isQoder(): boolean;
 export declare function setMode(mode: string): void;
 export declare function clearMode(): void;
 export declare function readMode(): string | null;

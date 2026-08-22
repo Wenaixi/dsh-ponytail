@@ -49,14 +49,9 @@ for (const rel of checks) {
 
 // 不应注册空 tool 的静态检查：源码中不应出现 ctx.tools.register 或 defineTool
 const src = await readFile(resolve(dirname(fileURLToPath(import.meta.url)), '..', 'src/ponytail.ts'), 'utf8')
-if (src.includes('ctx.tools') || src.includes('defineTool') || src.includes('.register(') && src.includes('Tool')) {
-  // 更精确：检查是否真的有 tool 注册
-  const toolRegister = src.match(/tools\.register|defineTool/)
-  if (toolRegister) { console.error(`[verify] FAIL: found tool registration (must not have empty tools): ${toolRegister[0]}`); ok = false }
-  else console.log('[verify] ✓ no empty tool registration')
-} else {
-  console.log('[verify] ✓ no empty tool registration')
-}
+const badTool = src.match(/\btools\s*\.\s*register\b|\bdefineTool\b/i)
+if (badTool) { console.error(`[verify] FAIL: found tool registration (must not have empty tools): ${badTool[0]}`); ok = false }
+else console.log('[verify] ✓ no empty tool registration')
 
 // 检查 cordis.patch.yml 引用包名而非绝对路径
 const patch = await readFile(resolve(dirname(fileURLToPath(import.meta.url)), '..', 'cordis.patch.yml'), 'utf8')

@@ -383,7 +383,7 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
           if (nm !== null || fileMode === 'review') currentMode = fileMode
           else if (fileMode === 'off') currentMode = null
         } else if (fileMode === null && currentMode !== null) {
-          if (!isCopilot) currentMode = null
+          if (!isCopilot()) currentMode = null
         }
       } catch {
         // ignore
@@ -401,18 +401,24 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
     },
   })
 
-  // 从 UserMessage.content 提取纯文本
+  // 从单条 content 提取纯文本（B4 公共函数，供 pre-step 与 session/event 复用）
+  function extractTextFromContent(content: unknown): string {
+    if (typeof content === 'string') return content
+    if (Array.isArray(content)) {
+      return (content as Array<Record<string, unknown>>)
+        .filter((b) => b && typeof b['text'] === 'string')
+        .map((b) => b['text'] as string)
+        .join('\n')
+    }
+    return ''
+  }
+
+  // 从 UserMessage.content 提取纯文本（pre-step 合并 messages[]）
   function extractText(messages: Array<{ content: unknown }>): string {
     const parts: string[] = []
     for (const m of messages) {
-      const content = m.content as unknown
-      if (typeof content === 'string') {
-        parts.push(content)
-      } else if (Array.isArray(content)) {
-        for (const b of content as Array<Record<string, unknown>>) {
-          if (b && typeof b['text'] === 'string') parts.push(b['text'] as string)
-        }
-      }
+      const text = extractTextFromContent((m as { content: unknown }).content)
+      if (text) parts.push(text)
     }
     return parts.join('\n').trim()
   }
@@ -445,9 +451,7 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
         else if (arg === '') {
           isReportOnly = true
           mode = currentMode ?? getDefaultMode()
-        } else {
-          mode = getDefaultMode()
-        }
+        } else { ctx.logger.warn('[ponytail] 未知参数: ' + arg); return { handled: true, switched: false } }
       }
 
       if (isDefaultPersist) {
@@ -520,16 +524,7 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
     const [_session, event] = args as [unknown, { type: string; data: unknown }]
     if (event.type !== 'user/message') return
     try {
-      const data = event.data as { content?: unknown }
-      const content = data?.content
-      let text = ''
-      if (typeof content === 'string') text = content
-      else if (Array.isArray(content)) {
-        text = (content as Array<Record<string, unknown>>)
-          .filter((b) => b && typeof b['text'] === 'string')
-          .map((b) => b['text'] as string)
-          .join('\n')
-      }
+      const text = extractTextFromContent((event.data as { content?: unknown })?.content)
       if (text) handlePromptText(text)
     } catch {
       // ignore

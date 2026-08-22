@@ -13,8 +13,7 @@ permissions:
 jobs:
   publish-npm:
     runs-on: ubuntu-latest
-    # 避免 publish 在非 tag 的 push 上被触发（workflow_dispatch 手动触发除外）
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v4
 
@@ -38,18 +37,20 @@ jobs:
         run: node scripts/verify.mjs
 
       - name: Publish to npm
+        id: publish
         # NPM_TOKEN（granular bypass 2FA）与 --provenance 不兼容：
         # --provenance 只能走 OIDC Trusted Publisher，用 token 时必须去掉该参数，否则 npm 返回 404
         run: |
+          VERSION=$(node -p "require('./package.json').version")
+          if npm view @wenaixi/dsh-ponytail versions --json 2>/dev/null | grep -q "\"$VERSION\""; then
+            echo "Version $VERSION already published, skipping"
+            echo "skipped=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           if [ -n "${{ secrets.NPM_TOKEN }}" ]; then
             echo "Publishing with NPM_TOKEN (without --provenance)"
             echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > ~/.npmrc
             echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > "$NPM_CONFIG_USERCONFIG" 2>/dev/null || true
-            VERSION=$(node -p "require('./package.json').version")
-            if npm view @wenaixi/dsh-ponytail versions --json 2>/dev/null | grep -q "\"$VERSION\""; then
-              echo "Version $VERSION already published, skipping"
-              exit 0
-            fi
             npm publish --access public
           else
             echo "Publishing with OIDC Trusted Publisher (--provenance)"
@@ -57,6 +58,7 @@ jobs:
           fi
 
       - name: Create GitHub Release
+        if: steps.publish.outputs.skipped != 'true'
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: false
