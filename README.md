@@ -2,8 +2,8 @@
 
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/Wenaixi/dsh-ponytail/main/assets/logo-dark.png">
-    <img src="https://raw.githubusercontent.com/Wenaixi/dsh-ponytail/main/assets/logo.png" width="180" alt="Ponytail" />
+    <source media="(prefers-color-scheme: dark)" srcset="assets/logo-dark.png">
+    <img src="assets/logo.png" width="180" alt="Ponytail" />
   </picture>
 </p>
 
