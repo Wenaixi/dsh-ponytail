@@ -1,7 +1,9 @@
 #!/usr/bin/env node
-// scripts/bump-dsh.mjs — 在上游未发版时递增 DSH 后缀版本
-// 用法：node scripts/bump-dsh.mjs          -> 4.9.0 => 4.9.0-dsh.1
-//      node scripts/bump-dsh.mjs 4.9.0     -> 显式指定上游版本
+// scripts/bump-dsh.mjs — DSH 后缀版本递增（每个版本都带 -dsh.N）
+// 约定：初始即 4.9.0-dsh.0，上游未发版时递增 N（如 4.9.0-dsh.0 -> 4.9.0-dsh.1）
+// 上游发新版时：node scripts/bump-dsh.mjs 4.10.0 -> 4.10.0-dsh.0
+// 用法：node scripts/bump-dsh.mjs              -> 递增当前版本的 N
+//      node scripts/bump-dsh.mjs 4.10.0       -> 上游新版 4.10.0，产出 4.10.0-dsh.0
 //      node scripts/bump-dsh.mjs --set 4.9.0-dsh.2 -> 直接设为指定版本
 import { readFileSync, writeFileSync } from 'node:fs'
 import { resolve, dirname } from 'node:path'
@@ -18,21 +20,21 @@ function parseArgs() {
 }
 
 function nextDshVersion(current, upstream) {
-  // 若当前已是 suffix（如 4.9.0-dsh.1），递增 N
   const m = current.match(/^(\d+\.\d+\.\d+)-dsh\.(\d+)$/)
   if (m) {
-    const base = upstream ?? m[1]
-    // 若 upstream 与 base 不一致，说明上游已更新，回归纯上游
-    if (upstream && upstream !== m[1]) return upstream
+    // 已带后缀
+    if (upstream) {
+      // 显式指定上游版本
+      if (upstream !== m[1]) return `${upstream}-dsh.0`
+      return `${m[1]}-dsh.${Number(m[2]) + 1}`
+    }
     return `${m[1]}-dsh.${Number(m[2]) + 1}`
   }
-  // 纯上游版本（如 4.9.0）
+  // 无后缀（兼容旧版本），视为 -dsh.0 的前身
   const base = upstream ?? current
-  // 若 upstream 指定且与 current 相同，说明是 DSH 侧独立迭代
-  if (!upstream && /^\d+\.\d+\.\d+$/.test(current)) return `${current}-dsh.1`
-  if (upstream && upstream === current) return `${current}-dsh.1`
-  if (upstream) return upstream
-  return `${current}-dsh.1`
+  if (!/^\d+\.\d+\.\d+$/.test(base)) throw new Error(`无效版本: ${base}`)
+  // 若提供了 upstream 且与 current 相同，说明是首次补后缀
+  return `${base}-dsh.0`
 }
 
 const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'))
@@ -41,8 +43,8 @@ const { mode, value, upstream } = parseArgs()
 
 let next
 if (mode === 'set') {
-  if (!/^\d+\.\d+\.\d+(-dsh\.\d+)?$/.test(value)) {
-    console.error(`[bump-dsh] 无效版本: ${value}，应为 x.y.z 或 x.y.z-dsh.N`)
+  if (!/^\d+\.\d+\.\d+-dsh\.\d+$/.test(value)) {
+    console.error(`[bump-dsh] 无效版本: ${value}，应为 x.y.z-dsh.N（如 4.9.0-dsh.0）`)
     process.exit(1)
   }
   next = value
