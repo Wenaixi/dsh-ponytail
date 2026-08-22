@@ -38,26 +38,24 @@ import { clearMode, isCopilot, readMode, setMode } from './ponytail-runtime.js'
 // Config — 遵循 references/config.md：Schemastery + 默认值进 schema
 // ---------------------------------------------------------------------------
 
-export const Config = Schema.object({
-  /** 注册到 ctx.skills 的 provider 名称 */
-  providerName: Schema.string().default('ponytail'),
-  /** skill 目录绝对路径，默认取包内 skills/ */
-  skillDir: Schema.string(),
-  /** 默认强度，off 则不自动激活 */
-  defaultMode: Schema.union(['off', 'lite', 'full', 'ultra']).default('full'),
-  /** 是否隐藏状态提示（兼容上游 hideStatus） */
-  hideStatus: Schema.boolean().default(false),
-  /** 是否静默启动提示 */
-  quietStartup: Schema.boolean().default(false),
-})
-
 export interface Config {
+  /** 注册到 ctx.skills 的 provider 名称 */
   providerName?: string
+  /** skill 目录绝对路径，默认取包内 skills/ */
   skillDir?: string
+  /** 默认强度，off 则不自动激活 */
   defaultMode?: 'off' | 'lite' | 'full' | 'ultra'
   hideStatus?: boolean
   quietStartup?: boolean
 }
+
+export const Config: Schema<Config> = Schema.object({
+  providerName: Schema.string().default('ponytail'),
+  skillDir: Schema.string(),
+  defaultMode: Schema.union(['off', 'lite', 'full', 'ultra']).default('full'),
+  hideStatus: Schema.boolean().default(false),
+  quietStartup: Schema.boolean().default(false),
+})
 
 // ---------------------------------------------------------------------------
 // 插件元信息

@@ -9,65 +9,24 @@
  */
 import type { Context } from '@deepseek-ai/cordis';
 import Schema from '@deepseek-ai/schemastery';
-export declare const Config: Schema<Schemastery.ObjectS<{
-    /** 注册到 ctx.skills 的 provider 名称 */
-    providerName: Schema<string, string>;
-    /** skill 目录绝对路径，默认取包内 skills/ */
-    skillDir: Schema<string, string>;
-    /** 默认强度，off 则不自动激活 */
-    defaultMode: Schema<"full" | "off" | "lite" | "ultra", "full" | "off" | "lite" | "ultra">;
-    /** 是否隐藏状态提示（兼容上游 hideStatus） */
-    hideStatus: Schema<boolean, boolean>;
-    /** 是否静默启动提示 */
-    quietStartup: Schema<boolean, boolean>;
-}>, Schemastery.ObjectT<{
-    /** 注册到 ctx.skills 的 provider 名称 */
-    providerName: Schema<string, string>;
-    /** skill 目录绝对路径，默认取包内 skills/ */
-    skillDir: Schema<string, string>;
-    /** 默认强度，off 则不自动激活 */
-    defaultMode: Schema<"full" | "off" | "lite" | "ultra", "full" | "off" | "lite" | "ultra">;
-    /** 是否隐藏状态提示（兼容上游 hideStatus） */
-    hideStatus: Schema<boolean, boolean>;
-    /** 是否静默启动提示 */
-    quietStartup: Schema<boolean, boolean>;
-}>>;
 export interface Config {
+    /** 注册到 ctx.skills 的 provider 名称 */
     providerName?: string;
+    /** skill 目录绝对路径，默认取包内 skills/ */
     skillDir?: string;
+    /** 默认强度，off 则不自动激活 */
     defaultMode?: 'off' | 'lite' | 'full' | 'ultra';
     hideStatus?: boolean;
     quietStartup?: boolean;
 }
+export declare const Config: Schema<Config>;
 export declare const name = "ponytail";
 export declare const inject: readonly ["skills", "systemPrompt"];
 export declare function apply(ctx: Context, config?: Config): void;
 declare const _default: {
     name: string;
     inject: readonly ["skills", "systemPrompt"];
-    Config: Schema<Schemastery.ObjectS<{
-        /** 注册到 ctx.skills 的 provider 名称 */
-        providerName: Schema<string, string>;
-        /** skill 目录绝对路径，默认取包内 skills/ */
-        skillDir: Schema<string, string>;
-        /** 默认强度，off 则不自动激活 */
-        defaultMode: Schema<"full" | "off" | "lite" | "ultra", "full" | "off" | "lite" | "ultra">;
-        /** 是否隐藏状态提示（兼容上游 hideStatus） */
-        hideStatus: Schema<boolean, boolean>;
-        /** 是否静默启动提示 */
-        quietStartup: Schema<boolean, boolean>;
-    }>, Schemastery.ObjectT<{
-        /** 注册到 ctx.skills 的 provider 名称 */
-        providerName: Schema<string, string>;
-        /** skill 目录绝对路径，默认取包内 skills/ */
-        skillDir: Schema<string, string>;
-        /** 默认强度，off 则不自动激活 */
-        defaultMode: Schema<"full" | "off" | "lite" | "ultra", "full" | "off" | "lite" | "ultra">;
-        /** 是否隐藏状态提示（兼容上游 hideStatus） */
-        hideStatus: Schema<boolean, boolean>;
-        /** 是否静默启动提示 */
-        quietStartup: Schema<boolean, boolean>;
-    }>>;
+    Config: Schema<Config>;
     apply: typeof apply;
 };
 export default _default;
