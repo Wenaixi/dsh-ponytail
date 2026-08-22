@@ -15,7 +15,7 @@
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-111111?style=flat-square" alt="MIT"/></a>
   <a href="https://www.npmjs.com/package/@wenaixi/dsh-ponytail"><img src="https://img.shields.io/npm/v/@wenaixi/dsh-ponytail?color=111111&style=flat-square" alt="npm"/></a>
-  <img src="https://img.shields.io/badge/version-4.9.0--dsh.0-111111?style=flat-square" alt="version"/>
+  <img src="https://img.shields.io/badge/version-4.9.0--dsh.1-111111?style=flat-square" alt="version"/>
   <img src="https://img.shields.io/badge/DSH-0.1.1--rc.2-333333?style=flat-square" alt="DSH"/>
   <img src="https://img.shields.io/badge/skills-6-008080?style=flat-square" alt="skills"/>
 </p>

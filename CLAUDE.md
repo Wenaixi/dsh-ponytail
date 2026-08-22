@@ -4,7 +4,7 @@
 
 ## 1. 项目定位
 
-- **名称**：`@wenaixi/dsh-ponytail`（npm scoped），仓库 `Wenaixi/dsh-ponytail`，版本 `4.9.0-dsh.0`（每个版本固定带 `-dsh.N` 后缀，初始 `-dsh.0`），对齐上游 `DietrichGebert/ponytail` v4.9.0（MIT）。
+- **名称**：`@wenaixi/dsh-ponytail`（npm scoped），仓库 `Wenaixi/dsh-ponytail`，版本 `4.9.0-dsh.1`（每个版本固定带 `-dsh.N` 后缀，初始 `-dsh.0`），对齐上游 `DietrichGebert/ponytail` v4.9.0（MIT）。
 - **一句话**：把「懒惰的资深工程师」完整移植到 DeepSeek Harness（DSH），开箱即用的 always-on 梯子 + 6 个中文 Skill，无空 tool。
 - **上游口号**：The best code is the code you never wrote. 梯子 7 阶：YAGNI → 复用 → 标准库 → 平台原生 → 已有依赖 → 一行 → 最小实现。
 - **DSH 形态**：单一插件包 `dsh-ponytail`，`dsh.bundle.patch = ./cordis.patch.yml`，以包名引用挂载，不使用绝对路径。
