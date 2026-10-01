@@ -78,7 +78,7 @@ for (const rel of checks) {
   try { await stat(p); console.log(`[verify] ✓ ${rel}`) } catch { console.error(`[verify] MISSING ${rel}`); ok = false }
 }
 
-// 不应注册空 tool 的静态检查：src/ 全部 .ts 中不应出现 ctx.tools.register 或 defineTool
+// 不应注册任何 tool 的静态检查：src/ 全部 .ts 中不应出现 ctx.tools.register 或 defineTool
 // （扫描整个 src/ 而非单文件，保证新增模块（如 ponytail-state.ts）也在覆盖内）
 const srcDir = resolve(dirname(fileURLToPath(import.meta.url)), '..', 'src')
 let badTool = null
@@ -87,8 +87,8 @@ for (const f of (await readdir(srcDir)).filter(f => f.endsWith('.ts'))) {
   const m = code.match(/\btools\s*\.\s*register\b|\bdefineTool\b/i)
   if (m) { badTool = `${f}: ${m[0]}`; break }
 }
-if (badTool) { console.error(`[verify] FAIL: found tool registration (must not have empty tools): ${badTool}`); ok = false }
-else console.log('[verify] ✓ no empty tool registration')
+if (badTool) { console.error(`[verify] FAIL: found tool registration (must not register tools): ${badTool}`); ok = false }
+else console.log('[verify] ✓ no tool registration')
 
 // 检查 cordis.patch.yml 引用包名而非绝对路径
 const patch = await readFile(resolve(dirname(fileURLToPath(import.meta.url)), '..', 'cordis.patch.yml'), 'utf8')

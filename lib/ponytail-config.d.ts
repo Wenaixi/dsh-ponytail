@@ -22,4 +22,16 @@ export declare function getConfigPath(): string;
 export declare function getClaudeDir(): string;
 export declare function getDefaultMode(): RuntimeMode;
 export declare function writeDefaultMode(mode: string): RuntimeMode | null;
+/**
+ * 插件配置（entry 与 skill provider 共享，避免 ponytail-skills 反向导入 entry 造成循环依赖）
+ * 默认值写 schema（Schemastery），review 不可作默认（#377）
+ */
+export interface PonytailConfig {
+    /** 注册到 ctx.skills 的 provider 名称 */
+    providerName?: string;
+    /** skill 目录绝对路径，默认取包内 skills/ */
+    skillDir?: string;
+    /** 默认强度，off 则不自动激活 */
+    defaultMode?: 'off' | 'lite' | 'full' | 'ultra';
+}
 //# sourceMappingURL=ponytail-config.d.ts.map

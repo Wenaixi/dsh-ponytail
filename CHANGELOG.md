@@ -12,7 +12,7 @@
   - frontmatter 读取瘦身：`stringField/optionalString/optionalMetadata` 折叠为 `readString/readObject/readMetadata`（调用点零改动，净减行数）
   - `apply` 删不可达死代码 `?? null`（分支守卫已排除 undefined）；`?? 'full'` 保留并改为 `DEFAULT_MODE` 常量（DSH 测试路径直接 `apply(ctx)` 真实依赖该兜底）
   - `PONYTAIL_DEFAULT_MODE` env 非法值由静默回退改为 `ctx.logger.warn`（DSH 差分，不改变回退语义，上游仍静默）；config 文件非法值保持静默（与上游一致）
-- `scripts/verify.mjs` 无空 tool 静态检查由单文件 `src/ponytail.ts` 扩为整个 `src/` 目录扫描（新模块 `ponytail-state.ts` 纳入覆盖）
+- `scripts/verify.mjs` 静态检查（不注册 tool）由单文件 `src/ponytail.ts` 扩为整个 `src/` 目录扫描（新模块 `ponytail-state.ts` 纳入覆盖）
 
 ### Added
 - `scripts/behavior.test.mjs` 新增 2 例：`/ponytail default lite` 持久化、`/ponytail default foobar` 非法默认不切换（instruction 解析用例 6 → 8，总数 9 → 11）
@@ -49,7 +49,7 @@
 - `ponytail-runtime` 平台识别由模块级常量改为函数 `isCopilot()/isCodex()/isQoder()`，修复同进程 env 变更后路径漂移
 - `/ponytail <unknown>` 未知参数由静默切默认改为 `warn` 不切换
 - `extractText` 双路径提取收敛为 `extractTextFromContent` 复用，消除 `agent/pre-step` 与 `session/event` 重复分支
-- `scripts/verify.mjs` 无空 tool 检查由 `|| / &&` 误优先级改为单正则 `\btools\s*\.\s*register\b|\bdefineTool\b`
+- `scripts/verify.mjs` 不注册 tool 检查由 `|| / &&` 误优先级改为单正则 `\btools\s*\.\s*register\b|\bdefineTool\b`
 - `publish.yml` 幂等：`VERSION` 检查提到 `if/else` 前共享，`workflow_dispatch` 计入 `if`，`Create Release` 受 `skipped` 守卫
 
 ### Changed
@@ -96,7 +96,7 @@
 - `initialMode` 优先级修正为 `env > cordis 显式 config > 文件 > full`，与上游语义一致
 
 ### Notes
-- 无空 tool（不在 `ctx.tools` 注册任何占位），`scripts/verify.mjs` 校验
+- 不注册 tool（不在 `ctx.tools` 注册任何占位），`scripts/verify.mjs` 校验
 - 构建：`pnpm build` (`tsc -p tsconfig.build.json`)，`pnpm typecheck`，`pnpm verify`
 
 [4.9.0-dsh.0]: https://github.com/Wenaixi/dsh-ponytail/releases/tag/v4.9.0-dsh.0

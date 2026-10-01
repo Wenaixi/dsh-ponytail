@@ -25,7 +25,7 @@
 
 ---
 
-> [DietrichGebert/ponytail](https://github.com/DietrichGebert/ponytail) 的 DSH 完整移植版 — always-on 注入 + 6 个中文 Skill，无空 tool。
+> [DietrichGebert/ponytail](https://github.com/DietrichGebert/ponytail) 的 DSH 完整移植版 — always-on 注入 + 6 个中文 Skill，无 tool 注册。
 
 ## 🚀 安装（默认装到 `web`）
 
@@ -56,7 +56,7 @@ dsh --profile web --dump-config | grep -A2 ponytail
 - **梯子 7 阶**：YAGNI → 复用 → 标准库 → 平台原生 → 已有依赖 → 一行 → 最小实现，`off` 时静默
 - **6 个中文 Skill**（`rank: 550`）：`ponytail` / `ponytail-review` / `ponytail-audit` / `ponytail-debt` / `ponytail-gain` / `ponytail-help`
 - **三档强度**：`lite` / `full`（默认）/ `ultra`
-- **无空 tool**：全部能力经 `ctx.skills` 暴露
+- **无 tool 注册**：全部能力经 `ctx.skills` 暴露
 
 | 能力 | 说明 |
 |---|---|
