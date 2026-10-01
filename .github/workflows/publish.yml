@@ -30,14 +30,17 @@ jobs:
       - name: Install deps
         run: pnpm install --frozen-lockfile
 
+      - name: Typecheck
+        run: pnpm typecheck
+
       - name: Build
         run: pnpm build
 
       - name: Verify (6 skills + 无空 tool)
-        run: node scripts/verify.mjs
+        run: pnpm verify
 
-      - name: Behavior tests
-        run: node scripts/behavior.test.mjs
+      - name: Behavior tests (26 cases)
+        run: pnpm test
 
       - name: Publish to npm
         id: publish

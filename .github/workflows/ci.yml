@@ -3,6 +3,8 @@ name: ci
 on:
   push:
     branches: [main]
+    tags:
+      - "v*"
   pull_request:
     branches: [main]
 
@@ -34,7 +36,7 @@ jobs:
         run: pnpm build
 
       - name: Verify (6 skills + 无空 tool)
-        run: node scripts/verify.mjs
+        run: pnpm verify
 
-      - name: Behavior tests
-        run: node scripts/behavior.test.mjs
+      - name: Behavior tests (26 cases)
+        run: pnpm test
