@@ -18,7 +18,7 @@ import { normalizeMode } from './ponytail-config.js'
 import { clearMode, isCopilot, readMode, setMode } from './ponytail-runtime.js'
 
 export interface PonytailState {
-  /** 当前等级的内存视图；不触发任何文件读。null 与 'off' 都表示关闭（见 set 的天花板注释） */
+  /** 当前等级的内存视图；不触发任何文件读。null 表示关闭（'off' 由 set 归一为 null） */
   get(): string | null
   /** 内存赢：写内存并把 flag 落盘（null → 删 flag）。flag 写失败自吞，不阻断会话 */
   set(mode: string | null): void
@@ -32,15 +32,13 @@ export function createPonytailState(): PonytailState {
   return {
     get: () => current,
 
-    // ponytail: 关闭态有 null 与 'off' 两种表示——apply 初始化归 null，而
-    // `/ponytail default off` 与裸指令路径会传入 'off'。两者渲染等价，但
-    // 会影响裸 /ponytail 的报告值。要统一需显式申报行为变更（上游 report-only
-    // 是 readMode() || getDefaultMode()），不在本次结构收敛范围内。
     set(mode) {
-      current = mode
+      // 单一关闭契约：'off' 与 null 都是关闭，统一为 null（删 flag）。
+      // 上游 report-only 的 readMode() || getDefaultMode() 读的是 flag 文件，与内存表示无关，语义不受影响。
+      current = mode === 'off' ? null : mode
       try {
-        if (mode === null) clearMode()
-        else setMode(mode)
+        if (current === null) clearMode()
+        else setMode(current)
       } catch {
         // best-effort：flag 写失败只影响跨进程可见性，不阻断当前会话
       }

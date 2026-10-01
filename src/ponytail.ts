@@ -199,9 +199,9 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
         )
       }
       if (payload.source === 'startup' || payload.source === 'resume') {
-        // 与原语义逐位对齐：currentMode 为 null 或 'off' 都 clearMode（删 flag），正常等级才 setMode
+        // 会话启动镜像 flag：set() 已归一 off→null，无需再镜像
         const mode = state.get()
-        state.set(mode === 'off' ? null : mode)
+        state.set(mode)
         ctx.logger.debug(`[ponytail] 会话启动（${payload.source}）— 等级：${mode}`)
       }
     } catch (err: unknown) {

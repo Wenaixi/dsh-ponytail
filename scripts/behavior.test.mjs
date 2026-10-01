@@ -1,4 +1,5 @@
 import { test } from 'node:test'
+import { createPonytailState } from '../lib/ponytail-state.js'
 import assert from 'node:assert/strict'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -205,4 +206,24 @@ test('createCommandDispatcher: dispatchMessages 识别嵌套 block 中的指令�
   const res = dispatcher.dispatchMessages(messages)
   assert.deepEqual(res, { handled: true, switched: true })
   assert.equal(currentState, 'review')
+})
+
+test('createPonytailState: set("off") 归一为 null（关闭态单一表示）', () => {
+  const state = createPonytailState()
+  state.set("off")
+  assert.equal(state.get(), null)
+})
+
+test('createPonytailState: set(null) 保持 null', () => {
+  const state = createPonytailState()
+  state.set('full')
+  state.set(null)
+  assert.equal(state.get(), null)
+})
+
+test('createPonytailState: 文件缺省时 syncFromFile 容错不抛（内存 ∈ null/full）', async () => {
+  const state = createPonytailState()
+  state.set('full')
+  state.syncFromFile()
+  assert.ok(state.get() === null || state.get() === 'full', '非 Copilot 且文件缺失 → 清空或保持，均不抛')
 })

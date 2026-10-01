@@ -14,7 +14,7 @@
  * 模块级单例会让旧状态跨实例存活，与 flag 文件双写竞争。
  */
 export interface PonytailState {
-    /** 当前等级的内存视图；不触发任何文件读。null 与 'off' 都表示关闭（见 set 的天花板注释） */
+    /** 当前等级的内存视图；不触发任何文件读。null 表示关闭（'off' 由 set 归一为 null） */
     get(): string | null;
     /** 内存赢：写内存并把 flag 落盘（null → 删 flag）。flag 写失败自吞，不阻断会话 */
     set(mode: string | null): void;
