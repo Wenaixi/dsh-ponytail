@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 // scripts/bump-dsh.mjs — DSH 后缀版本递增（每个版本都带 -dsh.N）
-// 约定：初始即 4.9.0-dsh.0，上游未发版时递增 N（如 4.9.0-dsh.0 -> 4.9.0-dsh.1）
+// 约定：初始即 4.10.0-dsh.0，上游未发版时递增 N（如 4.10.0-dsh.0 -> 4.10.0-dsh.1）
 // 上游发新版时：node scripts/bump-dsh.mjs 4.10.0 -> 4.10.0-dsh.0
 // 用法：node scripts/bump-dsh.mjs              -> 递增当前版本的 N
 //      node scripts/bump-dsh.mjs 4.10.0       -> 上游新版 4.10.0，产出 4.10.0-dsh.0
-//      node scripts/bump-dsh.mjs --set 4.9.0-dsh.2 -> 直接设为指定版本
+//      node scripts/bump-dsh.mjs --set 4.10.0-dsh.2 -> 直接设为指定版本
 import { readFileSync, writeFileSync } from 'node:fs'
 import { resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -44,7 +44,7 @@ const { mode, value, upstream } = parseArgs()
 let next
 if (mode === 'set') {
   if (!/^\d+\.\d+\.\d+-dsh\.\d+$/.test(value)) {
-    console.error(`[bump-dsh] 无效版本: ${value}，应为 x.y.z-dsh.N（如 4.9.0-dsh.0）`)
+    console.error(`[bump-dsh] 无效版本: ${value}，应为 x.y.z-dsh.N（如 4.10.0-dsh.0）`)
     process.exit(1)
   }
   next = value

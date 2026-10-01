@@ -18,16 +18,14 @@ export interface CommandParseResult {
   reportOnly?: boolean
   /** /ponytail default <mode> 持久化默认等级 */
   persistDefault?: { mode: string } | null
-  /** 未知参数（副作用层负责 warn，不切换） */
-  unknownArg?: string
 }
 
 /**
  * 解析一条用户文本中的 ponytail 指令。
- * 与既有 handlePromptText 解析逻辑完全等价：
+ * 与上游 hooks/ponytail-mode-tracker.js（4.10.0）逐分支一致：
  * - /^[/@$]ponytail/ 前缀，@/$ 归一为 /
  * - /ponytail:ponytail 与 /ponytail:ponytail-review 前缀形式
- * - 未知参数 handled=true 且不切换
+ * - 未知参数走上游 else 兜底：切到默认等级（静默幂等，与上游一致）
  * - 非 ponytail 指令时交给 isDeactivationCommand 全句匹配
  */
 export function parsePonytailCommand(
@@ -57,7 +55,8 @@ export function parsePonytailCommand(
       else if (arg === 'ultra') mode = 'ultra'
       else if (arg === 'off') mode = 'off'
       else if (arg === '') isReportOnly = true
-      else return { handled: true, switched: false, unknownArg: arg }
+      // 上游 else 兜底：未知参数静默切到默认等级（不报错、不跳过）
+      else mode = getDefault()
     }
 
     if (persistMode !== null) {
@@ -72,6 +71,7 @@ export function parsePonytailCommand(
     if (mode === 'off') {
       return { handled: true, switched: true, mode: 'off' }
     }
+    // 未知参数 mode = getDefault() 已落入上一分支（mode !== 'off'）
     return { handled: true, switched: false }
   }
 

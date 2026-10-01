@@ -31,9 +31,11 @@ test('parsePonytailCommand: stop ponytail. 全句失活（尾部标点）', () =
   assert.deepEqual(r, { handled: true, switched: true, deactivate: true })
 })
 
-test('parsePonytailCommand: /ponytail foobar 未知参数不切换', () => {
+test('parsePonytailCommand: /ponytail foobar 按上游 else 兜底切到默认等级', () => {
+  // 上游 mode-tracker 4.10.0：未知参数 `else { mode = getDefaultMode(); }` 静默切默认
+  // DSH 移植逐分支对齐（4.10.0-dsh.0 深度对照确认），非未知参数报错
   const r = parsePonytailCommand('/ponytail foobar', null, getDefault)
-  assert.deepEqual(r, { handled: true, switched: false, unknownArg: 'foobar' })
+  assert.deepEqual(r, { handled: true, switched: true, mode: 'full' })
 })
 
 test('filterSkillBodyForMode: lite 保留 lite 行、剔除 full 行', () => {

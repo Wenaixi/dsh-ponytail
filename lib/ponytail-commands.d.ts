@@ -17,15 +17,13 @@ export interface CommandParseResult {
     persistDefault?: {
         mode: string;
     } | null;
-    /** 未知参数（副作用层负责 warn，不切换） */
-    unknownArg?: string;
 }
 /**
  * 解析一条用户文本中的 ponytail 指令。
- * 与既有 handlePromptText 解析逻辑完全等价：
+ * 与上游 hooks/ponytail-mode-tracker.js（4.10.0）逐分支一致：
  * - /^[/@$]ponytail/ 前缀，@/$ 归一为 /
  * - /ponytail:ponytail 与 /ponytail:ponytail-review 前缀形式
- * - 未知参数 handled=true 且不切换
+ * - 未知参数走上游 else 兜底：切到默认等级（静默幂等，与上游一致）
  * - 非 ponytail 指令时交给 isDeactivationCommand 全句匹配
  */
 export declare function parsePonytailCommand(text: string, current: string | null, getDefault: () => string): CommandParseResult;

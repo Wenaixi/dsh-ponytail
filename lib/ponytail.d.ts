@@ -1,5 +1,5 @@
 /**
- * dsh-ponytail — DSH 完整移植版 ponytail (dietrichgebert/ponytail 4.9.0)
+ * dsh-ponytail — DSH 完整移植版 ponytail (dietrichgebert/ponytail 4.10.0)
  *
  * 能力全集：
  * - always-on 梯子注入（systemPrompt section，随 mode 动态裁剪）

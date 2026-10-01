@@ -69,14 +69,16 @@ dsh --profile web --dump-config | grep -A2 ponytail
 
 ## 🪝 Hook 注入
 
-> 上游 `hooks/` 的 4 个生命周期 Hook 已合并进单一 DSH 插件，无需宿主配置。
+> 上游 `hooks/` 的 6 个 Hook（config / instructions / runtime / activate / mode-tracker / subagent）已合并进单一 DSH 插件，无需宿主配置。
 
 | 上游 | DSH 侧 |
 |---|---|
 | `ponytail-config.js` | `src/ponytail-config.ts`（`env > 文件 > full`，`review` 不可默认） |
 | `ponytail-instructions.js` | `src/ponytail-instructions.ts`（按 `lite/full/ultra` 裁剪 + 中文 fallback） |
 | `ponytail-runtime.js` | `src/ponytail-runtime.ts`（`.ponytail-active` + 四路识别） |
-| `ponytail-activate.js` + `mode-tracker.js` + `subagent.js` | `src/ponytail.ts` 统一合并 |
+| `ponytail-activate.js` | `src/ponytail.ts` 的 `agent/created`（startup/resume 对齐 flag） |
+| `ponytail-mode-tracker.js` | `src/ponytail-commands.ts` + `handlePromptText`（指令解析纯函数 + 副作用层） |
+| `ponytail-subagent.js` | `src/ponytail.ts` 的 `agent/created`（`PONYTAIL_SUBAGENT_MATCHER`） |
 
 ```
 启动:  env PONYTAIL_DEFAULT_MODE → cordis defaultMode → ~/.config/ponytail/config.json → full
@@ -125,7 +127,7 @@ pnpm dsh web --patch ./cordis.patch.yml  # 热重载
 # 或 push tag v* 触发 GitHub Actions publish.yml
 ```
 
-- 版本：与上游 SemVer 同步，每个版本固定带 `-dsh.N`（初始 `4.9.0-dsh.0`、对齐上游 v4.10.0 重置 `4.10.0-dsh.0`），`pnpm run bump:dsh` 递增，上游发新版时 `pnpm run bump:dsh -- <版本>` 重置
+- 版本：与上游 SemVer 同步，每个版本固定带 `-dsh.N`（对齐上游 v4.10.0 重置为 `4.10.0-dsh.0`），`pnpm run bump:dsh` 递增，上游发新版时 `pnpm run bump:dsh -- <版本>` 重置
 
 ---
 
