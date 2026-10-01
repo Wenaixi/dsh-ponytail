@@ -56,8 +56,7 @@ export const inject = ['skills', 'systemPrompt'] as const
 function resolveDefaultSkillDir(configSkillDir?: string): string {
   if (configSkillDir) return resolve(configSkillDir)
   try {
-    const here = fileURLToPath(import.meta.url)
-    return resolve(dirname(here), '..', 'skills')
+    return fileURLToPath(new URL('../skills', import.meta.url))
   } catch {
     return resolve('skills')
   }

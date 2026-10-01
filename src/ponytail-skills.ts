@@ -92,7 +92,7 @@ function findClosingFrontmatter(raw: string, start: number): { start: number; bo
   while (lineStart <= raw.length) {
     const nl = raw.indexOf('\n', lineStart)
     const lineEnd = nl < 0 ? raw.length : nl
-    if (raw.slice(lineStart, lineEnd).replace(/\r$/, '') === '---') {
+    if (raw.slice(lineStart, lineEnd).replace(/\r$/, '').trimEnd() === '---') {
       return { start: lineStart, bodyStart: nl < 0 ? raw.length : nl + 1 }
     }
     if (nl < 0) return undefined
@@ -104,15 +104,16 @@ function findClosingFrontmatter(raw: string, start: number): { start: number; bo
 function parseFrontmatter(
   raw: string,
 ): { data: Record<string, unknown>; body: string } | undefined {
-  const firstNl = raw.indexOf('\n')
+  const clean = raw.replace(/^\uFEFF/, '')
+  const firstNl = clean.indexOf('\n')
   if (firstNl < 0) return undefined
-  if (raw.slice(0, firstNl).replace(/\r$/, '') !== '---') return undefined
+  if (clean.slice(0, firstNl).replace(/\r$/, '').trimEnd() !== '---') return undefined
   const start = firstNl + 1
-  const closing = findClosingFrontmatter(raw, start)
+  const closing = findClosingFrontmatter(clean, start)
   if (!closing) return undefined
-  const parsed = parse(raw.slice(start, closing.start))
+  const parsed = parse(clean.slice(start, closing.start))
   if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return undefined
-  return { data: parsed as Record<string, unknown>, body: raw.slice(closing.bodyStart) }
+  return { data: parsed as Record<string, unknown>, body: clean.slice(closing.bodyStart) }
 }
 
 async function parseSkillFile(
@@ -124,7 +125,7 @@ async function parseSkillFile(
     raw = await readFile(path, { encoding: 'utf8', signal })
   } catch (err: unknown) {
     // abort 冒泡（settle promptly），其余读取错误视为不可加载
-    if (err instanceof Error && err.name === 'AbortError') throw err
+    if (signal?.aborted || (err instanceof Error && err.name === 'AbortError')) throw (signal?.reason ?? err)
     return undefined
   }
   try {
@@ -178,7 +179,8 @@ export class PonytailProvider implements SkillProvider {
     }
 
     for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
-      if (!entry.isDirectory()) continue
+      options.signal?.throwIfAborted()
+      if (!entry.isDirectory() && !entry.isSymbolicLink()) continue
       if (entry.name.startsWith('.')) continue
       const skillPath = join(this.skillDir, entry.name, 'SKILL.md')
       const parsed = await parseSkillFile(skillPath, options.signal)
@@ -231,8 +233,12 @@ export class PonytailProvider implements SkillProvider {
 
   async get(candidate: SkillCandidate, options: SkillLookupOptions): Promise<SkillDefinition | undefined> {
     options.signal?.throwIfAborted()
-    const locator = candidate.locator as { path: string; directory: string }
-    const parsed = await parseSkillFile(locator.path, options.signal)
+    const locatorObj = typeof candidate.locator === 'object' && candidate.locator !== null
+      ? (candidate.locator as { path?: string; directory?: string })
+      : undefined
+    const targetPath = locatorObj?.path ?? candidate.path
+    if (!targetPath) return undefined
+    const parsed = await parseSkillFile(targetPath, options.signal)
     if (!parsed) return undefined
     const data = parsed.data
     const skillName = readString(data, 'name')
@@ -246,6 +252,7 @@ export class PonytailProvider implements SkillProvider {
     } catch {
       return undefined
     }
+    const targetDir = locatorObj?.directory ?? dirname(targetPath)
     return {
       name: skillName,
       description,
@@ -253,8 +260,8 @@ export class PonytailProvider implements SkillProvider {
       invocation,
       source: 'bundled',
       provider: this.name,
-      resourceBase: { kind: 'directory', path: locator.directory },
-      path: locator.path,
+      resourceBase: { kind: 'directory', path: targetDir },
+      path: targetPath,
       ...readMetadata(data),
       content: parsed.body.trim(),
     }
