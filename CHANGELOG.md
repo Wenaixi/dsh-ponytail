@@ -4,11 +4,15 @@
 
 > **版本策略**：每个版本固定带 `-dsh.N` 后缀（如 `4.10.0-dsh.0`、`4.10.0-dsh.1`），初始即 `-dsh.0`。上游发新版时重置为新上游版本的 `-dsh.0`（如 `4.10.0-dsh.0`），用 `pnpm run bump:dsh -- 4.10.0`。递增：`pnpm run bump:dsh`。遵循 SemVer 预发布语义。
 
-## [Unreleased]
+## [4.10.0-dsh.3] - 2026-10-02
 
 ### Changed
 - **收窄为 DSH 单一宿主运行时**：`src/ponytail-runtime.ts` 删除 Copilot / Codex / Qoder 三路动态平台探针与 `resolveStateDir()` 的外部宿主分支，flag 文件（`.ponytail-active`）固定持久化于 DSH 配置目录（`$XDG_CONFIG_HOME/ponytail` / `%APPDATA%\ponytail` / `~/.config/ponytail`），与 `config.json` 同源；`src/ponytail-state.ts` 移除 Copilot 文件缺失豁免，flag 缺失即关闭；`src/ponytail-config.ts` 删除 `getClaudeDir()`。
 - **文档与元数据同步**：新增 `docs/adr/0004-dsh-single-host-runtime.md` 并给 `docs/adr/0001` 追加修订注记；README 移除四路 flag 兼容描述；`skills/ponytail-help/SKILL.md` 删除 Codex / Claude Code / OpenCode 触发形式与 Claude Code 专属更新段落；CONTEXT.md / CLAUDE.md 同步；`package.json` keywords 移除 `claude-code`。
+
+### Fixed
+- **config.json 默认档被 Cordis 缺省填充 shadow**：`Config` schema 的 `defaultMode` 移除 `.default('full')`——Cordis 校验会把 schema 缺省 fill 成显式配置，导致 `%APPDATA%\ponytail\config.json`（或 `~/.config/ponytail/config.json`）的 `defaultMode` 档永远不可达，`/ponytail default <mode>` 持久化的默认在下一会话被静默覆盖回 full。移除后缺省走 `getDefaultMode()`（env > config 文件 > full），与上游 `ponytail-config.js` 语义逐行一致。
+- **行为测试补充回归 27 → 28 项**：新增「Config schema: defaultMode 无 Schema 默认值（config.json 默认档可达）」断言，锁定缺省为 undefined 且 `providerName` 默认值保留。
 
 ## [4.10.0-dsh.2] - 2026-10-02
 

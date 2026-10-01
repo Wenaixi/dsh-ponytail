@@ -76,4 +76,5 @@
 2. **模型可见可重建**：提示词必须且只能通过 `ctx.systemPrompt.section('ponytail')` 注入；
 3. **无状态直读**：系统提示词坚持按需同步读盘（耗时仅 0.22ms），杜绝过早内存缓存导致的热重载失效（见 `docs/adr/0003`）；
 4. **DSH 单一宿主运行时**：不识别任何外部宿主（Copilot / Codex / Qoder / Claude Code / Cursor），flag 固定持久化于 DSH 配置目录（见 `docs/adr/0001` 与 `docs/adr/0004`）；
+5. **会话启动对齐**：每次会话启动按默认档（env > config 文件 > full）重写 flag（对齐上游 `ponytail-activate.js` SessionStart 语义），`/ponytail <档>` 只在本会话生效，跨会话持久化必须用 `/ponytail default <档>`；
 5. **Waterfall 连贯性**：所有 Cordis Waterfall 中间件必须返回 `await next()`，防御性隔离所有异常。
