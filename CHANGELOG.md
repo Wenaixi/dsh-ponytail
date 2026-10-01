@@ -23,7 +23,7 @@
 - `scripts/verify.mjs` 新增六个 SKILL.md `description` ≤500 静态断言（官方 `catalogDescriptionMaxLength` 默认截断线，防回归）
 
 ### Cleaned
-- 删除无消费方的 `Config.hideStatus`/`Config.quietStartup` 配置项与 `getHideStatus`/`getQuietStartup`/`getPonytailInstructions`/`writeHookOutput`/`getStatePath`/`normalizePersistedMode` 死代码（README 与 CHANGELOG 无对应表述，无需同步清理）
+- 删除无消费方的 `Config.hideStatus`/`Config.quietStartup` 配置项与 `getHideStatus`/`getQuietStartup`/`getPonytailInstructions`/`writeHookOutput`/`getStatePath` 死代码；删除 `normalizePersistedMode` 孤儿导出（README 与 CHANGELOG 无对应表述，无需同步清理）
 
 ## [4.9.0-dsh.5] - 2026-08-22
 
