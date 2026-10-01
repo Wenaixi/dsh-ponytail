@@ -156,8 +156,9 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
       const [payload, next] = args as [{ messages?: unknown; agent?: unknown }, () => Promise<unknown>]
       try {
         dispatcher.dispatchMessages(payload?.messages)
-      } catch {
-        // best-effort，不阻断
+      } catch (err: unknown) {
+        // best-effort：与 session/event 同一防御策略，失败可见（坏订阅者不断链）
+        ctx.logger.warn(`[ponytail] agent/pre-step 处理失败：${String(err)}`)
       }
       return (await next()) as unknown as Awaited<ReturnType<typeof next>>
     },
