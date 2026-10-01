@@ -4,6 +4,27 @@
 
 > **版本策略**：每个版本固定带 `-dsh.N` 后缀（如 `4.9.0-dsh.0`、`4.9.0-dsh.1`），初始即 `-dsh.0`。上游发新版时重置为新上游版本的 `-dsh.0`（如 `4.10.0-dsh.0`），用 `pnpm run bump:dsh -- 4.10.0`。递增：`pnpm run bump:dsh`。遵循 SemVer 预发布语义。
 
+## [4.10.0-dsh.0] - 2026-10-01
+
+### Fixed
+- `agent/session-start` 死监听迁移为 `agent/created`：`payload.source` 为 `startup`/`resume` 时对齐 flag 文件（`off` 清空、其余 `setMode(currentMode)`），`clear`/`compact` 不动作——DSH 官方事件模型不存在 `session-start`，原监听永不被触发
+- 对齐官方 defensive-patterns：`agent/created` 与 `session/event` 监听整体 `try/catch`，坏订阅者不再断链
+- `SkillProvider.list()`/`get()` 尊重 `options.signal`：已 abort 时立即抛 `AbortError` 快速 settle（放弃对 fs 调用的 signal 透传）
+- `SkillProvider.list()` ENOENT/ENOTDIR 由记 `warn` 返回 `[]` 改为显式 `{ candidates: [], complete: false }`（显式「发现未完成、不可缓存」）与警告并行
+- `scripts/verify.mjs` description 长度断言改用 `yaml.parse` 按 YAML 折叠块真实语义计算并输出真实长度；实测六个技能均 ≤500（262/162/165/161/104/165），无需压缩
+
+### Changed
+- 版本重置：与上游 v4.10.0 对齐由 `4.9.0-dsh.5` 重置为 `4.10.0-dsh.0`（`pnpm run bump:dsh -- 4.10.0`）
+- peer/devDeps 对齐 DSH 0.2.0-rc.2 运行时：`@deepseek-ai/cordis ^4.0.4`、`@deepseek-ai/dsh-skill >=0.1.0-rc.1 <0.2.0-0 || >=0.2.0-rc.1 <0.3.0-0`、`@deepseek-ai/schemastery ^3.18.4`
+- 指令解析核心由 `handlePromptText` 抽取为纯函数 `parsePonytailCommand`（新增 `src/ponytail-commands.ts`），行为等价，可脱离插件单测
+
+### Added
+- `scripts/behavior.test.mjs` 最小行为测试（node 内置 test runner）：指令解析 6 例 + 技能裁剪 2 例 + abort 立即 settle 1 例，9/9 通过
+- `scripts/verify.mjs` 新增六个 SKILL.md `description` ≤500 静态断言（官方 `catalogDescriptionMaxLength` 默认截断线，防回归）
+
+### Cleaned
+- 删除无消费方的 `Config.hideStatus`/`Config.quietStartup` 配置项与 `getHideStatus`/`getQuietStartup`/`getPonytailInstructions`/`writeHookOutput`/`getStatePath`/`normalizePersistedMode` 死代码（README 与 CHANGELOG 无对应表述，无需同步清理）
+
 ## [4.9.0-dsh.5] - 2026-08-22
 
 ### Fixed
