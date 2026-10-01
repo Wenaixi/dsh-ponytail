@@ -2,6 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { parsePonytailCommand } from '../lib/ponytail-commands.js'
 import { filterSkillBodyForMode } from '../lib/ponytail-instructions.js'
+import { apply } from '../lib/ponytail.js'
 
 const getDefault = () => 'full'
 
@@ -63,4 +64,30 @@ test('filterSkillBodyForMode: review 模式标准化回退 full（review 独立�
   const out = filterSkillBodyForMode(body, 'review')
   assert.ok(!out.includes('**lite**'))
   assert.ok(out.includes('**full**'))
+})
+
+// A4：list()/get() 依赖真实 fs 与 ctx，直接实例化会写 ~/.claude flag 文件，
+// 因此用 apply() 注册 provider（factory 经 ctx.skills 校验）后取 provider 实例，
+// 传已 abort 的 signal 断言首行 throwIfAborted 立即抛 AbortError。
+test('list/get: 传入已 abort 的 AbortSignal 立即抛 AbortError（settle promptly）', async () => {
+  const ctx = {
+    on: () => {},
+    effect: () => {},
+    logger: { info: () => {}, warn: () => {}, debug: () => {} },
+    skills: {
+      registerProvider: (factory) => {
+        provider = factory({})
+        return () => {}
+      },
+    },
+    systemPrompt: { section: () => () => {} },
+  }
+  let provider
+  apply(ctx)
+  assert.ok(provider, 'provider 应已注册')
+  const ac = new AbortController()
+  ac.abort()
+  await assert.rejects(provider.list({ signal: ac.signal }), (err) => err.name === 'AbortError')
+  const fakeCandidate = { locator: { path: 'nope', directory: 'nope' } }
+  await assert.rejects(provider.get(fakeCandidate, { signal: ac.signal }), (err) => err.name === 'AbortError')
 })
