@@ -1,10 +1,7 @@
 # dsh-ponytail
 
 <p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="assets/logo-dark.png">
-    <img src="assets/logo.png" width="180" alt="Ponytail" />
-  </picture>
+  <img src="assets/logo.png" width="180" alt="Ponytail" />
 </p>
 
 <p align="center">

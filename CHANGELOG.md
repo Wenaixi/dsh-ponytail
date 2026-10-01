@@ -7,6 +7,10 @@
 ## [Unreleased]
 
 ### Changed
+- 发布载荷瘦身：删除与 logo.png MD5 全同的 assets/logo-dark.png（676KB×2 → 单源），README dark srcset 收为单一 <img>；零引用上游市场物料（benchmark svg ×2、logo-greenpt ×2、waitlist-banner ×3、social-preview、logo-dark.svg）移出 package.json files 白名单，包体积约 1.68MB → 约 0.35MB（文件本身保留在仓库）。
+
+
+### Changed
 - 架构深化轮 3（4 候选核实后自决 2 实施 2 驳回）：
   - **命令调度深模块化**：在 `src/ponytail-commands.ts` 实现 `createCommandDispatcher`，将消息文本展开提取（`extractTextFromContent` 与 `extractText`）、指令语法解析、状态机流转（`state.set`）、持久化配置写入（`writeDefaultMode`）与宿主日志格式化整体封装为深模块；
   - **消除 6-flag 浅接口泄漏**：消除此前 `CommandParseResult` 导出的 6 个松散布尔/可选字段在外部引起的时序耦合，内部锁死 `reportOnly` 优先分支，彻底杜绝裸指令误切；

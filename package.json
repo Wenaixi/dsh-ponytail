@@ -8,7 +8,7 @@
   "files": [
     "lib/",
     "skills/",
-    "assets/",
+    "assets/logo.png",
     "cordis.patch.yml",
     "AGENTS.md",
     "README.md",
