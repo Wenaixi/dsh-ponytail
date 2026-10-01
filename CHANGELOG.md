@@ -5,6 +5,12 @@
 > **版本策略**：每个版本固定带 `-dsh.N` 后缀（如 `4.10.0-dsh.0`、`4.10.0-dsh.1`），初始即 `-dsh.0`。上游发新版时重置为新上游版本的 `-dsh.0`（如 `4.10.0-dsh.0`），用 `pnpm run bump:dsh -- 4.10.0`。递增：`pnpm run bump:dsh`。遵循 SemVer 预发布语义。
 
 ## [Unreleased]
+### Changed
+- 架构深化轮 4（improve-codebase-architecture 评审 5 候选全量落地）：
+  - **状态接口单一关闭契约**：`state.set('off')` 与 `set(null)` 收敛为同一关闭语义（`set` 边界归一 off→null），`agent/created` 的 off→null 镜像删除；消除「无 flag」与「flag 内容 off」两种关闭形态的契约漂移
+  - **示例行裁剪契约找回**：`filterSkillBodyForMode` 示例行正则兼容中文引号/冒号（原上游 ASCII 引号形态在中文化正文下永久失配，lite/full/ultra 三档示例区此前完全相同）
+  - **list() 失败面收敛**：删除 `stat` 预检，缺失 SKILL.md 与解析失败汇入同一条 warn+跳过路径（`readFile` 本身即可区分）
+  - **监听防御对称**：`agent/pre-step` 防御 catch 补 `warn`，与 `session/event` 失败可见性对齐
 
 ### Changed
 - 发布载荷瘦身：删除与 logo.png MD5 全同的 assets/logo-dark.png（676KB×2 → 单源），README dark srcset 收为单一 <img>；零引用上游市场物料（benchmark svg ×2、logo-greenpt ×2、waitlist-banner ×3、social-preview、logo-dark.svg）移出 package.json files 白名单，包体积约 1.68MB → 约 0.35MB（文件本身保留在仓库）。
