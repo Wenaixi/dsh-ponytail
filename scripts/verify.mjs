@@ -2,6 +2,8 @@ import { readdir, readFile, stat } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import { parse } from 'yaml'
+
 const skillDir = resolve(dirname(fileURLToPath(import.meta.url)), '..', 'skills')
 console.log(`[verify] skillDir: ${skillDir}`)
 
@@ -23,7 +25,9 @@ for (const dir of skillDirs) {
 }
 
 // description 长度静态断言：官方 dsh-tool-skill 默认 catalogDescriptionMaxLength=500，
-// 超长会被模型目录截断，压缩不得回退（防回归）
+// 超长会被模型目录截断，压缩不得回退（防回归）。
+// 长度按真实 YAML 折叠块语义计算（description: > 后的连续缩进行归一 join，含折叠块末尾换行），
+// 与运行时 parseFrontmatter 使用同一 yaml.parse，保证断言与投产值一致。
 const DESC_MAX = 500
 for (const dir of skillDirs) {
   const p = join(skillDir, dir, 'SKILL.md')
@@ -31,16 +35,16 @@ for (const dir of skillDirs) {
   const lines = rawNorm.split('\n')
   const end = lines.indexOf('---', 1)
   if (end < 0) continue
-  const fm = lines.slice(1, end)
-  const idx = fm.findIndex((l) => /^description:/.test(l))
-  if (idx < 0) { console.error(`[verify] ${dir}: missing description`); ok = false; continue }
-  const inline = fm[idx].replace(/^description:[ \t]*/, '').trim()
-  const folded = []
-  for (let j = idx + 1; j < fm.length; j++) {
-    if (/^\s+\S/.test(fm[j])) folded.push(fm[j].replace(/^\s+/, ''))
-    else break
+  let desc = ''
+  try {
+    const fm = parse(lines.slice(1, end).join('\n'))
+    if (typeof fm?.description !== 'string') throw new Error('description 非字符串')
+    desc = fm.description
+  } catch (err) {
+    console.error(`[verify] ${dir}: description 解析失败：${err instanceof Error ? err.message : String(err)}`)
+    ok = false
+    continue
   }
-  const desc = ((inline && inline !== '>') ? inline + ' ' : '') + folded.join(' ').replace(/\s+/g, ' ').trim()
   if (desc.length > DESC_MAX) {
     console.error(`[verify] ${dir}: description ${desc.length} chars > ${DESC_MAX} (will be truncated by model catalog)`)
     ok = false
