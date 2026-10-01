@@ -37,3 +37,6 @@ coverage/
 
 # GitHub
 # （保留 .github/）
+
+# Superpowers SDD 执行工作区（计划/简报/评审包，不入库）
+.superpowers/
