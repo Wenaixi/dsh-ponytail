@@ -19,7 +19,6 @@ export declare function isDeactivationCommand(text: string): boolean;
 export declare function isShellSafe(p: string): boolean;
 export declare function getConfigDir(): string;
 export declare function getConfigPath(): string;
-export declare function getClaudeDir(): string;
 export declare function getDefaultMode(): RuntimeMode;
 export declare function writeDefaultMode(mode: string): RuntimeMode | null;
 /**

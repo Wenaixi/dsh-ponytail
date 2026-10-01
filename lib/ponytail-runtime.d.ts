@@ -1,13 +1,11 @@
 /**
- * ponytail-runtime — 移植自 hooks/ponytail-runtime.js
+ * ponytail-runtime — DSH 单一宿主 flag 存取
  *
- * flag 文件 + 多平台环境识别。
- * DSH 侧以文件为真源，保持与 Claude/Codex/Qoder 共存语义；
- * HMR 卸载时不残留句柄。
+ * 本插件仅面向 DeepSeek Harness（DSH）运行，不识别也不兼容
+ * Copilot / Codex / Qoder / Claude Code 等外部宿主（见 docs/adr/0004）。
+ * flag 文件（.ponytail-active）固定持久化于 DSH 配置目录，
+ * 与 config.json 同源，/ponytail 切换在 DSH 内闭环。
  */
-export declare function isCopilot(): boolean;
-export declare function isCodex(): boolean;
-export declare function isQoder(): boolean;
 export declare function setMode(mode: string): void;
 export declare function clearMode(): void;
 export declare function readMode(): string | null;

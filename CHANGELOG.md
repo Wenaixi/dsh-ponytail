@@ -6,6 +6,10 @@
 
 ## [Unreleased]
 
+### Changed
+- **收窄为 DSH 单一宿主运行时**：`src/ponytail-runtime.ts` 删除 Copilot / Codex / Qoder 三路动态平台探针与 `resolveStateDir()` 的外部宿主分支，flag 文件（`.ponytail-active`）固定持久化于 DSH 配置目录（`$XDG_CONFIG_HOME/ponytail` / `%APPDATA%\ponytail` / `~/.config/ponytail`），与 `config.json` 同源；`src/ponytail-state.ts` 移除 Copilot 文件缺失豁免，flag 缺失即关闭；`src/ponytail-config.ts` 删除 `getClaudeDir()`。
+- **文档与元数据同步**：新增 `docs/adr/0004-dsh-single-host-runtime.md` 并给 `docs/adr/0001` 追加修订注记；README 移除四路 flag 兼容描述；`skills/ponytail-help/SKILL.md` 删除 Codex / Claude Code / OpenCode 触发形式与 Claude Code 专属更新段落；CONTEXT.md / CLAUDE.md 同步；`package.json` keywords 移除 `claude-code`。
+
 ## [4.10.0-dsh.2] - 2026-10-02
 
 ### Added

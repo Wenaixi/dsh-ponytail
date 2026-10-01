@@ -62,10 +62,6 @@ export function getConfigPath(): string {
   return path.join(getConfigDir(), 'config.json')
 }
 
-export function getClaudeDir(): string {
-  return process.env['CLAUDE_CONFIG_DIR'] ?? path.join(os.homedir(), '.claude')
-}
-
 export function getDefaultMode(): RuntimeMode {
   const envMode = process.env['PONYTAIL_DEFAULT_MODE']
   if (envMode && (RUNTIME_MODES as readonly string[]).includes(envMode.toLowerCase())) {

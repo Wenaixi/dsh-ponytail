@@ -93,7 +93,7 @@ dsh --profile web --dump-config | grep -A2 ponytail
 HMR: 全部走 ctx，热重载逆序自动清理
 ```
 
-`systemPrompt` 而非 `agent.inject`：落入日志可重建，`order: 50` 优先级高，每次 `assemble` 动态求值，`off` 零成本。Flag 兼容 `COPILOT_PLUGIN_DATA` / `PLUGIN_DATA` / `QODER_SESSION_ID` / `CLAUDE_PLUGIN_ROOT`。`isCopilot()/isCodex()/isQoder()` 每次读 env，常驻进程 env 变更即时生效。
+`systemPrompt` 而非 `agent.inject`：落入日志可重建，`order: 50` 优先级高，每次 `assemble` 动态求值，`off` 零成本。flag（`.ponytail-active`）与配置同源持久化于 DSH 配置目录（`$XDG_CONFIG_HOME/ponytail` 或 `%APPDATA%\ponytail`），`/ponytail` 切换在 DSH 内闭环。
 
 ## ⚙️ 配置
 

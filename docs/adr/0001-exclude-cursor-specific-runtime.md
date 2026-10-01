@@ -16,3 +16,8 @@
 ## 影响与后果 (Consequences)
 - **正面收益**：代码体积缩减约 45%，消除了与 DSH 运行环境无关的死代码，避免在常驻进程中维护外部编辑器私有规则的复杂度；
 - **妥协权衡**：插件不适用于独立的 Cursor 插件生态（本插件定位为专用 DSH/Cordis 插件，此权衡符合项目最初定位）。
+
+## 修订注记 (Amendment)
+第 14 行「仅保留平台无关的核心动态探针（Copilot / Codex / Qoder / Claude）以兼容潜在的多宿主环境变量」
+已被收窄：docs/adr/0004-dsh-single-host-runtime.md 决定 DSH 为唯一宿主，四路探针与跨宿主
+flag 共存语义全部移除，flag 固定持久化于 DSH 配置目录。

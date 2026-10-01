@@ -1,7 +1,8 @@
-import { test } from 'node:test'
+import { before, after, test } from 'node:test'
 import os from 'node:os'
 import path from 'node:path'
 import { createPonytailState } from '../lib/ponytail-state.js'
+import { setMode, readMode, clearMode } from '../lib/ponytail-runtime.js'
 import assert from 'node:assert/strict'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -10,6 +11,24 @@ import { render } from '../lib/ponytail-instructions.js'
 import { apply } from '../lib/ponytail.js'
 
 const skillDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'skills')
+
+// 全局隔离 DSH 配置目录：所有触碰 flag 的测试在临时 XDG_CONFIG_HOME 下运行，
+// 不读写真实配置（%APPDATA%\ponytail 或 ~/.config/ponytail）
+const { mkdtemp, rm, readFile: readFileFsp } = await import('node:fs/promises')
+const prevXdg = process.env.XDG_CONFIG_HOME
+const prevAppData = process.env.APPDATA
+const tmpXdg = await mkdtemp(join(os.tmpdir(), 'ponytail-test-'))
+before(() => {
+  process.env.XDG_CONFIG_HOME = tmpXdg
+  delete process.env.APPDATA
+})
+after(async () => {
+  if (prevXdg === undefined) delete process.env.XDG_CONFIG_HOME
+  else process.env.XDG_CONFIG_HOME = prevXdg
+  if (prevAppData === undefined) delete process.env.APPDATA
+  else process.env.APPDATA = prevAppData
+  await rm(tmpXdg, { recursive: true, force: true })
+})
 
 const getDefault = () => 'full'
 
@@ -75,7 +94,7 @@ test('render: 无效 skillDir 回退 fallback 指令而非抛错', () => {
   assert.ok(out.includes('## 梯子'))
 })
 
-// A4：list()/get() 依赖真实 fs 与 ctx，直接实例化会写 ~/.claude flag 文件，
+// A4：list()/get() 依赖真实 fs 与 ctx，直接实例化会写 DSH 配置目录 flag 文件，
 // 因此用 apply() 注册 provider（factory 经 ctx.skills 校验）后取 provider 实例，
 // 传已 abort 的 signal 断言首行 throwIfAborted 立即抛 AbortError。
 test('list/get: 传入已 abort 的 AbortSignal 立即抛 AbortError（settle promptly）', async () => {
@@ -223,11 +242,12 @@ test('createPonytailState: set(null) 保持 null', () => {
   assert.equal(state.get(), null)
 })
 
-test('createPonytailState: 文件缺省时 syncFromFile 容错不抛（内存 ∈ null/full）', async () => {
+test('createPonytailState: 文件缺省时 syncFromFile 清空内存（DSH 单一宿主，flag 缺失即关闭）', async () => {
   const state = createPonytailState()
-  state.set('full')
+  state.set('full') // set 会写 flag（自动落盘），先删除 flag 制造「文件缺失」场景
+  clearMode()
   state.syncFromFile()
-  assert.ok(state.get() === null || state.get() === 'full', '非 Copilot 且文件缺失 → 清空或保持，均不抛')
+  assert.equal(state.get(), null, 'DSH 单一宿主：flag 缺失即关闭（内存清空）')
 })
 
 test('render: lite 渲染不含 ultra/full 示例行（示例行裁剪契约）', () => {
@@ -324,4 +344,17 @@ test('createPonytailState: syncToFile 显式落盘当前内存状态', () => {
   // 显式触发 syncToFile 不改变内存态且不抛错
   assert.doesNotThrow(() => state.syncToFile())
   assert.equal(state.get(), 'lite')
+})
+
+test('ponytail-runtime: setMode 落盘至 DSH 配置目录且 readMode 往返', async () => {
+  // before 钩子已把 XDG_CONFIG_HOME 指向临时目录，直接验证 DSH 配置目录落盘
+  const cfgDir = process.env.XDG_CONFIG_HOME
+  setMode('ultra')
+  assert.equal(readMode(), 'ultra', 'setMode 后 readMode 应返回 ultra')
+  const flagPath = join(cfgDir, 'ponytail', '.ponytail-active')
+  const exists = await import('node:fs/promises').then(fs => fs.stat(flagPath).then(() => true).catch(() => false))
+  assert.equal(exists, true, 'flag 文件应物理位于 DSH 配置目录（XDG_CONFIG_HOME/ponytail/.ponytail-active）')
+  assert.equal(await readFileFsp(flagPath, 'utf8'), 'ultra')
+  clearMode()
+  assert.equal(readMode(), null, 'clearMode 后 readMode 应为 null')
 })

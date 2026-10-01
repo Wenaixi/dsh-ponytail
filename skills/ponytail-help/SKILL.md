@@ -29,7 +29,6 @@ description: >
 | **ponytail-gain** | `/ponytail-gain` | 实测收益看板：更少代码、更低成本、更快速度。 |
 | **ponytail-help** | `/ponytail-help` | 本卡片。 |
 
-Codex 使用 `@ponytail`、`@ponytail-review`、`@ponytail-help`；Claude Code 与 OpenCode 使用上述斜杠形式（OpenCode 将六个技能均作为斜杠命令提供）。
 
 ## 退出
 
@@ -53,12 +52,6 @@ export PONYTAIL_DEFAULT_MODE=ultra
 设为 `"off"` 可关闭会话启动时的自动激活，需要时再用 `/ponytail` 手动开启。
 
 优先级：环境变量 > 配置文件 > `full`。
-
-## 更新
-
-启用一次自动更新：打开 `/plugin`，进入 Marketplaces，选择 ponytail，开启 Enable auto-update。Claude Code 会在启动时拉取新版本（提示时执行 `/reload-plugins`）。手动刷新：`/plugin marketplace update ponytail` 然后 `/reload-plugins`。
-
-若无法识别 `/plugin`，说明 Claude Code 过旧，请先更新（`npm install -g @anthropic-ai/claude-code@latest` 或 `brew upgrade claude-code`）并重启。其他宿主请走各自的更新流程。
 
 ## 更多
 

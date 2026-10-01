@@ -19,7 +19,7 @@
   *Avoid (严禁混用)*: Decision Tree, Lazy Rules, Priority List, Steps
 
 - **State Duality（状态对偶性）**:
-  内存态（`currentMode`）与物理 flag 文件（`~/.claude/.ponytail-active` 等）跨进程生命周期的同步配对机制。通过 `syncFromFile()` 纠偏与 `syncToFile()` 镜像落盘。
+  内存态（`currentMode`）与物理 flag 文件（DSH 配置目录下 `.ponytail-active`）在常驻进程生命周期内的同步配对机制。通过 `syncFromFile()` 纠偏与 `syncToFile()` 镜像落盘。
   *Avoid (严禁混用)*: State Cache, Dual Storage, File Sync, Shadow State
 
 - **Deactivation Phrase（失活短句）**:
@@ -65,7 +65,7 @@
 | `ponytail-state.ts` | 对偶状态机管理 | `PonytailState` 对偶接口 | 内存状态流转、对偶落盘、文件优先纠偏 |
 | `ponytail-skills.ts` | 技能发现与契约提供 | `PonytailProvider` (SkillProvider) | 目录扫描、Frontmatter 解析、assembleSkillBase 流水线 |
 | `ponytail-config.ts` | Schemastery 声明与配置 | `Config`, `resolveDefaultMode` | 三级配置优先级、路径字符白名单、写入 config.json |
-| `ponytail-runtime.ts` | 宿主平台识别与底层 I/O | 平台探针与 flag 读写 | Copilot/Codex/Qoder/Claude 路径探测与 flag 物理存取 |
+| `ponytail-runtime.ts` | DSH 配置目录 flag 物理存取 | flag 读写 | 单一宿主（DSH）配置目录内 `.ponytail-active` 读写 |
 | `ponytail.ts` | Cordis 插件生命周期编排 | `apply` | Waterfall 中间件流转、agent/created 钩子、section 注入 |
 
 ---
@@ -75,5 +75,5 @@
 1. **零 Tool 注册**：纯靠 SystemPrompt 梯子引导与 6 个中文 Skill 运作，严禁在 `ctx.tools` 注册任何 Tool（见 `docs/adr/0002`）；
 2. **模型可见可重建**：提示词必须且只能通过 `ctx.systemPrompt.section('ponytail')` 注入；
 3. **无状态直读**：系统提示词坚持按需同步读盘（耗时仅 0.22ms），杜绝过早内存缓存导致的热重载失效（见 `docs/adr/0003`）；
-4. **排除 Cursor 专属运行时**：专注于 DSH 常驻宿主，遵循 YAGNI（见 `docs/adr/0001`）；
+4. **DSH 单一宿主运行时**：不识别任何外部宿主（Copilot / Codex / Qoder / Claude Code / Cursor），flag 固定持久化于 DSH 配置目录（见 `docs/adr/0001` 与 `docs/adr/0004`）；
 5. **Waterfall 连贯性**：所有 Cordis Waterfall 中间件必须返回 `await next()`，防御性隔离所有异常。
