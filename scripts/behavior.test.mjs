@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { parsePonytailCommand } from '../lib/ponytail-commands.js'
+import { parsePonytailCommand, createCommandDispatcher, extractTextFromContent, extractText } from '../lib/ponytail-commands.js'
 import { render } from '../lib/ponytail-instructions.js'
 import { apply } from '../lib/ponytail.js'
 
@@ -96,4 +96,113 @@ test('list/get: 传入已 abort 的 AbortSignal 立即抛 AbortError（settle pr
   await assert.rejects(provider.list({ signal: ac.signal }), (err) => err.name === 'AbortError')
   const fakeCandidate = { locator: { path: 'nope', directory: 'nope' } }
   await assert.rejects(provider.get(fakeCandidate, { signal: ac.signal }), (err) => err.name === 'AbortError')
+})
+
+// ==========================================
+// CommandDispatcher & Text Extraction Tests
+// ==========================================
+
+test('extractTextFromContent: 字符串与多 block 数组正常提取并过滤非文本', () => {
+  assert.equal(extractTextFromContent('hello'), 'hello')
+  assert.equal(extractTextFromContent(null), '')
+  assert.equal(extractTextFromContent(123), '')
+  const blocks = [
+    { type: 'image', data: 'xyz' },
+    { type: 'text', text: 'first line' },
+    { type: 'text', text: 'second line' },
+    { foo: 'bar' }
+  ]
+  assert.equal(extractTextFromContent(blocks), 'first line\nsecond line')
+})
+
+test('extractText: 过滤空 content 并合并多 message', () => {
+  const msgs = [
+    { content: 'msg 1' },
+    { content: [{ type: 'text', text: 'msg 2' }] },
+    { content: null }
+  ]
+  assert.equal(extractText(msgs), 'msg 1\nmsg 2')
+})
+
+test('createCommandDispatcher: /ponytail lite 触发 state.set 并输出切换日志', () => {
+  let currentState = null
+  const logs = []
+  const dispatcher = createCommandDispatcher({
+    state: {
+      get: () => currentState,
+      set: (m) => { currentState = m },
+      syncFromFile: () => {}
+    },
+    logger: {
+      info: (msg) => logs.push(msg)
+    },
+    getDefaultMode: () => 'full'
+  })
+
+  const res = dispatcher.dispatchText('/ponytail lite')
+  assert.deepEqual(res, { handled: true, switched: true })
+  assert.equal(currentState, 'lite')
+  assert.ok(logs.some(l => l.includes('已切换 — 等级：lite')))
+})
+
+test('createCommandDispatcher: stop ponytail. 触发 state.set(null) 失活并输出退出日志', () => {
+  let currentState = 'full'
+  const logs = []
+  const dispatcher = createCommandDispatcher({
+    state: {
+      get: () => currentState,
+      set: (m) => { currentState = m },
+      syncFromFile: () => {}
+    },
+    logger: {
+      info: (msg) => logs.push(msg)
+    }
+  })
+
+  const res = dispatcher.dispatchText('stop ponytail.')
+  assert.deepEqual(res, { handled: true, switched: true })
+  assert.equal(currentState, null)
+  assert.ok(logs.some(l => l.includes('已通过指令退出')))
+})
+
+test('createCommandDispatcher: 裸 /ponytail 仅报告当前等级，绝对不触发 state.set（防时序误切）', () => {
+  let currentState = 'ultra'
+  let setCalled = false
+  const logs = []
+  const dispatcher = createCommandDispatcher({
+    state: {
+      get: () => currentState,
+      set: () => { setCalled = true },
+      syncFromFile: () => {}
+    },
+    logger: {
+      info: (msg) => logs.push(msg)
+    },
+    getDefaultMode: () => 'full'
+  })
+
+  const res = dispatcher.dispatchText('/ponytail')
+  assert.deepEqual(res, { handled: true, switched: false })
+  assert.equal(setCalled, false, '裸指令绝不可触发 set')
+  assert.equal(currentState, 'ultra')
+  assert.ok(logs.some(l => l.includes('当前等级：ultra')))
+})
+
+test('createCommandDispatcher: dispatchMessages 识别嵌套 block 中的指令并切换', () => {
+  let currentState = null
+  const dispatcher = createCommandDispatcher({
+    state: {
+      get: () => currentState,
+      set: (m) => { currentState = m },
+      syncFromFile: () => {}
+    },
+    logger: { info: () => {} }
+  })
+
+  const messages = [
+    { content: [{ type: 'text', text: '/ponytail:ponytail-review' }] }
+  ]
+  const res = dispatcher.dispatchMessages(messages)
+  assert.deepEqual(res, { handled: true, switched: true })
+  assert.equal(currentState, 'review')
 })

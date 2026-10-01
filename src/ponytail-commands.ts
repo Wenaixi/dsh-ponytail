@@ -1,87 +1,191 @@
+import type { PonytailState } from './ponytail-state.js'
+import {
+  getDefaultMode,
+  isDeactivationCommand,
+  writeDefaultMode,
+  type RuntimeMode,
+} from './ponytail-config.js'
+
 /**
- * ponytail-commands — 指令解析纯函数
- *
- * 从 apply 内的 handlePromptText 抽取的解析核心，不依赖 ctx / fs / 闭包状态，
- * 便于单元测试；ponytail.ts 调用它并执行副作用（setMode/clearMode/日志）。
+ * 指令解析结果（底层纯数据结构，供单元测试与内部调度使用）
  */
-
-import { isDeactivationCommand } from './ponytail-config.js'
-
 export interface CommandParseResult {
   handled: boolean
   switched: boolean
-  /** 各分支语义（与上游 mode-tracker 的局部量 1:1 投影，勿加判别字段双编码）：
-   *  switch=目标等级（lite/full/ultra/off/review）；report=报告值（current ?? default）；
-   *  persist=待持久化等级；deactivate=全句失活。 */
-  mode?: string
-  /** stop ponytail / normal mode 等全句失活 */
+  mode?: RuntimeMode | 'review'
   deactivate?: boolean
-  /** 裸 /ponytail 仅报告当前等级，不切换 */
   reportOnly?: boolean
-  /** /ponytail default <mode> 持久化默认等级 */
   persistDefault?: { mode: string } | null
 }
 
 /**
- * 解析一条用户文本中的 ponytail 指令。
- * 与上游 hooks/ponytail-mode-tracker.js（4.10.0）逐分支一致：
- * - /^[/@$]ponytail/ 前缀，@/$ 归一为 /
- * - /ponytail:ponytail 与 /ponytail:ponytail-review 前缀形式
- * - 未知参数走上游 else 兜底：切到默认等级（静默幂等，与上游一致）
- * - 非 ponytail 指令时交给 isDeactivationCommand 全句匹配
+ * 从单条消息 content 结构中提取纯文本
+ */
+export function extractTextFromContent(content: unknown): string {
+  if (typeof content === 'string') return content
+  if (Array.isArray(content)) {
+    return content
+      .filter((b): b is { text: string } => typeof (b as { text?: unknown })?.text === 'string')
+      .map((b) => b.text)
+      .join('\n')
+  }
+  return ''
+}
+
+/**
+ * 从消息数组中提取并拼接纯文本
+ */
+export function extractText(messages: unknown): string {
+  if (!Array.isArray(messages)) return ''
+  return messages
+    .map((m) => extractTextFromContent((m as { content?: unknown })?.content))
+    .filter(Boolean)
+    .join('\n')
+    .trim()
+}
+
+/**
+ * 解析用户输入的文本是否为 ponytail 命令
+ * 移植自 hooks/ponytail-mode-tracker.js 的核心解析逻辑
  */
 export function parsePonytailCommand(
-  text: string,
-  current: string | null,
-  getDefault: () => string,
+  rawText: string,
+  currentMode: string | null,
+  getDefault: () => RuntimeMode,
 ): CommandParseResult {
-  const lower = String(text ?? '').trim().toLowerCase()
+  const text = String(rawText ?? '').trim()
+  const lower = text.toLowerCase()
 
-  if (/^[/@$]ponytail/.test(lower)) {
-    const parts = lower.split(/\s+/)
-    const cmd = (parts[0] ?? '').replace(/^[@$]/, '/')
-    const arg = parts[1] ?? ''
-    const arg2 = parts[2] ?? ''
-
-    let mode: string | null = null
-    let isReportOnly = false
-    let persistMode: string | null = null
-
-    if (cmd === '/ponytail-review' || cmd === '/ponytail:ponytail-review') {
-      mode = 'review'
-    } else if (cmd === '/ponytail' || cmd === '/ponytail:ponytail') {
-      if (arg === 'default') {
-        persistMode = arg2
-      } else if (arg === 'lite') mode = 'lite'
-      else if (arg === 'full') mode = 'full'
-      else if (arg === 'ultra') mode = 'ultra'
-      else if (arg === 'off') mode = 'off'
-      else if (arg === '') isReportOnly = true
-      // 上游 else 兜底：未知参数静默切到默认等级（不报错、不跳过）
-      else mode = getDefault()
-    }
-
-    if (persistMode !== null) {
-      return { handled: true, switched: false, persistDefault: { mode: persistMode } }
-    }
-    if (isReportOnly) {
-      // report 分支的 mode 是「报告值」（current ?? default），语义与 switch 的目标等级不同；
-      // 消费方必须 reportOnly 先于 mode 分支判断，否则裸 /ponytail 会被当成切档
-      return { handled: true, switched: false, reportOnly: true, mode: current ?? getDefault() }
-    }
-    if (mode && mode !== 'off') {
-      return { handled: true, switched: true, mode }
-    }
-    if (mode === 'off') {
-      return { handled: true, switched: true, mode: 'off' }
-    }
-    // 未知参数 mode = getDefault() 已落入上一分支（mode !== 'off'）
-    return { handled: true, switched: false }
-  }
-
+  // 1. 全句失活指令
   if (isDeactivationCommand(lower)) {
     return { handled: true, switched: true, deactivate: true }
   }
 
+  // 2. 指令前缀匹配：统一处理 /、@、$ 以及 :ponytail 前缀
+  const match = text.match(/^[/@$](?:ponytail:)?(ponytail(?:-[a-z]+)?)(?:\s+(.*))?$/i)
+  if (!match) return { handled: false, switched: false }
+
+  const cmd = match[1].toLowerCase()
+  const arg = (match[2] ?? '').trim().toLowerCase()
+
+  if (cmd === 'ponytail-review') {
+    return { handled: true, switched: true, mode: 'review' }
+  }
+
+  if (cmd === 'ponytail') {
+    if (arg === 'off') {
+      return { handled: true, switched: true, mode: 'off' }
+    }
+    if (arg === 'lite' || arg === 'full' || arg === 'ultra') {
+      return { handled: true, switched: true, mode: arg }
+    }
+    if (arg.startsWith('default')) {
+      const targetMode = arg.replace(/^default\s*/, '').trim()
+      return {
+        handled: true,
+        switched: false,
+        persistDefault: { mode: targetMode },
+      }
+    }
+    if (!arg) {
+      // 裸 /ponytail 仅报告当前等级，不切换
+      return {
+        handled: true,
+        switched: false,
+        reportOnly: true,
+        mode: (currentMode as RuntimeMode | null) ?? getDefault(),
+      }
+    }
+    // 未知参数：对齐上游 mode-tracker 的 else 兜底切默认等级
+    return { handled: true, switched: true, mode: getDefault() }
+  }
+
   return { handled: false, switched: false }
+}
+
+export interface CommandDispatcherLogger {
+  info: (msg: string) => void
+  warn?: (msg: string) => void
+  debug?: (msg: string) => void
+}
+
+export interface CommandDispatcherEnv {
+  state: PonytailState
+  logger: CommandDispatcherLogger
+  getDefaultMode?: () => RuntimeMode
+  writeDefaultMode?: (mode: string) => RuntimeMode | null
+}
+
+export interface CommandDispatchResult {
+  handled: boolean
+  switched: boolean
+}
+
+export interface CommandDispatcher {
+  dispatchText: (rawText: string) => CommandDispatchResult
+  dispatchContent: (content: unknown) => CommandDispatchResult
+  dispatchMessages: (messages: unknown) => CommandDispatchResult
+}
+
+/**
+ * 创建高内聚的命令调度器深模块
+ * 将文本提取、指令语法解析、状态机流转与副作用执行完整封装
+ */
+export function createCommandDispatcher(env: CommandDispatcherEnv): CommandDispatcher {
+  const getDef = env.getDefaultMode ?? getDefaultMode
+  const writeDef = env.writeDefaultMode ?? writeDefaultMode
+
+  function dispatchText(rawText: string): CommandDispatchResult {
+    const text = String(rawText ?? '').trim()
+    const result = parsePonytailCommand(text, env.state.get(), getDef)
+    if (!result.handled) return { handled: false, switched: false }
+
+    if (result.deactivate) {
+      env.state.set(null)
+      env.logger.info(`[ponytail] 已通过指令退出：${text}`)
+      return { handled: true, switched: true }
+    }
+
+    if (result.persistDefault) {
+      const targetMode = result.persistDefault.mode
+      if (targetMode === 'off' || targetMode === 'lite' || targetMode === 'full' || targetMode === 'ultra') {
+        const written = writeDef(targetMode)
+        env.logger.info(`[ponytail] 默认等级已持久化：${written}`)
+        env.state.set(targetMode)
+      }
+      return { handled: true, switched: true }
+    }
+
+    // ponytail: 严格内聚时序：reportOnly 必须先于 mode 分支判断，防止裸 /ponytail 误判切档
+    if (result.reportOnly) {
+      env.logger.info(`[ponytail] 当前等级：${result.mode}`)
+      return { handled: true, switched: false }
+    }
+
+    if (result.mode && result.mode !== 'off') {
+      env.state.set(result.mode)
+      env.logger.info(`[ponytail] 已切换 — 等级：${result.mode}`)
+      return { handled: true, switched: true }
+    }
+
+    if (result.mode === 'off') {
+      env.state.set(null)
+      env.logger.info('[ponytail] 已关闭')
+      return { handled: true, switched: true }
+    }
+
+    return { handled: true, switched: false }
+  }
+
+  return {
+    dispatchText,
+    dispatchContent(content: unknown): CommandDispatchResult {
+      const text = extractTextFromContent(content)
+      return text ? dispatchText(text) : { handled: false, switched: false }
+    },
+    dispatchMessages(messages: unknown): CommandDispatchResult {
+      const text = extractText(messages)
+      return text ? dispatchText(text) : { handled: false, switched: false }
+    },
+  }
 }

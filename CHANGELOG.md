@@ -4,6 +4,18 @@
 
 > **版本策略**：每个版本固定带 `-dsh.N` 后缀（如 `4.10.0-dsh.0`、`4.10.0-dsh.1`），初始即 `-dsh.0`。上游发新版时重置为新上游版本的 `-dsh.0`（如 `4.10.0-dsh.0`），用 `pnpm run bump:dsh -- 4.10.0`。递增：`pnpm run bump:dsh`。遵循 SemVer 预发布语义。
 
+## [Unreleased]
+
+### Changed
+- 架构深化轮 3（4 候选核实后自决 2 实施 2 驳回）：
+  - **命令调度深模块化**：在 `src/ponytail-commands.ts` 实现 `createCommandDispatcher`，将消息文本展开提取（`extractTextFromContent` 与 `extractText`）、指令语法解析、状态机流转（`state.set`）、持久化配置写入（`writeDefaultMode`）与宿主日志格式化整体封装为深模块；
+  - **消除 6-flag 浅接口泄漏**：消除此前 `CommandParseResult` 导出的 6 个松散布尔/可选字段在外部引起的时序耦合，内部锁死 `reportOnly` 优先分支，彻底杜绝裸指令误切；
+  - **插件入口骨架瘦身**：`src/ponytail.ts` 由 272 行降至 221 行（净减 51 行脆弱级联胶水），`agent/pre-step` 与 `session/event` 简化为单行委托调用，入口彻底纯化为声明式插件生命周期装配线；
+  - **架构决策自决与驳回**：正式驳回 Candidate 2（合并 state 与 runtime：破坏上游 1:1 逐行移植锚点与产物守卫，净收益为负）与 Candidate 3（合并 skill 存储与 instructions 渲染：同步高频渲染与异步 Cordis 服务范式正交，强行捏合制造上帝类，违背 YAGNI）；
+
+### Added
+- `scripts/behavior.test.mjs` 新增 6 项高杠杆行为测试（测试总数 12 → 18 项，耗时仅 10ms）：覆盖多 block 与非文本清洗、多 message 拼接、切档状态突变与日志断言、失活状态突变、裸指令防误切安全守卫、嵌套 block 消息指令识别；
+
 ## [4.10.0-dsh.1] - 2026-10-01
 
 ### Changed
