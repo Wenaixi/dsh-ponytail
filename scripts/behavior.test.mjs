@@ -256,3 +256,64 @@ test('list: 无 SKILL.md 的目录被跳过且不抛错（stat 删除后的失�
   assert.deepEqual(names, ['good-skill'], '空目录被跳过，good-skill 被枚举')
   await fsp.rm(tmp, { recursive: true, force: true })
 })
+test('createCommandDispatcher: /ponytail default lite 触发注入的 writeDefaultMode 且同步 state.set', () => {
+  let mockWritten = null
+  let logOutput = ''
+  let stateVal = 'full'
+  const state = {
+    get: () => stateVal,
+    set: (m) => { stateVal = m },
+    syncFromFile: () => {}
+  }
+  const logger = {
+    info: (msg) => { logOutput += msg + '\n' },
+    warn: (msg) => { logOutput += msg + '\n' },
+    debug: () => {}
+  }
+  const dispatcher = createCommandDispatcher({
+    state,
+    logger,
+    getDefaultMode: () => 'full',
+    writeDefaultMode: (mode) => {
+      mockWritten = mode
+      return mode
+    }
+  })
+
+  const res = dispatcher.dispatchText('/ponytail default lite')
+  assert.equal(res.handled, true)
+  assert.equal(mockWritten, 'lite')
+  assert.equal(stateVal, 'lite')
+  assert.match(logOutput, /默认等级已持久化：lite/)
+})
+
+test('createCommandDispatcher: /ponytail default foobar 非法参数不触发 writeDefaultMode 且不修改 state', () => {
+  let writeCalled = false
+  let logOutput = ''
+  let stateVal = 'full'
+  const state = {
+    get: () => stateVal,
+    set: (m) => { stateVal = m },
+    syncFromFile: () => {}
+  }
+  const logger = {
+    info: (msg) => { logOutput += msg + '\n' },
+    warn: (msg) => { logOutput += msg + '\n' },
+    debug: () => {}
+  }
+  const dispatcher = createCommandDispatcher({
+    state,
+    logger,
+    getDefaultMode: () => 'full',
+    writeDefaultMode: (mode) => {
+      writeCalled = true
+      return null
+    }
+  })
+
+  const res = dispatcher.dispatchText('/ponytail default foobar')
+  assert.equal(res.handled, true)
+  assert.equal(writeCalled, false)
+  assert.equal(stateVal, 'full')
+  assert.equal(logOutput, '')
+})
