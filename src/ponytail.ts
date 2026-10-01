@@ -32,7 +32,7 @@ import {
   writeDefaultMode,
 } from './ponytail-config.js'
 import { parsePonytailCommand } from './ponytail-commands.js'
-import { filterSkillBodyForMode, getFallbackInstructions, getMainSkillPath } from './ponytail-instructions.js'
+import { render } from './ponytail-instructions.js'
 import { createPonytailState } from './ponytail-state.js'
 
 // ---------------------------------------------------------------------------
@@ -348,7 +348,6 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
   }
 
   const skillDir = resolveDefaultSkillDir(resolved.skillDir)
-  const mainSkillPath = getMainSkillPath(skillDir)
 
   // 等级状态唯一归属：get()/set()/syncFromFile() 三方法，闭包态随 HMR 重建
   const state = createPonytailState()
@@ -388,16 +387,8 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
         // ignore
       }
       const mode = state.get()
-      if (!mode || mode === 'off') return ''
-      if (mode === 'review') {
-        return 'PONYTAIL 已激活 — 等级：review，行为由 /ponytail-review 技能定义。'
-      }
-      try {
-        const raw = readFileSync(mainSkillPath, 'utf8')
-        return 'PONYTAIL 已激活 — 等级：' + mode + '\n\n' + filterSkillBodyForMode(raw, mode)
-      } catch {
-        return getFallbackInstructions(mode)
-      }
+      if (!mode || mode === 'off') return ''  // off = 不注入，属 section 职责，不进 render
+      return render(skillDir, mode)
     },
   })
 

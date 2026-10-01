@@ -1,8 +1,12 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { parsePonytailCommand } from '../lib/ponytail-commands.js'
-import { filterSkillBodyForMode } from '../lib/ponytail-instructions.js'
+import { render } from '../lib/ponytail-instructions.js'
 import { apply } from '../lib/ponytail.js'
+
+const skillDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'skills')
 
 const getDefault = () => 'full'
 
@@ -48,34 +52,24 @@ test('parsePonytailCommand: /ponytail default foobar 不切换（非法默认由
   assert.deepEqual(r, { handled: true, switched: false, persistDefault: { mode: 'foobar' } })
 })
 
-test('filterSkillBodyForMode: lite 保留 lite 行、剔除 full 行', () => {
-  const body = [
-    '## 强度',
-    '',
-    '| 等级 | 变化 |',
-    '|-------|------|',
-    '| **lite** | 按要求构建，顺带点出更懒的替代方案。 |',
-    '| **full** | 强制走梯子，标准库和原生优先。 |',
-    '| **ultra** | YAGNI 极端派，先删后加。 |',
-    '',
-    '- lite: "在同一行点出更懒的方案"',
-    '- full: "最短 diff 获胜"',
-  ].join('\n')
-  const out = filterSkillBodyForMode(body, 'lite')
+test('render: lite 保留 lite 行、剔除 full/ultra 行与正文 frontmatter', () => {
+  const out = render(skillDir, 'lite')
+  assert.ok(out.startsWith('PONYTAIL 已激活 — 等级：lite'), '应带等级头')
+  assert.ok(!out.startsWith('---'), 'frontmatter 应被剥离')
   assert.ok(out.includes('| **lite** |'))
   assert.ok(!out.includes('| **full** |'))
   assert.ok(!out.includes('| **ultra** |'))
-  assert.ok(out.includes('- lite: "在同一行点出更懒的方案"'))
-  assert.ok(!out.includes('- full: "最短 diff 获胜"'))
 })
 
-test('filterSkillBodyForMode: review 模式标准化回退 full（review 独立文本由 plugin 层提供）', () => {
-  // normalizeMode 不识别 review，effectiveMode 回退 full；review 的真正独立文本在
-  // ponytail.ts 的 section 中（currentMode==='review' 时不调用本函数）
-  const body = '## 强度\n\n| **lite** | a |\n| **full** | b |\n'
-  const out = filterSkillBodyForMode(body, 'review')
-  assert.ok(!out.includes('**lite**'))
-  assert.ok(out.includes('**full**'))
+test('render: review 返回指针文本，不读取 SKILL.md', () => {
+  const out = render(skillDir, 'review')
+  assert.deepEqual(out, 'PONYTAIL 已激活 — 等级：review，行为由 /ponytail-review 技能定义。')
+})
+
+test('render: 无效 skillDir 回退 fallback 指令而非抛错', () => {
+  const out = render(join(skillDir, '__missing__'), 'full')
+  assert.ok(out.includes('PONYTAIL 已激活 — 等级：full'))
+  assert.ok(out.includes('## 梯子'))
 })
 
 // A4：list()/get() 依赖真实 fs 与 ctx，直接实例化会写 ~/.claude flag 文件，

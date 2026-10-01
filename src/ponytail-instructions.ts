@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { DEFAULT_MODE, normalizeMode } from './ponytail-config.js'
 
@@ -61,4 +62,25 @@ export function getFallbackInstructions(mode: string): string {
 // 兼容旧路径解析：给定 skillDir 返回主技能路径
 export function getMainSkillPath(skillDir: string): string {
   return join(skillDir, 'ponytail', 'SKILL.md')
+}
+
+/** 独立模式：不走主技能正文裁剪，由同名技能定义行为（上游 INDEPENDENT_MODES 同构） */
+const INDEPENDENT_MODES = new Set(['review'])
+
+/**
+ * 渲染当前等级的 always-on 指令文本（上游 getPonytailInstructions 的 DSH 对应物）。
+ * 深模块：路径解析、review 短路、读盘、按等级裁剪、失败回退全部内聚于此。
+ * 无 ctx、无状态、自身绝不抛（读盘失败回退内置文本），满足 systemPrompt section
+ * 的同步 text 契约。skillDir 显式传入：上游硬编码包内路径，DSH 允许 config.skillDir 覆盖。
+ */
+export function render(skillDir: string, mode: string): string {
+  if (INDEPENDENT_MODES.has(mode)) {
+    return 'PONYTAIL 已激活 — 等级：' + mode + '，行为由 /ponytail-' + mode + ' 技能定义。'
+  }
+  try {
+    const raw = readFileSync(getMainSkillPath(skillDir), 'utf8')
+    return 'PONYTAIL 已激活 — 等级：' + mode + '\n\n' + filterSkillBodyForMode(raw, mode)
+  } catch {
+    return getFallbackInstructions(mode)
+  }
 }
