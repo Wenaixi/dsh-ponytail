@@ -141,6 +141,51 @@ async function parseSkillFile(
 // SkillProvider（完整复刻上游 6 skill 的 discovery）
 // ---------------------------------------------------------------------------
 
+interface SkillBaseFields {
+  readonly name: string
+  readonly description: string
+  readonly whenToUse?: string
+  readonly invocation: { modelInvocable: boolean; userInvocable: boolean }
+  readonly source: 'bundled'
+  readonly provider: string
+  readonly resourceBase: { readonly kind: 'directory'; readonly path: string }
+  readonly path: string
+  readonly metadata?: Readonly<Record<string, unknown>>
+}
+
+/**
+ * 私有组装流水线：从 frontmatter 提取并验证公共基础字段。
+ * 校验失败或格式非法时抛出 Error，由外层根据上下文决定记录日志或静默处理。
+ */
+function assembleSkillBase(
+  data: Record<string, unknown>,
+  filePath: string,
+  providerName: string,
+): SkillBaseFields {
+  const name = readString(data, 'name')
+  const description = readString(data, 'description')
+  if (!name || !description) {
+    throw new Error('frontmatter 必须包含 name 和 description')
+  }
+  if (!isSkillName(name)) {
+    throw new Error(`无效的 skill 名称 "${name}"`)
+  }
+  const whenToUse = readString(data, 'whenToUse')
+  const invocation = parseInvocationPolicy(data)
+  const baseDir = dirname(filePath)
+  return {
+    name,
+    description,
+    ...(whenToUse ? { whenToUse } : {}),
+    invocation,
+    source: 'bundled',
+    provider: providerName,
+    resourceBase: { kind: 'directory', path: baseDir },
+    path: filePath,
+    ...readMetadata(data),
+  }
+}
+
 export class PonytailProvider implements SkillProvider {
   readonly name: string
   private readonly skillDir: string
@@ -188,43 +233,22 @@ export class PonytailProvider implements SkillProvider {
         this.ctx.logger.warn(`[ponytail] 跳过 ${entry.name}：缺少或无效的 frontmatter`)
         continue
       }
-      const { data } = parsed
-      const skillName = readString(data, 'name')
-      const description = readString(data, 'description')
-      if (!skillName || !description) {
-        this.ctx.logger.warn(`[ponytail] 跳过 ${skillPath}：frontmatter 必须包含 name 和 description`)
+      let base: SkillBaseFields
+      try {
+        base = assembleSkillBase(parsed.data, skillPath, this.name)
+      } catch (err: unknown) {
+        this.ctx.logger.warn(`[ponytail] 跳过 ${skillPath}：${(err as Error).message}`)
         continue
       }
-      if (!isSkillName(skillName)) {
-        this.ctx.logger.warn(`[ponytail] 跳过 ${skillPath}：无效的 skill 名称 "${skillName}"`)
-        continue
-      }
-      if (skillName !== entry.name) {
+      if (base.name !== entry.name) {
         this.ctx.logger.warn(
-          `[ponytail] skill 名称 "${skillName}" 与目录 "${entry.name}" 不一致（以 frontmatter 为准）`,
+          `[ponytail] skill 名称 "${base.name}" 与目录 "${entry.name}" 不一致（以 frontmatter 为准）`,
         )
       }
-      const whenToUse = readString(data, 'whenToUse')
-      let invocation: { modelInvocable: boolean; userInvocable: boolean }
-      try {
-        invocation = parseInvocationPolicy(data)
-      } catch (e) {
-        this.ctx.logger.warn(`[ponytail] 跳过 ${skillPath}：${String(e)}`)
-        continue
-      }
-
       candidates.push({
-        name: skillName,
-        description,
-        ...(whenToUse ? { whenToUse } : {}),
-        invocation,
-        source: 'bundled',
-        provider: this.name,
+        ...base,
         rank: PONYTAIL_RANK,
         locator: { path: skillPath, directory: dirname(skillPath) },
-        resourceBase: { kind: 'directory', path: dirname(skillPath) },
-        path: skillPath,
-        ...readMetadata(data),
       } as SkillCandidate)
     }
 
@@ -240,29 +264,19 @@ export class PonytailProvider implements SkillProvider {
     if (!targetPath) return undefined
     const parsed = await parseSkillFile(targetPath, options.signal)
     if (!parsed) return undefined
-    const data = parsed.data
-    const skillName = readString(data, 'name')
-    const description = readString(data, 'description')
-    if (!skillName || !description) return undefined
-    if (skillName !== candidate.name) return undefined
-    const whenToUse = readString(data, 'whenToUse')
-    let invocation: { modelInvocable: boolean; userInvocable: boolean }
+    let base: SkillBaseFields
     try {
-      invocation = parseInvocationPolicy(data)
+      base = assembleSkillBase(parsed.data, targetPath, this.name)
     } catch {
       return undefined
     }
+    if (base.name !== candidate.name) return undefined
     const targetDir = locatorObj?.directory ?? dirname(targetPath)
     return {
-      name: skillName,
-      description,
-      ...(whenToUse ? { whenToUse } : {}),
-      invocation,
-      source: 'bundled',
-      provider: this.name,
-      resourceBase: { kind: 'directory', path: targetDir },
-      path: targetPath,
-      ...readMetadata(data),
+      ...base,
+      ...(targetDir !== base.resourceBase.path
+        ? { resourceBase: { kind: 'directory', path: targetDir } }
+        : {}),
       content: parsed.body.trim(),
     }
   }
