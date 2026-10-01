@@ -67,6 +67,7 @@ const checks = [
   'lib/ponytail-config.js',
   'lib/ponytail-instructions.js',
   'lib/ponytail-runtime.js',
+  'lib/ponytail-skills.js',
   'cordis.patch.yml',
   'package.json',
   'skills/ponytail/SKILL.md',
