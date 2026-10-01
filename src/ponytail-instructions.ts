@@ -1,8 +1,5 @@
-import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { DEFAULT_MODE, normalizeMode, normalizePersistedMode } from './ponytail-config.js'
-
-const INDEPENDENT_MODES = new Set(['review'])
+import { DEFAULT_MODE, normalizeMode } from './ponytail-config.js'
 
 export function filterSkillBodyForMode(body: string, mode: string): string {
   const effectiveMode = normalizeMode(mode) ?? (DEFAULT_MODE as string)
@@ -59,23 +56,6 @@ export function getFallbackInstructions(mode: string): string {
     '## 边界\n\n' +
     'Ponytail 管的是怎么构建，而不是怎么说话。「stop ponytail / 正常模式」即退出，等级保持到被修改或会话结束。'
   )
-}
-
-export function getPonytailInstructions(mode: string, skillPath?: string): string {
-  const configuredMode = normalizePersistedMode(mode) ?? (DEFAULT_MODE as string)
-  if (INDEPENDENT_MODES.has(configuredMode)) {
-    return 'PONYTAIL 已激活 \u2014 等级：' + configuredMode + '，行为由 /ponytail-' + configuredMode + ' 技能定义。'
-  }
-  const effectiveMode = normalizeMode(configuredMode) ?? (DEFAULT_MODE as string)
-  if (skillPath) {
-    try {
-      const raw = readFileSync(skillPath, 'utf8')
-      return 'PONYTAIL 已激活 \u2014 等级：' + effectiveMode + '\n\n' + filterSkillBodyForMode(raw, effectiveMode)
-    } catch {
-      return getFallbackInstructions(effectiveMode)
-    }
-  }
-  return getFallbackInstructions(effectiveMode)
 }
 
 // 兼容旧路径解析：给定 skillDir 返回主技能路径

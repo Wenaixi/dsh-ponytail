@@ -16,8 +16,6 @@ export interface Config {
     skillDir?: string;
     /** 默认强度，off 则不自动激活 */
     defaultMode?: 'off' | 'lite' | 'full' | 'ultra';
-    hideStatus?: boolean;
-    quietStartup?: boolean;
 }
 export declare const Config: Schema<Config>;
 export declare const name = "ponytail";

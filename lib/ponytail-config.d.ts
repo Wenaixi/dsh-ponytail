@@ -22,7 +22,5 @@ export declare function getConfigDir(): string;
 export declare function getConfigPath(): string;
 export declare function getClaudeDir(): string;
 export declare function getDefaultMode(): RuntimeMode;
-export declare function getHideStatus(): boolean;
-export declare function getQuietStartup(): boolean;
 export declare function writeDefaultMode(mode: string): RuntimeMode | null;
 //# sourceMappingURL=ponytail-config.d.ts.map

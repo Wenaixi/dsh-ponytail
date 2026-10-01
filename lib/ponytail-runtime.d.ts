@@ -11,6 +11,4 @@ export declare function isQoder(): boolean;
 export declare function setMode(mode: string): void;
 export declare function clearMode(): void;
 export declare function readMode(): string | null;
-export declare function writeHookOutput(_event: string, _mode: string, _context?: string): void;
-export declare function getStatePath(): string;
 //# sourceMappingURL=ponytail-runtime.d.ts.map

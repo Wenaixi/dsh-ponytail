@@ -45,16 +45,12 @@ export interface Config {
   skillDir?: string
   /** 默认强度，off 则不自动激活 */
   defaultMode?: 'off' | 'lite' | 'full' | 'ultra'
-  hideStatus?: boolean
-  quietStartup?: boolean
 }
 
 export const Config: Schema<Config> = Schema.object({
   providerName: Schema.string().default('ponytail'),
   skillDir: Schema.string(),
   defaultMode: Schema.union(['off', 'lite', 'full', 'ultra']).default('full'),
-  hideStatus: Schema.boolean().default(false),
-  quietStartup: Schema.boolean().default(false),
 })
 
 // ---------------------------------------------------------------------------
@@ -316,8 +312,6 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
     providerName: (rawConfig['providerName'] as string | undefined) ?? 'ponytail',
     ...(rawConfig['skillDir'] !== undefined ? { skillDir: rawConfig['skillDir'] as string } : {}),
     defaultMode: (rawConfig['defaultMode'] as Config['defaultMode']) ?? 'full',
-    hideStatus: (rawConfig['hideStatus'] as boolean | undefined) ?? false,
-    quietStartup: (rawConfig['quietStartup'] as boolean | undefined) ?? false,
   }
 
   // 优先级：PONYTAIL_DEFAULT_MODE env > cordis config 的 defaultMode（显式）> 配置文件 > full
@@ -520,30 +514,16 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
   )
 
   // 同时监听 session/event 的 user/message，覆盖 inject 等非 pre-step 路径
+  // defensive-patterns：坏订阅者不得断链核心生命周期，整体 try/catch 不抛出
   anyCtx.on('session/event', (...args: unknown[]) => {
-    const [_session, event] = args as [unknown, { type: string; data: unknown }]
-    if (event.type !== 'user/message') return
     try {
+      const [_session, event] = args as [unknown, { type: string; data: unknown }]
+      if (event.type !== 'user/message') return
       const text = extractTextFromContent((event.data as { content?: unknown })?.content)
       if (text) handlePromptText(text)
-    } catch {
-      // ignore
+    } catch (err: unknown) {
+      ctx.logger.warn(`[ponytail] session/event 处理失败：${String(err)}`)
     }
-  })
-
-  // agent/session-start：对齐 ponytail-activate.js 的 SessionStart 与 Qoder 首轮激活
-  anyCtx.on('agent/session-start', (...args: unknown[]) => {
-    const [payload] = args as [{ source: string }]
-    if (!currentMode || currentMode === 'off') {
-      try {
-        clearMode()
-      } catch {}
-      return
-    }
-    try {
-      setMode(currentMode)
-    } catch {}
-    ctx.logger.debug(`[ponytail] 会话启动（${payload.source}）— 等级：${currentMode}`)
   })
 
   // 子 agent 注入：对齐 ponytail-subagent.js 的 PONYTAIL_SUBAGENT_MATCHER
@@ -558,10 +538,32 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
     }
   }
 
+  // agent/created 双职责：子智能体日志 + 会话启动对齐（补位事件，source 仅 startup|resume 生效）
+  // 官方 payload 签名 { agent: Agent; source: SessionStartSource; signal?: AbortSignal }，
+  // source 仅 startup|resume 触发，clear|compact 不动作
   anyCtx.on('agent/created', (...args: unknown[]) => {
-    const [payload] = args as [{ agent: { id: unknown } }]
-    if (!subagentRe) return
-    ctx.logger.debug(`[ponytail] 子智能体已创建：${String((payload.agent as { id: unknown }).id)} — 匹配器：${subagentMatcherEnv}`)
+    try {
+      const [payload] = args as [{ agent: { id: unknown }; source: string }]
+      if (subagentRe) {
+        ctx.logger.debug(
+          `[ponytail] 子智能体已创建：${String(payload.agent.id)} — 匹配器：${subagentMatcherEnv}`,
+        )
+      }
+      if (payload.source === 'startup' || payload.source === 'resume') {
+        if (!currentMode || currentMode === 'off') {
+          try {
+            clearMode()
+          } catch {}
+          return
+        }
+        try {
+          setMode(currentMode)
+        } catch {}
+        ctx.logger.debug(`[ponytail] 会话启动（${payload.source}）— 等级：${currentMode}`)
+      }
+    } catch (err: unknown) {
+      ctx.logger.warn(`[ponytail] agent/created 处理失败：${String(err)}`)
+    }
   })
 
   // 清理：HMR 卸载时自动通过 ctx 逆序清理所有注册；额外标记

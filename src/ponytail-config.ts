@@ -89,36 +89,6 @@ export function getDefaultMode(): RuntimeMode {
   return DEFAULT_MODE as RuntimeMode
 }
 
-export function getHideStatus(): boolean {
-  const env = process.env['PONYTAIL_HIDE_STATUS']
-  if (env !== undefined) {
-    const v = env.trim().toLowerCase()
-    return v !== '' && v !== '0' && v !== 'false' && v !== 'no'
-  }
-  try {
-    const raw = readFileSync(getConfigPath(), 'utf8').replace(/^\uFEFF/, '')
-    const config = JSON.parse(raw) as Record<string, unknown>
-    return config['hideStatus'] === true
-  } catch {
-    return false
-  }
-}
-
-export function getQuietStartup(): boolean {
-  const env = process.env['PONYTAIL_QUIET_STARTUP']
-  if (env !== undefined) {
-    const v = env.trim().toLowerCase()
-    return v !== '' && v !== '0' && v !== 'false' && v !== 'no'
-  }
-  try {
-    const raw = readFileSync(getConfigPath(), 'utf8').replace(/^\uFEFF/, '')
-    const config = JSON.parse(raw) as Record<string, unknown>
-    return config['quietStartup'] === true
-  } catch {
-    return false
-  }
-}
-
 export function writeDefaultMode(mode: string): RuntimeMode | null {
   const normalized = normalizeMode(mode)
   if (!normalized) return null

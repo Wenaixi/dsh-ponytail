@@ -65,12 +65,3 @@ export function readMode(): string | null {
     return null
   }
 }
-
-// DSH 侧不走 stdout JSON，改为无操作兼容层；真实注入由 systemPrompt + agent 事件完成
-export function writeHookOutput(_event: string, _mode: string, _context = ''): void {
-  // no-op in DSH — kept for upstream parity
-}
-
-export function getStatePath(): string {
-  return statePath()
-}
