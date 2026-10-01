@@ -158,7 +158,7 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
         dispatcher.dispatchMessages(payload?.messages)
       } catch (err: unknown) {
         // best-effort：与 session/event 同一防御策略，失败可见（坏订阅者不断链）
-        ctx.logger.warn(`[ponytail] agent/pre-step 处理失败：${String(err)}`)
+        ctx.logger.warn(`[ponytail] agent/pre-step 处理失败（仍会调用 next()，不拦截请求）：${String(err)}`)
       }
       return (await next()) as unknown as Awaited<ReturnType<typeof next>>
     },
