@@ -72,9 +72,9 @@ dsh --profile web --dump-config | grep -A2 ponytail
 |---|---|
 | `ponytail-config.js` | `src/ponytail-config.ts`（`env > 文件 > full`，`review` 不可默认） |
 | `ponytail-instructions.js` | `src/ponytail-instructions.ts`（`getPonytailInstructions(mode)` → `render(skillDir, mode)`：review 短路 + 按档裁剪 + 中文 fallback） |
-| `ponytail-runtime.js` | `src/ponytail-runtime.ts`（`.ponytail-active` + 四路识别） |
+| `ponytail-runtime.js` | `src/ponytail-runtime.ts`（`.ponytail-active`，DSH 单一宿主，无外部平台探针） |
 | `ponytail-activate.js` | `src/ponytail.ts` 的 `agent/created`（startup/resume 对齐 flag） |
-| `ponytail-mode-tracker.js` | `src/ponytail-commands.ts` + `handlePromptText`（指令解析纯函数 + 副作用层） |
+| `ponytail-mode-tracker.js` | `src/ponytail-commands.ts` 的 `createCommandDispatcher`（指令解析纯函数 + 状态机副作用） |
 | `ponytail-subagent.js` | `src/ponytail.ts` 的 `agent/created`（`PONYTAIL_SUBAGENT_MATCHER`） |
 
 ```
@@ -113,6 +113,7 @@ HMR: 全部走 ctx，热重载逆序自动清理
 - 自动生效，无需手动触发
 - `/ponytail [lite|full|ultra|off]` / `/ponytail default <mode>` / `/ponytail-review` / `/ponytail-audit` / `/ponytail-debt` / `/ponytail-gain` / `/ponytail-help`
 - 退出：`stop ponytail` / `normal mode`（整句）或 `/ponytail off`
+- 命令行调试：`dsh --profile <name> '<任务>'`——不要写 `headless` 字样，否则任务文本会被 CLI 前置成 `headless <任务>`，整句不再匹配 `/ponytail` 指令前缀（切换指令也就不会生效）。
 
 ## 🛠️ 开发
 
