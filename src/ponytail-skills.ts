@@ -12,7 +12,7 @@
  * 字段以该包 lib/types/index.d.ts 的生成类型为准。
  */
 
-import { readdir, readFile, stat } from 'node:fs/promises'
+import { readdir, readFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { parse } from 'yaml'
 import type { Context } from '@deepseek-ai/cordis'
@@ -181,13 +181,6 @@ export class PonytailProvider implements SkillProvider {
       if (!entry.isDirectory()) continue
       if (entry.name.startsWith('.')) continue
       const skillPath = join(this.skillDir, entry.name, 'SKILL.md')
-      try {
-        // stat 选项类型未含 signal，运行时多余字段被忽略；已 abort 场景由首行 throwIfAborted 兜底
-        await stat(skillPath, { signal: options.signal } as never)
-      } catch (err: unknown) {
-        if (err instanceof Error && err.name === 'AbortError') throw err
-        continue
-      }
       const parsed = await parseSkillFile(skillPath, options.signal)
       if (!parsed) {
         this.ctx.logger.warn(`[ponytail] 跳过 ${entry.name}：缺少或无效的 frontmatter`)

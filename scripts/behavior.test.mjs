@@ -1,4 +1,6 @@
 import { test } from 'node:test'
+import os from 'node:os'
+import path from 'node:path'
 import { createPonytailState } from '../lib/ponytail-state.js'
 import assert from 'node:assert/strict'
 import { dirname, join } from 'node:path'
@@ -233,4 +235,24 @@ test('render: lite 渲染不含 ultra/full 示例行（示例行裁剪契约）'
   assert.ok(out.includes('- lite：「'), 'lite 渲染应包含 lite 示例行')
   assert.ok(!out.includes('- full：「'), 'lite 渲染不应包含 full 示例行')
   assert.ok(!out.includes('- ultra：「'), 'lite 渲染不应包含 ultra 示例行')
+})
+
+test('list: 无 SKILL.md 的目录被跳过且不抛错（stat 删除后的失败面收敛）', async () => {
+  const fsp = await import('node:fs/promises')
+  const tmp = await fsp.mkdtemp(path.join(os.tmpdir(), 'ponytail-list-'))
+  await fsp.mkdir(path.join(tmp, 'empty-dir'))
+  await fsp.mkdir(path.join(tmp, 'good-skill'))
+  await fsp.writeFile(path.join(tmp, 'good-skill', 'SKILL.md'),
+    '---\nname: good-skill\ndescription: desc\n---\n# Good\n')
+  const ctx = {
+    on: () => {}, effect: () => {}, logger: { info: () => {}, warn: () => {}, debug: () => {} },
+    skills: { registerProvider: () => () => {} },
+    systemPrompt: { section: () => () => {} },
+  }
+  const { PonytailProvider } = await import('../lib/ponytail-skills.js')
+  const p = new PonytailProvider(ctx, {}, { skillDir: tmp })
+  const res = await p.list({})
+  const names = res.map((c) => c.name)
+  assert.deepEqual(names, ['good-skill'], '空目录被跳过，good-skill 被枚举')
+  await fsp.rm(tmp, { recursive: true, force: true })
 })
