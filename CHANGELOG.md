@@ -24,6 +24,24 @@
 ### Added
 - `scripts/behavior.test.mjs` 新增 6 项高杠杆行为测试（测试总数 12 → 18 项，耗时仅 10ms）：覆盖多 block 与非文本清洗、多 message 拼接、切档状态突变与日志断言、失活状态突变、裸指令防误切安全守卫、嵌套 block 消息指令识别；
 
+## [4.10.0-dsh.2] - 2026-10-02
+
+### Added
+- **状态模块对偶落盘抽象**：`src/ponytail-state.ts` 新增 `syncToFile(): void` 显式落盘方法，与 `syncFromFile()` 形成完全对称的对偶接口（Disk ↔ Memory），主入口 `agent/created` 监听器改用显式 `state.syncToFile()` 替代借用 setter 副作用的隐式刷新。
+- **命令调度器纯内存沙箱单测**：`scripts/behavior.test.mjs` 补齐针对 `createCommandDispatcher` 处理 `/ponytail default <mode>` 的两项纯内存沙箱测试（合法模式注入写入、非法模式拦截保护），消除单测写穿磁盘副作用，全量行为测试扩充至 26 项全绿。
+- **npm 标准测试脚本**：`package.json` 补全缺失的 `"test": "node scripts/behavior.test.mjs"` 标准脚本，并在 `prepublishOnly` 挂载 `npm test` 发布前守卫。
+- **CI/CD 双轨自动化流水线**：`.github/workflows/ci.yml` 扩展 `tags: ["v*"]` 触发器，确保代码 push 与 tag 推送均触发全套测试四件套；`.github/workflows/publish.yml` 补齐 `pnpm typecheck` 并对齐门禁步骤，实现 tag 推送时全套测试门禁 100% 先验通过才触发额外发版。
+
+### Fixed
+- **配置写入契约闭环**：`src/ponytail-config.ts` 的 `writeDefaultMode` 底层写操作补充顶层 `try/catch` 守卫，遇到磁盘写保护、EACCES 权限受限或 Windows EBUSY 文件锁等底层 I/O 异常时优雅回退 `null`，彻底闭合 `RuntimeMode | null` 类型契约，防止异常击穿上层。
+- **静态门禁产物断言补齐**：`scripts/verify.mjs` 产物检查清单补全遗漏的 `lib/ponytail-commands.js` 与 `lib/ponytail-state.js`，实现全量 7 个编译模块 100% 静态断言覆盖。
+- **技能解析极端格式容错**：`src/ponytail-skills.ts` 的 Frontmatter 解析状态机补充 UTF-8 BOM（`\uFEFF`）清洗与分隔行 `trimEnd()` 容错，彻底兼容 Windows 编辑器特殊换行与尾部空白。
+- **AbortSignal 迅捷响应契约**：`src/ponytail-skills.ts` 的 `list()` 遍历循环首行补位 `options.signal?.throwIfAborted()`，并在 `parseSkillFile` 优先判定 `signal?.aborted`，严格履行 WHATWG / DSH 规范的 `settle promptly` 契约。
+- **技能路径安全解析与调试支持**：`src/ponytail.ts` 的 `resolveDefaultSkillDir` 改用标准 ESM 原生 `new URL('../skills', import.meta.url)`；技能扫描放宽 `!entry.isDirectory() && !entry.isSymbolicLink()`，支持软链接技能目录本地调试；`get()` 增强对 `candidate.locator` 的类型保护与 `dirname(targetPath)` 兜底。
+
+### Removed
+- **冗余死代码清理**：`src/ponytail-skills.ts` 的 `list()` 解构精简为 `const { data } = parsed`，彻底消除未用变量与 `void body` 压制代码。
+
 ## [4.10.0-dsh.1] - 2026-10-01
 
 ### Changed
