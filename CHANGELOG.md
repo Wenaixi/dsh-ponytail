@@ -9,6 +9,8 @@
 ### Changed
 - 架构深化（6 候选核实后自决 4 实施 2 否决）：
   - 等级状态收敛为深模块 `src/ponytail-state.ts`（`createPonytailState`：`get()/set(mode)/syncFromFile()` 三方法，闭包实例随 HMR 重建）；`ponytail.ts` 的 `currentMode` 散落读写（apply 启动、section text 漂移修正、handlePromptText 四处双写、agent/created 镜像）全部收口——`set()` 内存赢原子落盘、`syncFromFile()` 文件赢纠偏（行为与 4.10.0-dsh.0 逐行等价）
+  - 指令渲染收敛为深模块 `render(skillDir, mode)`（`src/ponytail-instructions.ts`）：`systemPrompt` section 回调只留 off 短路 + 一次调用，review 短路指针 + 裁剪 + 失败回退收进模块内，对齐上游 `getPonytailInstructions(mode)` 单一出口形态（行为无可观察变更）
+  - 抽取 SkillProvider 子系统为 `src/ponytail-skills.ts`（frontmatter 解析 + 目录扫描 + `PonytailProvider.list/get`，DSH 专属层）；`Config` 接口迁 `src/ponytail-config.ts` 为 `PonytailConfig` 共享类型（entry 侧 `export type Config = PonytailConfig` 别名），消除模块循环依赖；不发明工厂——直接导出同名类，注册保持一行 `new PonytailProvider(ctx, control, { providerName, skillDir })`；`src/ponytail.ts` 由 533 行降至 272 行，只留生命周期与监听器（行为无可观察变更）
   - frontmatter 读取瘦身：`stringField/optionalString/optionalMetadata` 折叠为 `readString/readObject/readMetadata`（调用点零改动，净减行数）
   - `apply` 删不可达死代码 `?? null`（分支守卫已排除 undefined）；`?? 'full'` 保留并改为 `DEFAULT_MODE` 常量（DSH 测试路径直接 `apply(ctx)` 真实依赖该兜底）
   - `PONYTAIL_DEFAULT_MODE` env 非法值由静默回退改为 `ctx.logger.warn`（DSH 差分，不改变回退语义，上游仍静默）；config 文件非法值保持静默（与上游一致）

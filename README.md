@@ -74,7 +74,7 @@ dsh --profile web --dump-config | grep -A2 ponytail
 | 上游 | DSH 侧 |
 |---|---|
 | `ponytail-config.js` | `src/ponytail-config.ts`（`env > 文件 > full`，`review` 不可默认） |
-| `ponytail-instructions.js` | `src/ponytail-instructions.ts`（按 `lite/full/ultra` 裁剪 + 中文 fallback） |
+| `ponytail-instructions.js` | `src/ponytail-instructions.ts`（`getPonytailInstructions(mode)` → `render(skillDir, mode)`：review 短路 + 按档裁剪 + 中文 fallback） |
 | `ponytail-runtime.js` | `src/ponytail-runtime.ts`（`.ponytail-active` + 四路识别） |
 | `ponytail-activate.js` | `src/ponytail.ts` 的 `agent/created`（startup/resume 对齐 flag） |
 | `ponytail-mode-tracker.js` | `src/ponytail-commands.ts` + `handlePromptText`（指令解析纯函数 + 副作用层） |
@@ -88,7 +88,7 @@ dsh --profile web --dump-config | grep -A2 ponytail
             → 解析 /ponytail 族 / stop ponytail → 切 currentMode + 写 flag → next()
 
 注入: systemPrompt:section { name: ponytail, order: 50 }
-      order 50 在 persona(0) 之后、工具(100) 之前；同步读 SKILL.md 按 currentMode 裁剪
+      order 50 在 persona(0) 之后、工具(100) 之前；回调只做 off 短路，渲染收敛于 render(skillDir, mode)
       off → 空，review → 指向技能，读盘失败 → 中文 fallback，assembly 前以 readMode() 对齐
 
 持久化: /ponytail default <mode> → 写入 config.json
