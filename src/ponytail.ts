@@ -538,9 +538,9 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
     }
   }
 
-  // agent/created 双职责：子智能体日志 + 会话启动对齐（补位事件，source 仅 startup|resume 生效）
-  // 官方 payload 签名 { agent: Agent; source: SessionStartSource; signal?: AbortSignal }，
-  // source 仅 startup|resume 触发，clear|compact 不动作
+  // agent/created 双职责：子智能体日志 + 会话启动对齐（补位已下线的事件）
+  // 官方 payload 签名 { agent: Agent; source: SessionStartSource; signal?: AbortSignal }（dsh-agent runtime-types 已核实），
+  // source 仅 startup|resume 触发对齐，clear|compact 不动作；本监听整体包 try/catch（agent/created 为 serial 模式，坏监听器会失败整个 agent 创建）
   anyCtx.on('agent/created', (...args: unknown[]) => {
     try {
       const [payload] = args as [{ agent: { id: unknown }; source: string }]
@@ -551,14 +551,10 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
       }
       if (payload.source === 'startup' || payload.source === 'resume') {
         if (!currentMode || currentMode === 'off') {
-          try {
-            clearMode()
-          } catch {}
+          clearMode()
           return
         }
-        try {
-          setMode(currentMode)
-        } catch {}
+        setMode(currentMode)
         ctx.logger.debug(`[ponytail] 会话启动（${payload.source}）— 等级：${currentMode}`)
       }
     } catch (err: unknown) {

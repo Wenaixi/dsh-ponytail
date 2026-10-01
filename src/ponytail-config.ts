@@ -33,10 +33,6 @@ export function normalizeConfigMode(mode: string): ValidMode | null {
   return (VALID_MODES as readonly string[]).includes(n) ? (n as ValidMode) : null
 }
 
-export function normalizePersistedMode(mode: string): RuntimeMode | ValidMode | null {
-  return normalizeMode(mode) ?? normalizeConfigMode(mode)
-}
-
 // 仅当整句为该命令时失活，避免 "add a normal mode toggle" 误触发
 // 中英文全句匹配：英文 stop ponytail / normal mode，中文 退出 ponytail / 正常模式
 export function isDeactivationCommand(text: string): boolean {

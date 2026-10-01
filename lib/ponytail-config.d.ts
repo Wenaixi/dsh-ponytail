@@ -15,7 +15,6 @@ export type RuntimeMode = (typeof RUNTIME_MODES)[number];
 export type ValidMode = (typeof VALID_MODES)[number];
 export declare function normalizeMode(mode: string): RuntimeMode | null;
 export declare function normalizeConfigMode(mode: string): ValidMode | null;
-export declare function normalizePersistedMode(mode: string): RuntimeMode | ValidMode | null;
 export declare function isDeactivationCommand(text: string): boolean;
 export declare function isShellSafe(p: string): boolean;
 export declare function getConfigDir(): string;
