@@ -75,7 +75,7 @@ dsh --profile web --dump-config | grep -A2 ponytail
 |---|---|
 | `ponytail-config.js` | `src/ponytail-config.ts`（`env > 文件 > full`，`review` 不可默认） |
 | `ponytail-instructions.js` | `src/ponytail-instructions.ts`（按 `lite/full/ultra` 裁剪 + 中文 fallback） |
-| `ponytail-runtime.js` | `src/ponytail-runtime.ts`（`.ponytail-active` + 三平台识别） |
+| `ponytail-runtime.js` | `src/ponytail-runtime.ts`（`.ponytail-active` + 四路识别） |
 | `ponytail-activate.js` + `mode-tracker.js` + `subagent.js` | `src/ponytail.ts` 统一合并 |
 
 ```
@@ -94,7 +94,7 @@ dsh --profile web --dump-config | grep -A2 ponytail
 HMR: 全部走 ctx，热重载逆序自动清理
 ```
 
-`systemPrompt` 而非 `agent.inject`：落入日志可重建，`order: 50` 优先级高，每次 `assemble` 动态求值，`off` 零成本。Flag 兼容 `CLAUDE_PLUGIN_ROOT` / `PLUGIN_DATA` / `QODER_SESSION_ID`。
+`systemPrompt` 而非 `agent.inject`：落入日志可重建，`order: 50` 优先级高，每次 `assemble` 动态求值，`off` 零成本。Flag 兼容 `COPILOT_PLUGIN_DATA` / `PLUGIN_DATA` / `QODER_SESSION_ID` / `CLAUDE_PLUGIN_ROOT`。`isCopilot()/isCodex()/isQoder()` 每次读 env，常驻进程 env 变更即时生效。
 
 ## ⚙️ 配置
 
@@ -125,7 +125,7 @@ pnpm dsh web --patch ./cordis.patch.yml  # 热重载
 # 或 push tag v* 触发 GitHub Actions publish.yml
 ```
 
-- 版本：每个版本固定带 `-dsh.N`（初始 `4.9.0-dsh.0`），`pnpm run bump:dsh` 递增，上游发新版时 `pnpm run bump:dsh -- 4.10.0` 重置
+- 版本：与上游 SemVer 同步，每个版本固定带 `-dsh.N`（初始 `4.9.0-dsh.0`、对齐上游 v4.10.0 重置 `4.10.0-dsh.0`），`pnpm run bump:dsh` 递增，上游发新版时 `pnpm run bump:dsh -- <版本>` 重置
 
 ---
 
