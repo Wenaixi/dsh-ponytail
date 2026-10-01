@@ -20,17 +20,18 @@ import type {
   SkillLookupOptions,
   SkillProvider,
   SkillProviderControl,
+  SkillProviderObservation,
 } from '@deepseek-ai/dsh-skill'
 import Schema from '@deepseek-ai/schemastery'
 
 import {
   DEFAULT_MODE,
   getDefaultMode,
-  isDeactivationCommand,
   isShellSafe,
   normalizeMode,
   writeDefaultMode,
 } from './ponytail-config.js'
+import { parsePonytailCommand } from './ponytail-commands.js'
 import { filterSkillBodyForMode, getFallbackInstructions, getMainSkillPath } from './ponytail-instructions.js'
 import { clearMode, isCopilot, readMode, setMode } from './ponytail-runtime.js'
 
@@ -181,16 +182,24 @@ class PonytailProvider implements SkillProvider {
     )
   }
 
-  async list(_options: SkillLookupOptions): Promise<readonly SkillCandidate[]> {
+  async list(options: SkillLookupOptions): Promise<readonly SkillCandidate[] | SkillProviderObservation> {
+    options.signal?.throwIfAborted()
     const candidates: SkillCandidate[] = []
     let entries: import('node:fs').Dirent[]
+    // @types/node 22.x 的 readdir 选项类型未含 signal（Node 运行时自 16 起支持），
+    // 用带 signal 字段的局部变量透传，signal 本身仍受 AbortSignal 类型检查
+    const readdirOpts: { withFileTypes: true; signal?: AbortSignal } = {
+      withFileTypes: true,
+      signal: options.signal,
+    }
     try {
-      entries = await readdir(this.skillDir, { withFileTypes: true })
+      entries = await readdir(this.skillDir, readdirOpts)
     } catch (err: unknown) {
       const code = (err as NodeJS.ErrnoException)?.code
       if (code === 'ENOENT' || code === 'ENOTDIR') {
         this.ctx.logger.warn(`[ponytail] 未找到 skill 目录：${this.skillDir}`)
-        return []
+        // 显式 observation：发现未完成，不可缓存（官方 SkillProviderObservation 语义）
+        return { candidates: [], complete: false }
       }
       throw err
     }
@@ -200,11 +209,13 @@ class PonytailProvider implements SkillProvider {
       if (entry.name.startsWith('.')) continue
       const skillPath = join(this.skillDir, entry.name, 'SKILL.md')
       try {
-        await stat(skillPath)
-      } catch {
+        // stat 选项类型未含 signal，运行时多余字段被忽略；已 abort 场景由首行 throwIfAborted 兜底
+        await stat(skillPath, { signal: options.signal } as never)
+      } catch (err: unknown) {
+        if (err instanceof Error && err.name === 'AbortError') throw err
         continue
       }
-      const parsed = await parseSkillFile(skillPath)
+      const parsed = await parseSkillFile(skillPath, options.signal)
       if (!parsed) {
         this.ctx.logger.warn(`[ponytail] 跳过 ${entry.name}：缺少或无效的 frontmatter`)
         continue
@@ -252,11 +263,10 @@ class PonytailProvider implements SkillProvider {
     return candidates
   }
 
-  async get(candidate: SkillCandidate, _options: SkillLookupOptions): Promise<SkillDefinition | undefined> {
+  async get(candidate: SkillCandidate, options: SkillLookupOptions): Promise<SkillDefinition | undefined> {
+    options.signal?.throwIfAborted()
     const locator = candidate.locator as { path: string; directory: string }
-    const raw = await readFile(locator.path, 'utf8').catch(() => undefined)
-    if (raw === undefined) return undefined
-    const parsed = parseFrontmatter(raw)
+    const parsed = await parseSkillFile(locator.path, options.signal)
     if (!parsed) return undefined
     const data = parsed.data
     const skillName = stringField(data, 'name')
@@ -286,11 +296,14 @@ class PonytailProvider implements SkillProvider {
 
 async function parseSkillFile(
   path: string,
+  signal?: AbortSignal,
 ): Promise<{ data: Record<string, unknown>; body: string } | undefined> {
   let raw: string
   try {
-    raw = await readFile(path, 'utf8')
-  } catch {
+    raw = await readFile(path, { encoding: 'utf8', signal })
+  } catch (err: unknown) {
+    // abort 冒泡（settle promptly），其余读取错误视为不可加载
+    if (err instanceof Error && err.name === 'AbortError') throw err
     return undefined
   }
   try {
@@ -418,83 +431,60 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
   }
 
   function handlePromptText(rawText: string): { handled: boolean; switched: boolean } {
-    const text = String(rawText ?? '').trim()
-    const lower = text.toLowerCase()
+    const result = parsePonytailCommand(rawText, currentMode, () => getDefaultMode())
+    if (!result.handled) return { handled: false, switched: false }
 
-    if (/^[/@$]ponytail/.test(lower)) {
-      const parts = lower.split(/\s+/)
-      const cmd = (parts[0] ?? '').replace(/^[@$]/, '/')
-      const arg = parts[1] ?? ''
-      const arg2 = parts[2] ?? ''
-
-      let mode: string | null = null
-      let isReportOnly = false
-      let isDefaultPersist = false
-      let persistMode: string | null = null
-
-      if (cmd === '/ponytail-review' || cmd === '/ponytail:ponytail-review') {
-        mode = 'review'
-      } else if (cmd === '/ponytail' || cmd === '/ponytail:ponytail') {
-        if (arg === 'default') {
-          isDefaultPersist = true
-          persistMode = arg2
-        } else if (arg === 'lite') mode = 'lite'
-        else if (arg === 'full') mode = 'full'
-        else if (arg === 'ultra') mode = 'ultra'
-        else if (arg === 'off') mode = 'off'
-        else if (arg === '') {
-          isReportOnly = true
-          mode = currentMode ?? getDefaultMode()
-        } else { ctx.logger.warn('[ponytail] 未知参数: ' + arg); return { handled: true, switched: false } }
-      }
-
-      if (isDefaultPersist) {
-        if (persistMode === 'off' || persistMode === 'lite' || persistMode === 'full' || persistMode === 'ultra') {
-          const written = writeDefaultMode(persistMode)
-          ctx.logger.info(`[ponytail] 默认等级已持久化：${written}`)
-          currentMode = persistMode
-          try {
-            setMode(persistMode)
-          } catch {}
-        }
-        return { handled: true, switched: false }
-      }
-
-      if (isReportOnly) {
-        ctx.logger.info(`[ponytail] 当前等级：${mode}`)
-        return { handled: true, switched: false }
-      }
-
-      if (mode && mode !== 'off') {
-        currentMode = mode
-        try {
-          setMode(mode)
-        } catch {}
-        ctx.logger.info(`[ponytail] 已切换 — 等级：${mode}`)
-        return { handled: true, switched: true }
-      }
-      if (mode === 'off') {
-        currentMode = null
-        try {
-          clearMode()
-        } catch {}
-        ctx.logger.info('[ponytail] 已关闭')
-        return { handled: true, switched: true }
-      }
-
-      return { handled: true, switched: false }
-    }
-
-    if (isDeactivationCommand(text)) {
+    // 副作用：等级切换 / 默认持久化 / 报告 / 全句失活 / 未知参数告警
+    if (result.deactivate) {
       currentMode = null
       try {
         clearMode()
       } catch {}
-      ctx.logger.info('[ponytail] 已通过指令退出：' + text)
+      ctx.logger.info('[ponytail] 已通过指令退出：' + String(rawText ?? '').trim())
       return { handled: true, switched: true }
     }
-
-    return { handled: false, switched: false }
+    if (result.unknownArg) {
+      ctx.logger.warn('[ponytail] 未知参数: ' + result.unknownArg)
+      return { handled: true, switched: false }
+    }
+    if (result.persistDefault) {
+      const persistMode = result.persistDefault.mode
+      if (
+        persistMode === 'off' ||
+        persistMode === 'lite' ||
+        persistMode === 'full' ||
+        persistMode === 'ultra'
+      ) {
+        const written = writeDefaultMode(persistMode)
+        ctx.logger.info(`[ponytail] 默认等级已持久化：${written}`)
+        currentMode = persistMode
+        try {
+          setMode(persistMode)
+        } catch {}
+      }
+      return { handled: true, switched: false }
+    }
+    if (result.reportOnly) {
+      ctx.logger.info(`[ponytail] 当前等级：${result.mode}`)
+      return { handled: true, switched: false }
+    }
+    if (result.mode && result.mode !== 'off') {
+      currentMode = result.mode
+      try {
+        setMode(result.mode)
+      } catch {}
+      ctx.logger.info(`[ponytail] 已切换 — 等级：${result.mode}`)
+      return { handled: true, switched: true }
+    }
+    if (result.mode === 'off') {
+      currentMode = null
+      try {
+        clearMode()
+      } catch {}
+      ctx.logger.info('[ponytail] 已关闭')
+      return { handled: true, switched: true }
+    }
+    return { handled: true, switched: false }
   }
 
   // 监听 agent/pre-step waterfall：模型请求前的最后拦截点（对齐上游 UserPromptSubmit）

@@ -22,6 +22,33 @@ for (const dir of skillDirs) {
   else console.log(`[verify] ✓ ${dir} -> ${nameMatch[1]} ${descMatch ? `(${descMatch[1].slice(0,60)})` : ''}`)
 }
 
+// description 长度静态断言：官方 dsh-tool-skill 默认 catalogDescriptionMaxLength=500，
+// 超长会被模型目录截断，压缩不得回退（防回归）
+const DESC_MAX = 500
+for (const dir of skillDirs) {
+  const p = join(skillDir, dir, 'SKILL.md')
+  const rawNorm = (await readFile(p, 'utf8')).replace(/^\uFEFF/, '').replace(/\r\n/g, '\n')
+  const lines = rawNorm.split('\n')
+  const end = lines.indexOf('---', 1)
+  if (end < 0) continue
+  const fm = lines.slice(1, end)
+  const idx = fm.findIndex((l) => /^description:/.test(l))
+  if (idx < 0) { console.error(`[verify] ${dir}: missing description`); ok = false; continue }
+  const inline = fm[idx].replace(/^description:[ \t]*/, '').trim()
+  const folded = []
+  for (let j = idx + 1; j < fm.length; j++) {
+    if (/^\s+\S/.test(fm[j])) folded.push(fm[j].replace(/^\s+/, ''))
+    else break
+  }
+  const desc = ((inline && inline !== '>') ? inline + ' ' : '') + folded.join(' ').replace(/\s+/g, ' ').trim()
+  if (desc.length > DESC_MAX) {
+    console.error(`[verify] ${dir}: description ${desc.length} chars > ${DESC_MAX} (will be truncated by model catalog)`)
+    ok = false
+  } else {
+    console.log(`[verify] ✓ ${dir} description ${desc.length} chars`)
+  }
+}
+
 console.log(`\n[verify] expected 6 skills, found ${skillDirs.length} -> ${skillDirs.length === 6 ? 'PASS' : 'FAIL'}`)
 if (skillDirs.length !== 6) ok = false
 
