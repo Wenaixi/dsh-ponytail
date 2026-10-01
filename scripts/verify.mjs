@@ -64,10 +64,12 @@ for (const n of expected) {
 // 额外检查 lib 产出与关键文件
 const checks = [
   'lib/ponytail.js',
+  'lib/ponytail-commands.js',
   'lib/ponytail-config.js',
   'lib/ponytail-instructions.js',
   'lib/ponytail-runtime.js',
   'lib/ponytail-skills.js',
+  'lib/ponytail-state.js',
   'cordis.patch.yml',
   'package.json',
   'skills/ponytail/SKILL.md',

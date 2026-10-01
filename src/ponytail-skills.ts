@@ -186,7 +186,7 @@ export class PonytailProvider implements SkillProvider {
         this.ctx.logger.warn(`[ponytail] 跳过 ${entry.name}：缺少或无效的 frontmatter`)
         continue
       }
-      const { data, body } = parsed
+      const { data } = parsed
       const skillName = readString(data, 'name')
       const description = readString(data, 'description')
       if (!skillName || !description) {
@@ -224,7 +224,6 @@ export class PonytailProvider implements SkillProvider {
         path: skillPath,
         ...readMetadata(data),
       } as SkillCandidate)
-      void body
     }
 
     return candidates

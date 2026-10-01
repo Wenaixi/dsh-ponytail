@@ -88,19 +88,24 @@ export function getDefaultMode(): RuntimeMode {
 export function writeDefaultMode(mode: string): RuntimeMode | null {
   const normalized = normalizeMode(mode)
   if (!normalized) return null
-  const configPath = getConfigPath()
-  mkdirSync(path.dirname(configPath), { recursive: true })
-  let config: Record<string, unknown> = {}
   try {
-    const raw = readFileSync(configPath, 'utf8').replace(/^\uFEFF/, '')
-    const parsed = JSON.parse(raw)
-    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) config = parsed as Record<string, unknown>
+    const configPath = getConfigPath()
+    mkdirSync(path.dirname(configPath), { recursive: true })
+    let config: Record<string, unknown> = {}
+    try {
+      const raw = readFileSync(configPath, 'utf8').replace(/^\uFEFF/, '')
+      const parsed = JSON.parse(raw)
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) config = parsed as Record<string, unknown>
+    } catch {
+      // 忽略
+    }
+    config['defaultMode'] = normalized
+    writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf8')
+    return normalized
   } catch {
-    // 忽略
+    // 磁盘写保护、EACCES 权限受限或独占锁等底层 I/O 异常时优雅回退 null，契约完全闭环
+    return null
   }
-  config['defaultMode'] = normalized
-  writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf8')
-  return normalized
 }
 
 /**
