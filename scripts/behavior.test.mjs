@@ -8,7 +8,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parsePonytailCommand, createCommandDispatcher, extractTextFromContent, extractText } from '../lib/ponytail-commands.js'
 import { render } from '../lib/ponytail-instructions.js'
-import { apply } from '../lib/ponytail.js'
+import { apply, Config as ConfigSchema } from '../lib/ponytail.js'
 
 const skillDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'skills')
 
@@ -118,6 +118,15 @@ test('list/get: 传入已 abort 的 AbortSignal 立即抛 AbortError（settle pr
   await assert.rejects(provider.list({ signal: ac.signal }), (err) => err.name === 'AbortError')
   const fakeCandidate = { locator: { path: 'nope', directory: 'nope' } }
   await assert.rejects(provider.get(fakeCandidate, { signal: ac.signal }), (err) => err.name === 'AbortError')
+})
+
+// Config schema 回归：defaultMode 不得带 Schema 默认值——Cordis 校验会把缺省 fill 成显式配置，
+// 从而 shadow 掉 config.json 的 defaultMode 档（上游 env > config 文件 > full 语义）；
+// 4.10.0-dsh.3 修复前 .default('full') 导致 config.json 默认档永远不可达。
+test('Config schema: defaultMode 无 Schema 默认值（config.json 默认档可达）', () => {
+  const cfg = ConfigSchema({})
+  assert.equal(cfg.defaultMode, undefined, 'defaultMode 应为 undefined（未配置时让位 getDefaultMode()）')
+  assert.equal(cfg.providerName, 'ponytail', 'providerName 默认值保留')
 })
 
 // ==========================================

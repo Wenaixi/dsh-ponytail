@@ -39,7 +39,10 @@ export type Config = PonytailConfig
 export const Config: Schema<Config> = Schema.object({
   providerName: Schema.string().default('ponytail'),
   skillDir: Schema.string(),
-  defaultMode: Schema.union(['off', 'lite', 'full', 'ultra']).default('full'),
+  // 注意：不给 defaultMode 设 Schema 默认值——Cordis 校验会把缺省 fill 成显式配置，
+  // 从而 shadow 掉 config.json 的 defaultMode 档（上游 env > config > full 语义）；
+  // 缺省时由 apply 走 getDefaultMode()（env > config 文件 > full）并 ?? DEFAULT_MODE
+  defaultMode: Schema.union(['off', 'lite', 'full', 'ultra']),
 })
 
 // ---------------------------------------------------------------------------
@@ -96,6 +99,9 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
 
   // 等级状态唯一归属：get()/set()/syncFromFile() 三方法，闭包态随 HMR 重建
   const state = createPonytailState()
+  // 会话启动对齐（对齐上游 ponytail-activate.js SessionStart 语义）：
+  // 每次会话启动都按 getDefaultMode()（env > config 文件 > full）重写 flag，
+  // 因此 /ponytail <档> 只在本会话生效，跨会话持久化必须用 /ponytail default <档>。
   state.set(initialMode === 'off' ? null : initialMode)
 
   if (state.get()) {
