@@ -20,6 +20,8 @@ export interface PonytailState {
     set(mode: string | null): void;
     /** 文件优先：读 flag 纠正内存；review 直通、off/非法值→null、非 Copilot 且文件缺失→清空 */
     syncFromFile(): void;
+    /** 内存优先：将当前内存等级同步落盘至 flag 文件（null 删 flag，有效值写 flag） */
+    syncToFile(): void;
 }
 export declare function createPonytailState(): PonytailState;
 //# sourceMappingURL=ponytail-state.d.ts.map

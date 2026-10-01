@@ -317,3 +317,11 @@ test('createCommandDispatcher: /ponytail default foobar 非法参数不触发 wr
   assert.equal(stateVal, 'full')
   assert.equal(logOutput, '')
 })
+test('createPonytailState: syncToFile 显式落盘当前内存状态', () => {
+  const state = createPonytailState()
+  state.set('lite')
+  assert.equal(state.get(), 'lite')
+  // 显式触发 syncToFile 不改变内存态且不抛错
+  assert.doesNotThrow(() => state.syncToFile())
+  assert.equal(state.get(), 'lite')
+})

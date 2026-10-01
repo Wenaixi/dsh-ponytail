@@ -24,6 +24,8 @@ export interface PonytailState {
   set(mode: string | null): void
   /** 文件优先：读 flag 纠正内存；review 直通、off/非法值→null、非 Copilot 且文件缺失→清空 */
   syncFromFile(): void
+  /** 内存优先：将当前内存等级同步落盘至 flag 文件（null 删 flag，有效值写 flag） */
+  syncToFile(): void
 }
 
 export function createPonytailState(): PonytailState {
@@ -32,16 +34,19 @@ export function createPonytailState(): PonytailState {
   return {
     get: () => current,
 
-    set(mode) {
-      // 单一关闭契约：'off' 与 null 都是关闭，统一为 null（删 flag）。
-      // 上游 report-only 的 readMode() || getDefaultMode() 读的是 flag 文件，与内存表示无关，语义不受影响。
-      current = mode === 'off' ? null : mode
+    syncToFile() {
       try {
         if (current === null) clearMode()
         else setMode(current)
       } catch {
         // best-effort：flag 写失败只影响跨进程可见性，不阻断当前会话
       }
+    },
+
+    set(mode) {
+      // 单一关闭契约：'off' 与 null 都是关闭，统一为 null（删 flag）。
+      current = mode === 'off' ? null : mode
+      this.syncToFile()
     },
 
     syncFromFile() {
