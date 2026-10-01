@@ -4,6 +4,22 @@
 
 > **版本策略**：每个版本固定带 `-dsh.N` 后缀（如 `4.10.0-dsh.0`、`4.10.0-dsh.1`），初始即 `-dsh.0`。上游发新版时重置为新上游版本的 `-dsh.0`（如 `4.10.0-dsh.0`），用 `pnpm run bump:dsh -- 4.10.0`。递增：`pnpm run bump:dsh`。遵循 SemVer 预发布语义。
 
+## [Unreleased]
+
+### Changed
+- 架构深化（6 候选核实后自决 4 实施 2 否决）：
+  - 等级状态收敛为深模块 `src/ponytail-state.ts`（`createPonytailState`：`get()/set(mode)/syncFromFile()` 三方法，闭包实例随 HMR 重建）；`ponytail.ts` 的 `currentMode` 散落读写（apply 启动、section text 漂移修正、handlePromptText 四处双写、agent/created 镜像）全部收口——`set()` 内存赢原子落盘、`syncFromFile()` 文件赢纠偏（行为与 4.10.0-dsh.0 逐行等价）
+  - frontmatter 读取瘦身：`stringField/optionalString/optionalMetadata` 折叠为 `readString/readObject/readMetadata`（调用点零改动，净减行数）
+  - `apply` 删不可达死代码 `?? null`（分支守卫已排除 undefined）；`?? 'full'` 保留并改为 `DEFAULT_MODE` 常量（DSH 测试路径直接 `apply(ctx)` 真实依赖该兜底）
+  - `PONYTAIL_DEFAULT_MODE` env 非法值由静默回退改为 `ctx.logger.warn`（DSH 差分，不改变回退语义，上游仍静默）；config 文件非法值保持静默（与上游一致）
+- `scripts/verify.mjs` 无空 tool 静态检查由单文件 `src/ponytail.ts` 扩为整个 `src/` 目录扫描（新模块 `ponytail-state.ts` 纳入覆盖）
+
+### Added
+- `scripts/behavior.test.mjs` 新增 2 例：`/ponytail default lite` 持久化、`/ponytail default foobar` 非法默认不切换（instruction 解析用例 6 → 8，总数 9 → 11）
+
+### Cleaned
+- `src/ponytail.ts` 由 563 行减至 ~533 行；`handlePromptText` 四处 `setMode/clearMode` 成对 try/catch 由 `state.set()` 原子化吸收
+
 ## [4.10.0-dsh.0] - 2026-10-01
 
 ### Fixed

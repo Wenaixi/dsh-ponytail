@@ -7,8 +7,10 @@
 export interface CommandParseResult {
     handled: boolean;
     switched: boolean;
-    /** 切换到该等级（'lite' | 'full' | 'ultra' | 'off' | 'review'）；null 表示 off */
-    mode?: string | null;
+    /** 各分支语义（与上游 mode-tracker 的局部量 1:1 投影，勿加判别字段双编码）：
+     *  switch=目标等级（lite/full/ultra/off/review）；report=报告值（current ?? default）；
+     *  persist=待持久化等级；deactivate=全句失活。 */
+    mode?: string;
     /** stop ponytail / normal mode 等全句失活 */
     deactivate?: boolean;
     /** 裸 /ponytail 仅报告当前等级，不切换 */

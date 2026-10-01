@@ -38,6 +38,16 @@ test('parsePonytailCommand: /ponytail foobar 按上游 else 兜底切到默认�
   assert.deepEqual(r, { handled: true, switched: true, mode: 'full' })
 })
 
+test('parsePonytailCommand: /ponytail default lite 持久化默认', () => {
+  const r = parsePonytailCommand('/ponytail default lite', null, getDefault)
+  assert.deepEqual(r, { handled: true, switched: false, persistDefault: { mode: 'lite' } })
+})
+
+test('parsePonytailCommand: /ponytail default foobar 不切换（非法默认由 writeDefaultMode 拒绝）', () => {
+  const r = parsePonytailCommand('/ponytail default foobar', null, getDefault)
+  assert.deepEqual(r, { handled: true, switched: false, persistDefault: { mode: 'foobar' } })
+})
+
 test('filterSkillBodyForMode: lite 保留 lite 行、剔除 full 行', () => {
   const body = [
     '## 强度',

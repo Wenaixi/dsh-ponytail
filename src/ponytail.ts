@@ -33,7 +33,7 @@ import {
 } from './ponytail-config.js'
 import { parsePonytailCommand } from './ponytail-commands.js'
 import { filterSkillBodyForMode, getFallbackInstructions, getMainSkillPath } from './ponytail-instructions.js'
-import { clearMode, isCopilot, readMode, setMode } from './ponytail-runtime.js'
+import { createPonytailState } from './ponytail-state.js'
 
 // ---------------------------------------------------------------------------
 // Config — 遵循 references/config.md：Schemastery + 默认值进 schema
@@ -72,14 +72,15 @@ function isSkillName(v: string): boolean {
   return SKILL_NAME_RE.test(v)
 }
 
-function stringField(data: Record<string, unknown>, key: string): string | undefined {
+function readString(data: Record<string, unknown>, key: string): string | undefined {
   const v = data[key]
   return typeof v === 'string' && v.length > 0 ? v : undefined
 }
 
-function optionalString(data: Record<string, unknown>, key: string): Record<string, string> {
+// 读取任意对象字段（metadata）；仅当值为非数组对象时返回原对象，其余返回 undefined
+function readObject(data: Record<string, unknown>, key: string): Record<string, unknown> | undefined {
   const v = data[key]
-  return typeof v === 'string' && v.length > 0 ? { [key]: v } : {}
+  return typeof v === 'object' && v !== null && !Array.isArray(v) ? (v as Record<string, unknown>) : undefined
 }
 
 function frontmatterBoolean(data: Record<string, unknown>, key: string): boolean | undefined {
@@ -121,10 +122,9 @@ function parseInvocationPolicy(data: Record<string, unknown>) {
   }
 }
 
-function optionalMetadata(data: Record<string, unknown>): Record<string, unknown> {
-  const v = data['metadata']
-  if (typeof v === 'object' && v !== null && !Array.isArray(v)) return { metadata: v as Record<string, unknown> }
-  return {}
+function readMetadata(data: Record<string, unknown>): Record<string, unknown> {
+  const v = readObject(data, 'metadata')
+  return v ? { metadata: v } : {}
 }
 
 function findClosingFrontmatter(raw: string, start: number): { start: number; bodyStart: number } | undefined {
@@ -221,8 +221,8 @@ class PonytailProvider implements SkillProvider {
         continue
       }
       const { data, body } = parsed
-      const skillName = stringField(data, 'name')
-      const description = stringField(data, 'description')
+      const skillName = readString(data, 'name')
+      const description = readString(data, 'description')
       if (!skillName || !description) {
         this.ctx.logger.warn(`[ponytail] 跳过 ${skillPath}：frontmatter 必须包含 name 和 description`)
         continue
@@ -236,6 +236,7 @@ class PonytailProvider implements SkillProvider {
           `[ponytail] skill 名称 "${skillName}" 与目录 "${entry.name}" 不一致（以 frontmatter 为准）`,
         )
       }
+      const whenToUse = readString(data, 'whenToUse')
       let invocation: { modelInvocable: boolean; userInvocable: boolean }
       try {
         invocation = parseInvocationPolicy(data)
@@ -247,7 +248,7 @@ class PonytailProvider implements SkillProvider {
       candidates.push({
         name: skillName,
         description,
-        ...optionalString(data, 'whenToUse'),
+        ...(whenToUse ? { whenToUse } : {}),
         invocation,
         source: 'bundled',
         provider: this.name,
@@ -255,7 +256,7 @@ class PonytailProvider implements SkillProvider {
         locator: { path: skillPath, directory: dirname(skillPath) },
         resourceBase: { kind: 'directory', path: dirname(skillPath) },
         path: skillPath,
-        ...optionalMetadata(data),
+        ...readMetadata(data),
       } as SkillCandidate)
       void body
     }
@@ -269,10 +270,11 @@ class PonytailProvider implements SkillProvider {
     const parsed = await parseSkillFile(locator.path, options.signal)
     if (!parsed) return undefined
     const data = parsed.data
-    const skillName = stringField(data, 'name')
-    const description = stringField(data, 'description')
+    const skillName = readString(data, 'name')
+    const description = readString(data, 'description')
     if (!skillName || !description) return undefined
     if (skillName !== candidate.name) return undefined
+    const whenToUse = readString(data, 'whenToUse')
     let invocation: { modelInvocable: boolean; userInvocable: boolean }
     try {
       invocation = parseInvocationPolicy(data)
@@ -282,13 +284,13 @@ class PonytailProvider implements SkillProvider {
     return {
       name: skillName,
       description,
-      ...optionalString(data, 'whenToUse'),
+      ...(whenToUse ? { whenToUse } : {}),
       invocation,
       source: 'bundled',
       provider: this.name,
       resourceBase: { kind: 'directory', path: locator.directory },
       path: locator.path,
-      ...optionalMetadata(data),
+      ...readMetadata(data),
       content: parsed.body.trim(),
     }
   }
@@ -324,7 +326,7 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
   const resolved: Config = {
     providerName: (rawConfig['providerName'] as string | undefined) ?? 'ponytail',
     ...(rawConfig['skillDir'] !== undefined ? { skillDir: rawConfig['skillDir'] as string } : {}),
-    defaultMode: (rawConfig['defaultMode'] as Config['defaultMode']) ?? 'full',
+    defaultMode: (rawConfig['defaultMode'] as Config['defaultMode']) ?? DEFAULT_MODE,
   }
 
   // 优先级：PONYTAIL_DEFAULT_MODE env > cordis config 的 defaultMode（显式）> 配置文件 > full
@@ -332,11 +334,15 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
   // 但 cordis 显式配置应夹在 env 与 file 之间
   const envRaw = process.env['PONYTAIL_DEFAULT_MODE']
   const envMode = envRaw ? normalizeMode(envRaw) : null
+  if (envRaw && !envMode) {
+    // ponytail: env 非法值静默回退与上游一致，此处 warn 为 DSH 差分（不改变回退语义），便于定位配置错误
+    ctx.logger.warn(`[ponytail] PONYTAIL_DEFAULT_MODE 值无效（回退后续来源）：${envRaw}`)
+  }
   let initialMode: string | null
   if (envMode) {
     initialMode = envMode
   } else if (rawConfig['defaultMode'] !== undefined) {
-    initialMode = resolved.defaultMode ?? null
+    initialMode = resolved.defaultMode as string
   } else {
     initialMode = getDefaultMode()
   }
@@ -344,21 +350,13 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
   const skillDir = resolveDefaultSkillDir(resolved.skillDir)
   const mainSkillPath = getMainSkillPath(skillDir)
 
-  let currentMode: string | null = initialMode === 'off' ? null : initialMode
+  // 等级状态唯一归属：get()/set()/syncFromFile() 三方法，闭包态随 HMR 重建
+  const state = createPonytailState()
+  state.set(initialMode === 'off' ? null : initialMode)
 
-  if (currentMode && currentMode !== 'off') {
-    try {
-      setMode(currentMode)
-    } catch {
-      // best-effort
-    }
-    ctx.logger.info(`[ponytail] 已激活 — 等级：${currentMode}（skillDir: ${skillDir}）`)
+  if (state.get()) {
+    ctx.logger.info(`[ponytail] 已激活 — 等级：${state.get()}（skillDir: ${skillDir}）`)
   } else {
-    try {
-      clearMode()
-    } catch {
-      // best-effort
-    }
     ctx.logger.info('[ponytail] 已关闭 — 直到 /ponytail 再次激活前不注入')
   }
 
@@ -383,27 +381,22 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
     name: 'ponytail',
     order: 50,
     text: () => {
+      // 文件优先：每次注入前拉齐 flag 与内存（外部改 flag 在此收敛）
       try {
-        const fileMode = readMode()
-        if (fileMode !== null && fileMode !== currentMode) {
-          const nm = normalizeMode(fileMode) ?? (fileMode === 'review' ? 'review' : null)
-          if (nm !== null || fileMode === 'review') currentMode = fileMode
-          else if (fileMode === 'off') currentMode = null
-        } else if (fileMode === null && currentMode !== null) {
-          if (!isCopilot()) currentMode = null
-        }
+        state.syncFromFile()
       } catch {
         // ignore
       }
-      if (!currentMode || currentMode === 'off') return ''
-      if (currentMode === 'review') {
+      const mode = state.get()
+      if (!mode || mode === 'off') return ''
+      if (mode === 'review') {
         return 'PONYTAIL 已激活 — 等级：review，行为由 /ponytail-review 技能定义。'
       }
       try {
         const raw = readFileSync(mainSkillPath, 'utf8')
-        return 'PONYTAIL 已激活 — 等级：' + currentMode + '\n\n' + filterSkillBodyForMode(raw, currentMode)
+        return 'PONYTAIL 已激活 — 等级：' + mode + '\n\n' + filterSkillBodyForMode(raw, mode)
       } catch {
-        return getFallbackInstructions(currentMode)
+        return getFallbackInstructions(mode)
       }
     },
   })
@@ -431,32 +424,21 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
   }
 
   function handlePromptText(rawText: string): { handled: boolean; switched: boolean } {
-    const result = parsePonytailCommand(rawText, currentMode, () => getDefaultMode())
+    const result = parsePonytailCommand(rawText, state.get(), () => getDefaultMode())
     if (!result.handled) return { handled: false, switched: false }
 
     // 副作用：等级切换 / 默认持久化 / 报告 / 全句失活（未知参数已由 parse 层按上游 else 兜底切默认）
     if (result.deactivate) {
-      currentMode = null
-      try {
-        clearMode()
-      } catch {}
+      state.set(null)
       ctx.logger.info('[ponytail] 已通过指令退出：' + String(rawText ?? '').trim())
       return { handled: true, switched: true }
     }
     if (result.persistDefault) {
-      const persistMode = result.persistDefault.mode
-      if (
-        persistMode === 'off' ||
-        persistMode === 'lite' ||
-        persistMode === 'full' ||
-        persistMode === 'ultra'
-      ) {
-        const written = writeDefaultMode(persistMode)
+      const mode = result.persistDefault.mode
+      if (mode === 'off' || mode === 'lite' || mode === 'full' || mode === 'ultra') {
+        const written = writeDefaultMode(mode)
         ctx.logger.info(`[ponytail] 默认等级已持久化：${written}`)
-        currentMode = persistMode
-        try {
-          setMode(persistMode)
-        } catch {}
+        state.set(mode)
       }
       return { handled: true, switched: false }
     }
@@ -465,18 +447,12 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
       return { handled: true, switched: false }
     }
     if (result.mode && result.mode !== 'off') {
-      currentMode = result.mode
-      try {
-        setMode(result.mode)
-      } catch {}
+      state.set(result.mode)
       ctx.logger.info(`[ponytail] 已切换 — 等级：${result.mode}`)
       return { handled: true, switched: true }
     }
     if (result.mode === 'off') {
-      currentMode = null
-      try {
-        clearMode()
-      } catch {}
+      state.set(null)
       ctx.logger.info('[ponytail] 已关闭')
       return { handled: true, switched: true }
     }
@@ -536,12 +512,10 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
         )
       }
       if (payload.source === 'startup' || payload.source === 'resume') {
-        if (!currentMode || currentMode === 'off') {
-          clearMode()
-          return
-        }
-        setMode(currentMode)
-        ctx.logger.debug(`[ponytail] 会话启动（${payload.source}）— 等级：${currentMode}`)
+        // 与原语义逐位对齐：currentMode 为 null 或 'off' 都 clearMode（删 flag），正常等级才 setMode
+        const mode = state.get()
+        state.set(mode === 'off' ? null : mode)
+        ctx.logger.debug(`[ponytail] 会话启动（${payload.source}）— 等级：${mode}`)
       }
     } catch (err: unknown) {
       ctx.logger.warn(`[ponytail] agent/created 处理失败：${String(err)}`)
