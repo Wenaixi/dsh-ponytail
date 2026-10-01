@@ -227,3 +227,10 @@ test('createPonytailState: 文件缺省时 syncFromFile 容错不抛（内存 �
   state.syncFromFile()
   assert.ok(state.get() === null || state.get() === 'full', '非 Copilot 且文件缺失 → 清空或保持，均不抛')
 })
+
+test('render: lite 渲染不含 ultra/full 示例行（示例行裁剪契约）', () => {
+  const out = render(skillDir, 'lite')
+  assert.ok(out.includes('- lite：「'), 'lite 渲染应包含 lite 示例行')
+  assert.ok(!out.includes('- full：「'), 'lite 渲染不应包含 full 示例行')
+  assert.ok(!out.includes('- ultra：「'), 'lite 渲染不应包含 ultra 示例行')
+})
