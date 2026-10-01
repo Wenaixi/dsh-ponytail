@@ -1,6 +1,6 @@
 {
   "name": "@wenaixi/dsh-ponytail",
-  "version": "4.10.0-dsh.2",
+  "version": "4.10.0-dsh.3",
   "description": "DSH 完整移植版 dietrichgebert/ponytail — 懒惰 senior 模式，6 个中文 Skill，无 tool 注册",
   "type": "module",
   "main": "lib/ponytail.js",
