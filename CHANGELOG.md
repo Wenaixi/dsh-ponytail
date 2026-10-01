@@ -5,24 +5,6 @@
 > **版本策略**：每个版本固定带 `-dsh.N` 后缀（如 `4.10.0-dsh.0`、`4.10.0-dsh.1`），初始即 `-dsh.0`。上游发新版时重置为新上游版本的 `-dsh.0`（如 `4.10.0-dsh.0`），用 `pnpm run bump:dsh -- 4.10.0`。递增：`pnpm run bump:dsh`。遵循 SemVer 预发布语义。
 
 ## [Unreleased]
-### Changed
-- 架构深化轮 4（improve-codebase-architecture 评审 5 候选全量落地）：
-  - **状态接口单一关闭契约**：`state.set('off')` 与 `set(null)` 收敛为同一关闭语义（`set` 边界归一 off→null），`agent/created` 的 off→null 镜像删除；消除「无 flag」与「flag 内容 off」两种关闭形态的契约漂移
-  - **示例行裁剪契约找回**：`filterSkillBodyForMode` 示例行正则兼容中文引号/冒号（原上游 ASCII 引号形态在中文化正文下永久失配，lite/full/ultra 三档示例区此前完全相同）
-  - **list() 失败面收敛**：删除 `stat` 预检，缺失 SKILL.md 与解析失败汇入同一条 warn+跳过路径（`readFile` 本身即可区分）
-  - **监听防御对称**：`agent/pre-step` 防御 catch 补 `warn`，与 `session/event` 失败可见性对齐
-- 发布载荷瘦身：删除与 logo.png MD5 全同的 assets/logo-dark.png（676KB×2 → 单源），README dark srcset 收为单一 <img>；零引用上游市场物料（benchmark svg ×2、logo-greenpt ×2、waitlist-banner ×3、social-preview、logo-dark.svg）移出 package.json files 白名单，包体积约 1.68MB → 约 0.35MB（文件本身保留在仓库）。
-
-
-### Changed
-- 架构深化轮 3（4 候选核实后自决 2 实施 2 驳回）：
-  - **命令调度深模块化**：在 `src/ponytail-commands.ts` 实现 `createCommandDispatcher`，将消息文本展开提取（`extractTextFromContent` 与 `extractText`）、指令语法解析、状态机流转（`state.set`）、持久化配置写入（`writeDefaultMode`）与宿主日志格式化整体封装为深模块；
-  - **消除 6-flag 浅接口泄漏**：消除此前 `CommandParseResult` 导出的 6 个松散布尔/可选字段在外部引起的时序耦合，内部锁死 `reportOnly` 优先分支，彻底杜绝裸指令误切；
-  - **插件入口骨架瘦身**：`src/ponytail.ts` 由 272 行降至 221 行（净减 51 行脆弱级联胶水），`agent/pre-step` 与 `session/event` 简化为单行委托调用，入口彻底纯化为声明式插件生命周期装配线；
-  - **架构决策自决与驳回**：正式驳回 Candidate 2（合并 state 与 runtime：破坏上游 1:1 逐行移植锚点与产物守卫，净收益为负）与 Candidate 3（合并 skill 存储与 instructions 渲染：同步高频渲染与异步 Cordis 服务范式正交，强行捏合制造上帝类，违背 YAGNI）；
-
-### Added
-- `scripts/behavior.test.mjs` 新增 6 项高杠杆行为测试（测试总数 12 → 18 项，耗时仅 10ms）：覆盖多 block 与非文本清洗、多 message 拼接、切档状态突变与日志断言、失活状态突变、裸指令防误切安全守卫、嵌套 block 消息指令识别；
 
 ## [4.10.0-dsh.2] - 2026-10-02
 
@@ -31,6 +13,14 @@
 - **命令调度器纯内存沙箱单测**：`scripts/behavior.test.mjs` 补齐针对 `createCommandDispatcher` 处理 `/ponytail default <mode>` 的两项纯内存沙箱测试（合法模式注入写入、非法模式拦截保护），消除单测写穿磁盘副作用，全量行为测试扩充至 26 项全绿。
 - **npm 标准测试脚本**：`package.json` 补全缺失的 `"test": "node scripts/behavior.test.mjs"` 标准脚本，并在 `prepublishOnly` 挂载 `npm test` 发布前守卫。
 - **CI/CD 双轨自动化流水线**：`.github/workflows/ci.yml` 扩展 `tags: ["v*"]` 触发器，确保代码 push 与 tag 推送均触发全套测试四件套；`.github/workflows/publish.yml` 补齐 `pnpm typecheck` 并对齐门禁步骤，实现 tag 推送时全套测试门禁 100% 先验通过才触发额外发版。
+- **高杠杆行为测试套件扩充**：`scripts/behavior.test.mjs` 新增 14 项行为测试（覆盖多 block 文本清洗提取、多 message 展开合并、切档与失活状态突变、裸指令防误切安全守卫、嵌套 block 消息指令识别、示例行中文标点裁剪、无 SKILL.md 失败面收敛等）。
+
+### Changed
+- **命令调度深模块化**：在 `src/ponytail-commands.ts` 实现 `createCommandDispatcher`，将消息文本展开提取（`extractTextFromContent` 与 `extractText`）、指令语法解析、状态机流转（`state.set`）、持久化配置写入（`writeDefaultMode`）与宿主日志格式化整体封装为深模块；消除此前 `CommandParseResult` 导出的 6 个松散布尔/可选字段在外部引起的时序耦合，内部锁死 `reportOnly` 优先分支，彻底杜绝裸指令误切。
+- **插件入口骨架瘦身**：`src/ponytail.ts` 由 272 行精简至 221 行（净减 51 行脆弱级联胶水），`agent/pre-step` 与 `session/event` 简化为单行委托调用，入口彻底纯化为声明式插件生命周期装配线。
+- **状态接口单一关闭契约**：`state.set('off')` 与 `set(null)` 收敛为同一关闭语义（`set` 边界归一 off→null），`agent/created` 的 off→null 镜像删除；消除「无 flag」与「flag 内容 off」两种关闭形态的契约漂移。
+- **发布载荷瘦身**：删除与 logo.png MD5 全同的 `assets/logo-dark.png`（676KB×2 → 单源），README dark srcset 收为单一 `<img>`；零引用上游市场物料移出 `package.json` 的 `files` 白名单，发布包体积从约 1.68MB 骤降至约 0.35MB。
+- **架构决策自决与驳回**：正式驳回 Candidate 2（合并 state 与 runtime：破坏上游 1:1 逐行移植锚点与产物守卫，净收益为负）与 Candidate 3（合并 skill 存储与 instructions 渲染：同步高频渲染与异步 Cordis 服务范式正交，强行捏合制造上帝类，违背 YAGNI）。
 
 ### Fixed
 - **配置写入契约闭环**：`src/ponytail-config.ts` 的 `writeDefaultMode` 底层写操作补充顶层 `try/catch` 守卫，遇到磁盘写保护、EACCES 权限受限或 Windows EBUSY 文件锁等底层 I/O 异常时优雅回退 `null`，彻底闭合 `RuntimeMode | null` 类型契约，防止异常击穿上层。
@@ -38,6 +28,9 @@
 - **技能解析极端格式容错**：`src/ponytail-skills.ts` 的 Frontmatter 解析状态机补充 UTF-8 BOM（`\uFEFF`）清洗与分隔行 `trimEnd()` 容错，彻底兼容 Windows 编辑器特殊换行与尾部空白。
 - **AbortSignal 迅捷响应契约**：`src/ponytail-skills.ts` 的 `list()` 遍历循环首行补位 `options.signal?.throwIfAborted()`，并在 `parseSkillFile` 优先判定 `signal?.aborted`，严格履行 WHATWG / DSH 规范的 `settle promptly` 契约。
 - **技能路径安全解析与调试支持**：`src/ponytail.ts` 的 `resolveDefaultSkillDir` 改用标准 ESM 原生 `new URL('../skills', import.meta.url)`；技能扫描放宽 `!entry.isDirectory() && !entry.isSymbolicLink()`，支持软链接技能目录本地调试；`get()` 增强对 `candidate.locator` 的类型保护与 `dirname(targetPath)` 兜底。
+- **示例行裁剪契约找回**：`filterSkillBodyForMode` 示例行正则兼容中文引号/冒号（原上游 ASCII 引号形态在中文化正文下永久失配，lite/full/ultra 三档示例区此前完全相同）。
+- **list() 失败面收敛**：删除 `stat` 预检，缺失 SKILL.md 与解析失败汇入同一条 warn+跳过路径（`readFile` 本身即可区分）。
+- **监听防御对称**：`agent/pre-step` 防御 catch 补 `warn`，与 `session/event` 失败可见性对齐。
 
 ### Removed
 - **冗余死代码清理**：`src/ponytail-skills.ts` 的 `list()` 解构精简为 `const { data } = parsed`，彻底消除未用变量与 `void body` 压制代码。
@@ -139,4 +132,13 @@
 - 不注册 tool（不在 `ctx.tools` 注册任何占位），`scripts/verify.mjs` 校验
 - 构建：`pnpm build` (`tsc -p tsconfig.build.json`)，`pnpm typecheck`，`pnpm verify`
 
+[Unreleased]: https://github.com/Wenaixi/dsh-ponytail/compare/v4.10.0-dsh.2...HEAD
+[4.10.0-dsh.2]: https://github.com/Wenaixi/dsh-ponytail/compare/v4.10.0-dsh.1...v4.10.0-dsh.2
+[4.10.0-dsh.1]: https://github.com/Wenaixi/dsh-ponytail/compare/v4.10.0-dsh.0...v4.10.0-dsh.1
+[4.10.0-dsh.0]: https://github.com/Wenaixi/dsh-ponytail/compare/v4.9.0-dsh.5...v4.10.0-dsh.0
+[4.9.0-dsh.5]: https://github.com/Wenaixi/dsh-ponytail/compare/v4.9.0-dsh.4...v4.9.0-dsh.5
+[4.9.0-dsh.4]: https://github.com/Wenaixi/dsh-ponytail/compare/v4.9.0-dsh.3...v4.9.0-dsh.4
+[4.9.0-dsh.3]: https://github.com/Wenaixi/dsh-ponytail/compare/v4.9.0-dsh.2...v4.9.0-dsh.3
+[4.9.0-dsh.2]: https://github.com/Wenaixi/dsh-ponytail/compare/v4.9.0-dsh.1...v4.9.0-dsh.2
+[4.9.0-dsh.1]: https://github.com/Wenaixi/dsh-ponytail/compare/v4.9.0-dsh.0...v4.9.0-dsh.1
 [4.9.0-dsh.0]: https://github.com/Wenaixi/dsh-ponytail/releases/tag/v4.9.0-dsh.0
