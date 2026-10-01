@@ -36,6 +36,9 @@ jobs:
       - name: Verify (6 skills + 无空 tool)
         run: node scripts/verify.mjs
 
+      - name: Behavior tests
+        run: node scripts/behavior.test.mjs
+
       - name: Publish to npm
         id: publish
         # NPM_TOKEN（granular bypass 2FA）与 --provenance 不兼容：

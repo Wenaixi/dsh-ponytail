@@ -35,3 +35,6 @@ jobs:
 
       - name: Verify (6 skills + 无空 tool)
         run: node scripts/verify.mjs
+
+      - name: Behavior tests
+        run: node scripts/behavior.test.mjs
