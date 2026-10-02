@@ -7,6 +7,7 @@
 ## [Unreleased]
 
 ### Added
+- **补齐 DSH 卡片元信息契约**：`package.json` 的 `exports` 新增 `./package.json` 与 `./locale/*.json` 子路径白名单，`files` 收录 `locale/` 与 `assets/icon.png`，manifest 增加 `icon` 字段；新增 `locale/en.json` 与 `locale/zh.json` 双语文案，以及 227x256 的 `assets/icon.png`（28 KB，满足 DSH 256 KiB 图标上限）。修复 DSH 插件列表中本插件只显示包名、无标题无描述无图标的问题。
 - **配置与 flag 统一归入 DSH 用户数据根（ADR-0005）**：新增 `resolveDshHome()` 与 `getLegacyConfigDir()` / `getLegacyConfigPath()` / `readConfigFileText()`，`config.json` 与 `.ponytail-active` 统一落位于 `$DSH_HOME/ponytail`（默认 `~/.dsh/ponytail`），与 DSH 官方 `@deepseek-ai/dsh-home-paths` 的「所有用户数据收敛于单一根目录」契约一致。
 - **跨平台路径静态门禁**：`scripts/verify.mjs` 新增 `no platform-specific path literals` 断言，扫描 `src/` 与客户端构建期副本，禁止出现 `%APPDATA%` / `XDG_CONFIG_HOME` / `process.platform` 等平台特定字面量（仅豁免旧位置兼容读取分支）。
 - **行为测试扩充 33 → 36 项全绿**：新增 DSH 数据根优先级与 `~` 展开断言、配置目录落点断言、旧位置兼容读取断言。

@@ -9,6 +9,8 @@
     "lib/",
     "skills/",
     "assets/logo.png",
+    "assets/icon.png",
+    "locale/",
     "cordis.patch.yml",
     "AGENTS.md",
     "README.md",
@@ -62,6 +64,7 @@
     "url": "git+https://github.com/Wenaixi/dsh-ponytail.git"
   },
   "homepage": "https://github.com/Wenaixi/dsh-ponytail#readme",
+  "icon": "assets/icon.png",
   "bugs": {
     "url": "https://github.com/Wenaixi/dsh-ponytail/issues"
   },
@@ -89,6 +92,8 @@
     },
     "./client": {
       "default": "./lib/client.js"
-    }
+    },
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
   }
 }
