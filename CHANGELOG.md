@@ -4,6 +4,23 @@
 
 > **版本策略**：每个版本固定带 `-dsh.N` 后缀（如 `4.10.0-dsh.0`、`4.10.0-dsh.1`），初始即 `-dsh.0`。上游发新版时重置为新上游版本的 `-dsh.0`（如 `4.10.0-dsh.0`），用 `pnpm run bump:dsh -- 4.10.0`。递增：`pnpm run bump:dsh`。遵循 SemVer 预发布语义。
 
+## [Unreleased]
+
+### Added
+- **配置与 flag 统一归入 DSH 用户数据根（ADR-0005）**：新增 `resolveDshHome()` 与 `getLegacyConfigDir()` / `getLegacyConfigPath()` / `readConfigFileText()`，`config.json` 与 `.ponytail-active` 统一落位于 `$DSH_HOME/ponytail`（默认 `~/.dsh/ponytail`），与 DSH 官方 `@deepseek-ai/dsh-home-paths` 的「所有用户数据收敛于单一根目录」契约一致。
+- **跨平台路径静态门禁**：`scripts/verify.mjs` 新增 `no platform-specific path literals` 断言，扫描 `src/` 与客户端构建期副本，禁止出现 `%APPDATA%` / `XDG_CONFIG_HOME` / `process.platform` 等平台特定字面量（仅豁免旧位置兼容读取分支）。
+- **行为测试扩充 33 → 36 项全绿**：新增 DSH 数据根优先级与 `~` 展开断言、配置目录落点断言、旧位置兼容读取断言。
+- **架构决策记录 `docs/adr/0005-config-under-dsh-home.md`**：记录迁移决策、`dsh-home-paths` 静态 import 会崩的实测证据、动态预热导致行为漂移的否决理由与旧位置兼容策略。
+
+### Changed
+- **跨平台一致性修复**（根因修复）：`src/ponytail-config.ts` 的 `getConfigDir()` 删除 `XDG_CONFIG_HOME` / `APPDATA` / `process.platform === 'win32'` 三条平台分支，改为 `join(resolveDshHome(), 'ponytail')`，路径分隔符一律由 `node:path` 生成；`resolveDshHome()` 逐行复刻官方 `resolveDshHome` 语义（explicit > `$DSH_HOME`（空白视为未设置）> `~/.dsh`），不引入任何新依赖。
+- **Web GUI 面板文案中性化**：`src/client.ts` 与 `scripts/build-client.mjs` 中写死的 `%APPDATA%\\ponytail\\config.json` 改为「DSH 数据目录下的 ponytail/config.json」，跨平台均准确。
+- **文档同步**：README 三处路径表述、`skills/ponytail-help/SKILL.md` 配置文件说明改为 `$DSH_HOME/ponytail`；`docs/adr/0004` 追加修订注记指向 ADR-0005。
+
+### Migration
+- 升级用户：`defaultMode` 与 `disabledSkills` 通过旧位置（`%APPDATA%\\ponytail` / `~/.config/ponytail`）一次性兼容读取保住，不静默丢失；写入只落新位置，旧目录不删不改。
+- 已知妥协：会话启动对齐语义下，升级后当前运行等级会按默认档重写（与 ADR-0004 迁移时同性质），旧位置的 `.ponytail-active` 不做兼容读取（避免旧 flag 意外复活）。
+
 ## [4.10.0-dsh.4] - 2026-10-02
 
 ### Added
