@@ -601,3 +601,89 @@ test('readConfigFileText: 新配置缺失时平滑回退读取旧平台路径', 
   }
 })
 
+
+// ---------------------------------------------------------------------------
+// 运行等级优先级诊断（纯函数，零 I/O）
+// ---------------------------------------------------------------------------
+
+test('resolvePriority: 四级全空时落到内置兜底 full', async () => {
+  const { resolvePriority } = await import('../lib/ponytail-priority.js')
+  const r = resolvePriority({ envRaw: undefined, patchMode: undefined, configMode: undefined })
+  assert.strictEqual(r.chain.length, 4)
+  assert.strictEqual(r.effective, 'full')
+  assert.strictEqual(r.chain[3].level, 'fallback')
+  assert.strictEqual(r.chain[3].hit, true)
+  assert.ok(r.chain.slice(0, 3).every(s => s.hit === false))
+  assert.ok(r.chain.slice(0, 3).every(s => s.shadowed === false))
+})
+
+test('resolvePriority: env 命中时其余三级全部标记被覆盖', async () => {
+  const { resolvePriority } = await import('../lib/ponytail-priority.js')
+  const r = resolvePriority({ envRaw: 'ultra', patchMode: 'lite', configMode: 'lite' })
+  assert.strictEqual(r.effective, 'ultra')
+  assert.strictEqual(r.chain[0].level, 'env')
+  assert.strictEqual(r.chain[0].hit, true)
+  assert.strictEqual(r.chain[0].shadowed, false)
+  assert.ok(r.chain.slice(1).every(s => s.shadowed === true))
+  assert.ok(r.chain.slice(1).every(s => s.hit === false))
+})
+
+test('resolvePriority: patch 命中时压制 config 与 fallback', async () => {
+  const { resolvePriority } = await import('../lib/ponytail-priority.js')
+  const r = resolvePriority({ envRaw: undefined, patchMode: 'lite', configMode: 'ultra' })
+  assert.strictEqual(r.effective, 'lite')
+  assert.strictEqual(r.chain[1].level, 'patch')
+  assert.strictEqual(r.chain[1].hit, true)
+  assert.strictEqual(r.chain[2].shadowed, true)
+  assert.strictEqual(r.chain[3].shadowed, true)
+})
+
+test('resolvePriority: config 命中时仅压制 fallback', async () => {
+  const { resolvePriority } = await import('../lib/ponytail-priority.js')
+  const r = resolvePriority({ envRaw: undefined, patchMode: undefined, configMode: 'off' })
+  assert.strictEqual(r.effective, 'off')
+  assert.strictEqual(r.chain[2].level, 'config')
+  assert.strictEqual(r.chain[2].hit, true)
+  assert.strictEqual(r.chain[3].shadowed, true)
+})
+
+test('resolvePriority: env 值非法时降级并标注问题，不崩溃', async () => {
+  const { resolvePriority } = await import('../lib/ponytail-priority.js')
+  const r = resolvePriority({ envRaw: 'ultra2', patchMode: undefined, configMode: 'lite' })
+  assert.strictEqual(r.effective, 'lite')
+  assert.strictEqual(r.chain[0].hit, false)
+  assert.strictEqual(r.chain[0].shadowed, false)
+  assert.strictEqual(r.chain[0].value, 'ultra2')
+  assert.strictEqual(r.chain[0].problem, '值无效，已忽略')
+  assert.strictEqual(r.chain[2].hit, true)
+})
+
+test('resolvePriority: config 值非法时标注文件损坏并落到兜底', async () => {
+  const { resolvePriority } = await import('../lib/ponytail-priority.js')
+  const r = resolvePriority({ envRaw: undefined, patchMode: undefined, configMode: '{bad' })
+  assert.strictEqual(r.effective, 'full')
+  assert.strictEqual(r.chain[2].problem, '文件损坏或字段缺失')
+  assert.strictEqual(r.chain[3].hit, true)
+})
+
+test('resolvePriority: patch 值非法时标注问题且继续向下寻找', async () => {
+  const { resolvePriority } = await import('../lib/ponytail-priority.js')
+  const r = resolvePriority({ envRaw: undefined, patchMode: 'REVIEW', configMode: 'ultra' })
+  assert.strictEqual(r.effective, 'ultra')
+  assert.strictEqual(r.chain[1].value, 'REVIEW')
+  assert.strictEqual(r.chain[1].problem, '值无效，已忽略')
+  assert.strictEqual(r.chain[2].hit, true)
+})
+
+test('resolvePriority: 链的顺序与中文标签固定不变', async () => {
+  const { resolvePriority } = await import('../lib/ponytail-priority.js')
+  const r = resolvePriority({ envRaw: undefined, patchMode: undefined, configMode: undefined })
+  assert.deepStrictEqual(r.chain.map(s => s.level), ['env', 'patch', 'config', 'fallback'])
+  assert.deepStrictEqual(r.chain.map(s => s.label), ['环境变量', 'Profile 补丁', '用户配置文件', '内置兜底'])
+  assert.deepStrictEqual(r.chain.map(s => s.location), [
+    'PONYTAIL_DEFAULT_MODE',
+    'cordis.patch.yml',
+    'config.json',
+    '代码常量',
+  ])
+})
