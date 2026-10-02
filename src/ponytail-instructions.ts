@@ -15,7 +15,8 @@ export function filterSkillBodyForMode(body: string, mode: string): string {
         const labelMode = normalizeMode(tableLabel[1]!.trim())
         if (labelMode) return labelMode === effectiveMode
       }
-      const exampleLabel = line.match(/^-\s*([^:]+):\s*"/)
+      // 中文化正文用「」与中文冒号，上游 ASCII 引号正则失配；兼容两种形态
+      const exampleLabel = line.match(/^-\s*([^:]+)(?:：|:)\s*["「]/)
       if (exampleLabel) {
         const labelMode = normalizeMode(exampleLabel[1]!.trim())
         if (labelMode) return labelMode === effectiveMode

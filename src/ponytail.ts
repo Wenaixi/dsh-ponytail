@@ -52,7 +52,10 @@ export interface Config {
 export const Config: Schema<Config> = Schema.object({
   providerName: Schema.string().default('ponytail'),
   skillDir: Schema.string(),
-  defaultMode: Schema.union(['off', 'lite', 'full', 'ultra']).default('full'),
+  // 注意：不给 defaultMode 设 Schema 默认值——Cordis 校验会把缺省 fill 成显式配置，
+  // 从而 shadow 掉 config.json 的 defaultMode 档（/ponytail default <档> 写入的值）；
+  // 缺省时由 apply 走 getDefaultMode()（env > config 文件 > full）
+  defaultMode: Schema.union(['off', 'lite', 'full', 'ultra']),
   hideStatus: Schema.boolean().default(false),
   quietStartup: Schema.boolean().default(false),
 })
