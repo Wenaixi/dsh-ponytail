@@ -22,9 +22,11 @@ import {
   getDefaultMode,
   isShellSafe,
   normalizeMode,
+  readConfigFileText,
   writeDefaultMode,
   type PonytailConfig,
 } from './ponytail-config.js'
+import { resolvePriority } from './ponytail-priority.js'
 import { createCommandDispatcher } from './ponytail-commands.js'
 import { render, renderPromptSection } from './ponytail-instructions.js'
 import { createPonytailState } from './ponytail-state.js'
@@ -50,7 +52,7 @@ export const Config: Schema<Config> = Schema.object({
 // ---------------------------------------------------------------------------
 
 export const name = 'ponytail'
-export const inject = ['skills', 'systemPrompt'] as const
+export const inject = ['skills', 'systemPrompt', 'webServer'] as const
 
 // ---------------------------------------------------------------------------
 // 工具函数（与 superpowers 同款健壮版）
@@ -70,6 +72,8 @@ function resolveDefaultSkillDir(configSkillDir?: string): string {
 // ---------------------------------------------------------------------------
 
 export function apply(ctx: Context, config: Config = {} as Config): void {
+  let providerInstance: PonytailProvider | null = null
+  
   const rawConfig = config as Record<string, unknown>
   const resolved: Config = {
     providerName: (rawConfig['providerName'] as string | undefined) ?? 'ponytail',
@@ -213,6 +217,161 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
       ctx.logger.warn(`[ponytail] agent/created 处理失败：${String(err)}`)
     }
   })
+
+
+  // ---------------------------------------------------------------------------
+  // Web GUI 配置端点：为插件管理面板提供配置查询与修改 API
+  // ---------------------------------------------------------------------------
+  const invalidateSkills = () => {
+    if (providerInstance) {
+      try {
+        (providerInstance as any).invalidate()
+      } catch {
+        // 忽略异常
+      }
+    }
+  }
+
+  // 使用 Cordis 响应式服务注入：当 webServer 服务就绪时安全注册路由（防御性兼容轻量 mock ctx）
+  // Web 配置端点挂载
+  if ((ctx as any).webServer) {
+    ctx.effect(() => {
+      ctx.logger.info('[ponytail] Web 配置端点已就绪: /api/plugins/ponytail/config')
+      return (ctx as any).webServer.register({
+        kind: 'exact',
+        path: '/api/plugins/ponytail/config',
+        handler: async (req: import('node:http').IncomingMessage, res: import('node:http').ServerResponse) => {
+          res.setHeader('Content-Type', 'application/json; charset=utf-8')
+          res.setHeader('Cache-Control', 'no-store')
+
+          // 读取 config.json 的 defaultMode 原始值：区分「字段缺失」与「文件损坏」交给诊断链统一标注
+          const readRawConfigMode = (): string | undefined => {
+            try {
+              const raw = readConfigFileText()
+              if (raw === null) return undefined
+              const parsed = JSON.parse(raw) as Record<string, unknown>
+              const dm = parsed['defaultMode']
+              return typeof dm === 'string' ? dm : undefined
+            } catch {
+              return undefined
+            }
+          }
+
+          const rawSkillsMeta = [
+            { id: 'ponytail', name: 'ponytail', description: '懒人模式本体：3 档强度，梯子七阶注入' },
+            { id: 'ponytail-review', name: 'ponytail-review', description: '过度设计评审：只挑能删的代码，一行一条' },
+            { id: 'ponytail-audit', name: 'ponytail-audit', description: '全仓过度设计审计：按可删行数降序猎取臃肿' },
+            { id: 'ponytail-debt', name: 'ponytail-debt', description: '债务台账收割：收割所有 ponytail: 注释，建立债务台账' },
+            { id: 'ponytail-gain', name: 'ponytail-gain', description: '收益看板：展示 benchmark 中位数收益' },
+            { id: 'ponytail-help', name: 'ponytail-help', description: '速查卡：模式、技能、命令与配置速查' },
+          ]
+
+          if (req.method === 'GET') {
+            const currentMode = state.get() ?? 'off'
+            const defaultMode = getDefaultMode()
+            const disabledSkills = state.getDisabledSkills()
+            const skillsList = rawSkillsMeta.map((s) => ({
+              ...s,
+              enabled: state.isSkillEnabled(s.id),
+            }))
+            res.writeHead(200)
+            res.end(JSON.stringify({
+              currentMode,
+              defaultMode,
+              disabledSkills,
+              skills: skillsList,
+              priority: resolvePriority({
+                envRaw: process.env['PONYTAIL_DEFAULT_MODE'],
+                patchMode: rawConfig['defaultMode'] as string | undefined,
+                configMode: readRawConfigMode(),
+              }),
+            }))
+            return
+          }
+
+          if (req.method === 'POST') {
+            let bodyStr = ''
+            for await (const chunk of req) {
+              bodyStr += chunk
+            }
+            let payload: Record<string, unknown> = {}
+            try {
+              if (bodyStr) payload = JSON.parse(bodyStr)
+            } catch {
+              res.writeHead(400)
+              res.end(JSON.stringify({ error: 'Invalid JSON body' }))
+              return
+            }
+
+            // 一键恢复默认配置 (神秘需求 Q4)
+            if (payload.action === 'reset') {
+              state.resetToDefaults()
+              invalidateSkills()
+              ctx.logger.info('[ponytail] UI 一键重置为默认配置（full 等级，开启所有技能）')
+            } else {
+              // 修改等级 (2B 全局持久化与即时生效)
+              if (typeof payload.mode === 'string') {
+                const targetMode = payload.mode.toLowerCase()
+                state.setDefaultMode(targetMode)
+                state.set(targetMode === 'off' ? null : targetMode)
+                ctx.logger.info(`[ponytail] UI 切换运行等级：${targetMode}（已持久化为默认等级）`)
+              }
+
+              // 修改禁用的技能列表 (3A 物理隐藏)
+              if (Array.isArray(payload.disabledSkills)) {
+                const newDisabled = payload.disabledSkills.filter((s): s is string => typeof s === 'string')
+                state.setDisabledSkills(newDisabled)
+                if (newDisabled.includes('ponytail')) {
+                  state.set(null)
+                }
+                invalidateSkills()
+                ctx.logger.info(`[ponytail] UI 更新禁用技能列表：${JSON.stringify(newDisabled)}`)
+              }
+
+              // 切换单个技能
+              if (typeof payload.toggleSkill === 'object' && payload.toggleSkill !== null) {
+                const tg = payload.toggleSkill as { name?: string; enabled?: boolean }
+                if (typeof tg.name === 'string') {
+                  state.toggleSkill(tg.name, tg.enabled)
+                  if (tg.name === 'ponytail' && tg.enabled === false) {
+                    state.set(null)
+                  }
+                  invalidateSkills()
+                  ctx.logger.info(`[ponytail] UI 切换技能 ${tg.name} 状态：${tg.enabled}`)
+                }
+              }
+            }
+
+            const currentMode = state.get() ?? 'off'
+            const defaultMode = getDefaultMode()
+            const disabledSkills = state.getDisabledSkills()
+            const skillsList = rawSkillsMeta.map((s) => ({
+              ...s,
+              enabled: state.isSkillEnabled(s.id),
+            }))
+
+            res.writeHead(200)
+            res.end(JSON.stringify({
+              success: true,
+              currentMode,
+              defaultMode,
+              disabledSkills,
+              skills: skillsList,
+              priority: resolvePriority({
+                envRaw: process.env['PONYTAIL_DEFAULT_MODE'],
+                patchMode: rawConfig['defaultMode'] as string | undefined,
+                configMode: readRawConfigMode(),
+              }),
+            }))
+            return
+          }
+
+          res.writeHead(405)
+          res.end(JSON.stringify({ error: 'Method Not Allowed' }))
+        },
+      })
+    }, 'ponytail: web route')
+  }
 
   // 清理：HMR 卸载时自动通过 ctx 逆序清理所有注册；额外标记
   ctx.effect(() => {
