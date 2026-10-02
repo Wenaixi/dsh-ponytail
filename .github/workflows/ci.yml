@@ -35,8 +35,8 @@ jobs:
       - name: Build
         run: pnpm build
 
-      - name: Verify (6 skills + 无空 tool)
+      - name: Verify (6 skills, no tool registration)
         run: pnpm verify
 
-      - name: Behavior tests (26 cases)
+      - name: Behavior tests (44 cases)
         run: pnpm test

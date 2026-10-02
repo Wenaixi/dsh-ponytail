@@ -6,7 +6,15 @@
 
 ## [Unreleased]
 
+（本段暂无待发布内容）
+
+## [4.10.0-dsh.5] - 2026-10-03
+
 ### Added
+- **运行等级四级优先级诊断**：新增 `src/ponytail-priority.ts` 深模块，`resolvePriority({ envRaw, patchMode, configMode })` 为纯函数零 I/O，产出恒 4 项诊断链（env > patch > config > fallback），每项含 label / location / value / hit / shadowed / problem；`GET` 与 `POST /api/plugins/ponytail/config` 均返回 `priority` 字段，`readRawConfigMode()` 区分「字段缺失」与「文件损坏」。解决「界面点了等级却没反应」这一长期无诊断手段的痛点。
+- **客户端改用 DSH 原生组件族**：`scripts/build-client.mjs` 改用 `@deepseek-ai/dsh-client-ui-primitives` 的 `SegmentedControl`（等级）、`Switch`（技能开关）、`StateDot` + `Tag`（诊断链状态）、`Button`（恢复默认），不再手写内联视觉；`package.json` 的 `dsh.client.inject` 增加 primitives，peerDependencies 补 `react`。
+- **产物单一来源收敛**：删除 `src/client.ts`（与 `scripts/build-client.mjs` 重复产出 `lib/client.js`，tsc 产物被覆盖后必然漂移）；`scripts/verify.mjs` 的平台路径门禁改为扫描 `scripts/build-client.mjs` 与 `lib/client.js`。
+- **行为测试扩充 36 → 44 项全绿**：新增 8 项 `resolvePriority` 覆盖全空、各级命中、非法值、标签顺序。
 - **统一包描述与仓库简介**：`package.json` 的 `description` 与 GitHub 仓库简介改为「DietrichGebert/ponytail 的 DSH 完整移植：常驻懒人 senior 模式与七阶梯子（YAGNI 到最小实现），6 个中文原生技能（本体、评审、审计、债务、收益、帮助），零 tool 注册」；`locale/en.json` 与 `locale/zh.json` 同步为对应中英文长描述。
 - **补齐 DSH 卡片元信息契约**：`package.json` 的 `exports` 新增 `./package.json` 与 `./locale/*.json` 子路径白名单，`files` 收录 `locale/` 与 `assets/icon.png`，manifest 增加 `icon` 字段；新增 `locale/en.json` 与 `locale/zh.json` 双语文案，以及 227x256 的 `assets/icon.png`（28 KB，满足 DSH 256 KiB 图标上限）。修复 DSH 插件列表中本插件只显示包名、无标题无描述无图标的问题。
 - **配置与 flag 统一归入 DSH 用户数据根（ADR-0005）**：新增 `resolveDshHome()` 与 `getLegacyConfigDir()` / `getLegacyConfigPath()` / `readConfigFileText()`，`config.json` 与 `.ponytail-active` 统一落位于 `$DSH_HOME/ponytail`（默认 `~/.dsh/ponytail`），与 DSH 官方 `@deepseek-ai/dsh-home-paths` 的「所有用户数据收敛于单一根目录」契约一致。
@@ -15,8 +23,10 @@
 - **架构决策记录 `docs/adr/0005-config-under-dsh-home.md`**：记录迁移决策、`dsh-home-paths` 静态 import 会崩的实测证据、动态预热导致行为漂移的否决理由与旧位置兼容策略。
 
 ### Changed
+- **CI/CD 流水线校正**：`ci.yml` 与 `publish.yml` 的用例数标注由 26 更新为 44；步骤名去除歧义表述与 emoji；GitHub Release 说明补充上游定位。
+- **文档体系校正**：`CONTEXT.md` 修正不变性列表的重复编号（两个「5.」），补 `ponytail-priority.ts` 与双面插件、展示元信息契约等缺失术语与接缝表条目，新增 3.1 优先级诊断链契约；`README.md` 补充界面配置面板说明、Schema 缺省 shadow 的坑、旧位置迁移说明、发布铁律与客户端产物单一来源纪律；`AGENTS.md` 保持与上游同步。
 - **跨平台一致性修复**（根因修复）：`src/ponytail-config.ts` 的 `getConfigDir()` 删除 `XDG_CONFIG_HOME` / `APPDATA` / `process.platform === 'win32'` 三条平台分支，改为 `join(resolveDshHome(), 'ponytail')`，路径分隔符一律由 `node:path` 生成；`resolveDshHome()` 逐行复刻官方 `resolveDshHome` 语义（explicit > `$DSH_HOME`（空白视为未设置）> `~/.dsh`），不引入任何新依赖。
-- **Web GUI 面板文案中性化**：`src/client.ts` 与 `scripts/build-client.mjs` 中写死的 `%APPDATA%\\ponytail\\config.json` 改为「DSH 数据目录下的 ponytail/config.json」，跨平台均准确。
+- **Web GUI 面板文案中性化**：客户端构建期模板中写死的 `%APPDATA%\\ponytail\\config.json` 改为「DSH 数据目录下的 ponytail/config.json」，跨平台均准确。
 - **文档同步**：README 三处路径表述、`skills/ponytail-help/SKILL.md` 配置文件说明改为 `$DSH_HOME/ponytail`；`docs/adr/0004` 追加修订注记指向 ADR-0005。
 
 ### Migration
