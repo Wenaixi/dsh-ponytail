@@ -4,6 +4,17 @@
 
 > **版本策略**：每个版本固定带 `-dsh.N` 后缀（如 `4.10.0-dsh.0`、`4.10.0-dsh.1`），初始即 `-dsh.0`。上游发新版时重置为新上游版本的 `-dsh.0`（如 `4.10.0-dsh.0`），用 `pnpm run bump:dsh -- 4.10.0`。递增：`pnpm run bump:dsh`。遵循 SemVer 预发布语义。
 
+## [4.10.0-dsh.4] - 2026-10-02
+
+### Added
+- **状态存储切面（PonytailStorage）**：为 `src/ponytail-state.ts` 的 `createPonytailState` 引入可选 `storage` 契约，生产默认使用 `ponytail-runtime.ts` 的 DSH 配置目录磁盘持久化，单测中可注入纯内存适配器，由真实磁盘与内存存储两个适配器共同证明切面价值（Two adapters justify the seam），消除测试对全局 `XDG_CONFIG_HOME` 环境变量的强依赖。
+- **提示词模块高阶深出口（renderPromptSection）**：`src/ponytail-instructions.ts` 暴露单一高阶出口 `renderPromptSection(skillDir, state): string`，封装状态外部同步（`syncFromFile`）、空值与 `off` 关闭态守卫、按需直读模板（遵循 ADR-0003 无状态按需直读原则）与保底降级全链路；`src/ponytail.ts` 的 `systemPrompt.section` 回调精简收敛为单行。
+- **行为测试扩充 28 → 30 项全绿**：新增针对 `PonytailStorage` 纯内存存储适配器隔离运行与 `renderPromptSection` 全链路状态装配的两项端到端单测。
+- **DSH 真实实例全功能链路深度实测**：在独立的 `ponytail-verify` 验证 profile 下成功完成实机实测，证明 `/ponytail` 状态汇报、`/ponytail default lite` 物理写盘持久化、跨会话启动生命周期对齐与 flag 管理全部 100% 吻合上游契约。
+
+### Changed
+- **命令语法解析局部性收敛**：`isDeactivationCommand` 文本判定与标点清洗原生内聚归入 `src/ponytail-commands.ts`，全句失活词（`stop ponytail`、`normal mode`、`退出 ponytail`、`正常模式`）与尾部标点符号清洗彻底闭环在调度管线内部，提升语法解析局部性（Locality），`src/ponytail-config.ts` 聚焦于宿主环境与配置持久化。
+
 ## [4.10.0-dsh.3] - 2026-10-02
 
 ### Changed
@@ -150,3 +161,5 @@
 [4.9.0-dsh.2]: https://github.com/Wenaixi/dsh-ponytail/compare/v4.9.0-dsh.1...v4.9.0-dsh.2
 [4.9.0-dsh.1]: https://github.com/Wenaixi/dsh-ponytail/compare/v4.9.0-dsh.0...v4.9.0-dsh.1
 [4.9.0-dsh.0]: https://github.com/Wenaixi/dsh-ponytail/releases/tag/v4.9.0-dsh.0
+
+[4.10.0-dsh.4]: https://github.com/Wenaixi/dsh-ponytail/compare/v4.10.0-dsh.3...v4.10.0-dsh.4

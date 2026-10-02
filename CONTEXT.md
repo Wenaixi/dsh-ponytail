@@ -78,3 +78,7 @@
 4. **DSH 单一宿主运行时**：不识别任何外部宿主（Copilot / Codex / Qoder / Claude Code / Cursor），flag 固定持久化于 DSH 配置目录（见 `docs/adr/0001` 与 `docs/adr/0004`）；
 5. **会话启动对齐**：每次会话启动按默认档（env > config 文件 > full）重写 flag（对齐上游 `ponytail-activate.js` SessionStart 语义），`/ponytail <档>` 只在本会话生效，跨会话持久化必须用 `/ponytail default <档>`；
 5. **Waterfall 连贯性**：所有 Cordis Waterfall 中间件必须返回 `await next()`，防御性隔离所有异常。
+
+### 4. 存储切面与提示词出口（4.10.0-dsh.4 演进）
+- **PonytailStorage**：状态机持久化存储契约，定义 `read()`、`write(mode)`、`clear()` 最小正交三方法。生产使用基于 `ponytail-runtime.ts` 的物理磁盘适配器；单元测试使用纯内存存储适配器（双适配器证明 Seam 价值）。
+- **renderPromptSection**：系统提示词生成的唯一高阶深出口，内部原子化自闭环状态同步纠偏（`syncFromFile`）、关闭态空串守卫、按需读取 SKILL.md 与多模式规则裁剪，主入口注册收敛为单行。
