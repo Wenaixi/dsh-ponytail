@@ -30,3 +30,8 @@
   消除与 Claude Code / Copilot 等进程的越界状态共享；DSH 状态机语义独立完整。
 - **妥协权衡**：flag 位置从 ~/.claude/.ponytail-active 迁移，已有 DSH 安装升级后
   当前等级会重置为默认（full）；与外部宿主跨进程切换等级的能力被有意移除（非产品目标）。
+
+## 修订注记 (Amendment Note — 2026-10-02)
+本 ADR 中关于持久化目录落于宿主平台传统约定（$XDG_CONFIG_HOME / %APPDATA% / ~/.config）的落地细节已由 **ADR-0005** 修订：
+DSH 官方规范（@deepseek-ai/dsh-home-paths）严格规定所有用户数据均收敛于单一根目录 `$DSH_HOME`（默认 `~/.dsh`），
+故配置与 flag 正式统一归入 `$DSH_HOME/ponytail` 统一数据根，并对旧位置保持平滑兼容读取。

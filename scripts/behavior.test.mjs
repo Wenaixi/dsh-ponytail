@@ -9,25 +9,36 @@ import { fileURLToPath } from 'node:url'
 import { parsePonytailCommand, createCommandDispatcher, extractTextFromContent, extractText } from '../lib/ponytail-commands.js'
 import { render, renderPromptSection } from '../lib/ponytail-instructions.js'
 import { apply, Config as ConfigSchema } from '../lib/ponytail.js'
+import {
+  resolveDshHome,
+  getConfigDir,
+  getConfigPath,
+  getLegacyConfigPath,
+  readConfigFileText,
+} from '../lib/ponytail-config.js'
 
 const skillDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'skills')
 
-// 全局隔离 DSH 配置目录：所有触碰 flag 的测试在临时 XDG_CONFIG_HOME 下运行，
-// 不读写真实配置（%APPDATA%\ponytail 或 ~/.config/ponytail）
-const { mkdtemp, rm, readFile: readFileFsp } = await import('node:fs/promises')
+// 全局隔离 DSH 配置目录：所有触碰 flag 的测试在临时 DSH_HOME 下运行，
+// 不读写真实配置（~/.dsh/ponytail 或旧位置）
+const { mkdtemp, rm, readFile: readFileFsp, writeFile: writeFileFsp, mkdir } = await import('node:fs/promises')
+const prevDsh = process.env.DSH_HOME
 const prevXdg = process.env.XDG_CONFIG_HOME
 const prevAppData = process.env.APPDATA
-const tmpXdg = await mkdtemp(join(os.tmpdir(), 'ponytail-test-'))
+const tmpDsh = await mkdtemp(join(os.tmpdir(), 'ponytail-test-'))
 before(() => {
-  process.env.XDG_CONFIG_HOME = tmpXdg
+  process.env.DSH_HOME = tmpDsh
+  delete process.env.XDG_CONFIG_HOME
   delete process.env.APPDATA
 })
 after(async () => {
+  if (prevDsh === undefined) delete process.env.DSH_HOME
+  else process.env.DSH_HOME = prevDsh
   if (prevXdg === undefined) delete process.env.XDG_CONFIG_HOME
   else process.env.XDG_CONFIG_HOME = prevXdg
   if (prevAppData === undefined) delete process.env.APPDATA
   else process.env.APPDATA = prevAppData
-  await rm(tmpXdg, { recursive: true, force: true })
+  await rm(tmpDsh, { recursive: true, force: true })
 })
 
 const getDefault = () => 'full'
@@ -356,13 +367,13 @@ test('createPonytailState: syncToFile 显式落盘当前内存状态', () => {
 })
 
 test('ponytail-runtime: setMode 落盘至 DSH 配置目录且 readMode 往返', async () => {
-  // before 钩子已把 XDG_CONFIG_HOME 指向临时目录，直接验证 DSH 配置目录落盘
-  const cfgDir = process.env.XDG_CONFIG_HOME
+  // before 钩子已把 DSH_HOME 指向临时目录，直接验证 DSH 数据目录落盘
+  const dshHome = process.env.DSH_HOME
   setMode('ultra')
   assert.equal(readMode(), 'ultra', 'setMode 后 readMode 应返回 ultra')
-  const flagPath = join(cfgDir, 'ponytail', '.ponytail-active')
+  const flagPath = join(dshHome, 'ponytail', '.ponytail-active')
   const exists = await import('node:fs/promises').then(fs => fs.stat(flagPath).then(() => true).catch(() => false))
-  assert.equal(exists, true, 'flag 文件应物理位于 DSH 配置目录（XDG_CONFIG_HOME/ponytail/.ponytail-active）')
+  assert.equal(exists, true, 'flag 文件应物理位于 DSH 数据目录（DSH_HOME/ponytail/.ponytail-active）')
   assert.equal(await readFileFsp(flagPath, 'utf8'), 'ultra')
   clearMode()
   assert.equal(readMode(), null, 'clearMode 后 readMode 应为 null')
@@ -437,3 +448,156 @@ test('renderPromptSection: 封装状态同步、关闭态守卫与动态模板�
   assert.match(ultraPrompt, /PONYTAIL 已激活 — 等级：ultra/)
   assert.equal(state.get(), 'ultra')
 })
+
+
+test('readFullConfig / writeFullConfig / resetFullConfig: 正确读写配置与一键重置', async () => {
+  const { readFullConfig, writeFullConfig, resetFullConfig } = await import('../lib/ponytail-config.js')
+  // 备份原配置
+  const original = readFullConfig()
+  try {
+    const written = writeFullConfig({ defaultMode: 'lite', disabledSkills: ['ponytail-gain'] })
+    assert.strictEqual(written?.defaultMode, 'lite')
+    assert.deepStrictEqual(written?.disabledSkills, ['ponytail-gain'])
+
+    const read = readFullConfig()
+    assert.strictEqual(read.defaultMode, 'lite')
+    assert.deepStrictEqual(read.disabledSkills, ['ponytail-gain'])
+
+    const reset = resetFullConfig()
+    assert.strictEqual(reset?.defaultMode, 'full')
+    assert.deepStrictEqual(reset?.disabledSkills, [])
+  } finally {
+    // 还原
+    writeFullConfig(original)
+  }
+})
+
+test('createPonytailState: Skill 独立开关、默认等级设置与一键恢复默认流转', async () => {
+  const { createPonytailState } = await import('../lib/ponytail-state.js')
+  let memFlag = null
+  const memStorage = {
+    read: () => memFlag,
+    write: (m) => { memFlag = m },
+    clear: () => { memFlag = null },
+  }
+  const state = createPonytailState({ storage: memStorage })
+
+  // 默认启用
+  assert.strictEqual(state.isSkillEnabled('ponytail-review'), true)
+
+  // 禁用 ponytail-review
+  const newState = state.toggleSkill('ponytail-review', false)
+  assert.strictEqual(newState, false)
+  assert.strictEqual(state.isSkillEnabled('ponytail-review'), false)
+  assert.ok(state.getDisabledSkills().includes('ponytail-review'))
+
+  // 再次开启
+  state.toggleSkill('ponytail-review', true)
+  assert.strictEqual(state.isSkillEnabled('ponytail-review'), true)
+
+  // setDefaultMode 与 resetToDefaults
+  state.setDefaultMode('ultra')
+  state.resetToDefaults()
+  assert.strictEqual(state.get(), 'full')
+  assert.deepStrictEqual(state.getDisabledSkills(), [])
+})
+
+test('PonytailProvider: list() 与 get() 严格过滤禁用技能（3A 物理隐藏契约）', async () => {
+  const { PonytailProvider } = await import('../lib/ponytail-skills.js')
+  const { dirname, resolve } = await import('node:path')
+  const { fileURLToPath } = await import('node:url')
+  const skillDir = resolve(dirname(fileURLToPath(import.meta.url)), '..', 'skills')
+
+  let invalidated = false
+  const fakeControl = {
+    signal: new AbortController().signal,
+    invalidate: () => { invalidated = true },
+  }
+  const fakeCtx = { logger: { warn: () => {}, debug: () => {} } }
+
+  // 禁用 ponytail-review 和 ponytail-gain
+  const disabled = new Set(['ponytail-review', 'ponytail-gain'])
+  const provider = new PonytailProvider(fakeCtx, fakeControl, {
+    providerName: 'ponytail',
+    skillDir,
+    isSkillEnabled: (name) => !disabled.has(name),
+  })
+
+  const candidates = await provider.list({})
+  assert.ok(Array.isArray(candidates))
+  const names = candidates.map(c => c.name)
+  // 6 个技能中，禁用的 2 个绝对不出现在列表中
+  assert.strictEqual(names.includes('ponytail-review'), false)
+  assert.strictEqual(names.includes('ponytail-gain'), false)
+  assert.strictEqual(names.includes('ponytail'), true)
+  assert.strictEqual(names.includes('ponytail-audit'), true)
+
+  // get() 试图直接获取被禁用的技能，直接返回 undefined
+  const disabledCandidate = { name: 'ponytail-review', path: resolve(skillDir, 'ponytail-review', 'SKILL.md'), locator: {} }
+  const gotDisabled = await provider.get(disabledCandidate, {})
+  assert.strictEqual(gotDisabled, undefined)
+
+  // get() 获取未禁用的技能正常返回
+  const enabledCandidate = { name: 'ponytail', path: resolve(skillDir, 'ponytail', 'SKILL.md'), locator: {} }
+  const gotEnabled = await provider.get(enabledCandidate, {})
+  assert.ok(gotEnabled !== undefined)
+  assert.strictEqual(gotEnabled.name, 'ponytail')
+
+  // invalidate 通知
+  provider.invalidate()
+  assert.strictEqual(invalidated, true)
+})
+
+test('resolveDshHome: 优先级与路径展开（explicit > DSH_HOME > ~/.dsh）', () => {
+  // 1. 显式参数最高优先级
+  const explicit = resolveDshHome('/custom/configured/home')
+  assert.equal(explicit, path.resolve('/custom/configured/home'))
+
+  // 2. DSH_HOME 环境变量覆盖
+  const envHome = resolveDshHome(undefined, { DSH_HOME: '/env/dsh/home' })
+  assert.equal(envHome, path.resolve('/env/dsh/home'))
+
+  // 3. 空白 DSH_HOME 回退默认 ~/.dsh
+  const blankHome = resolveDshHome(undefined, { DSH_HOME: '   ' })
+  assert.equal(blankHome, path.resolve(join(os.homedir(), '.dsh')))
+
+  // 4. ~ 前缀展开为家目录
+  const tildeHome = resolveDshHome(undefined, { DSH_HOME: '~/my-dsh-root' })
+  assert.equal(tildeHome, path.resolve(join(os.homedir(), 'my-dsh-root')))
+})
+
+test('getConfigDir & getConfigPath: 均准确落于 DSH 数据目录下的 ponytail 子目录', () => {
+  const currentDsh = process.env.DSH_HOME
+  assert.ok(currentDsh, 'DSH_HOME 应已由测试 hook 隔离设置')
+  assert.equal(getConfigDir(), join(currentDsh, 'ponytail'))
+  assert.equal(getConfigPath(), join(currentDsh, 'ponytail', 'config.json'))
+})
+
+test('readConfigFileText: 新配置缺失时平滑回退读取旧平台路径', async () => {
+  const legacyDir = await mkdtemp(join(os.tmpdir(), 'ponytail-legacy-cfg-'))
+  const legacySubdir = join(legacyDir, 'ponytail')
+  await mkdir(legacySubdir, { recursive: true })
+  const legacyFile = join(legacySubdir, 'config.json')
+  await writeFileFsp(legacyFile, JSON.stringify({ defaultMode: 'lite', disabledSkills: ['ponytail-gain'] }), 'utf8')
+
+  const originalXdg = process.env.XDG_CONFIG_HOME
+  const originalDsh = process.env.DSH_HOME
+  const freshDsh = await mkdtemp(join(os.tmpdir(), 'ponytail-fresh-dsh-'))
+  try {
+    process.env.XDG_CONFIG_HOME = legacyDir
+    process.env.DSH_HOME = freshDsh // 新 DSH_HOME 下尚未生成 config.json
+
+    const legacyText = readConfigFileText()
+    assert.ok(legacyText !== null, '新位置缺失时应成功从旧路径回退读取')
+    const parsed = JSON.parse(legacyText)
+    assert.equal(parsed.defaultMode, 'lite')
+    assert.deepEqual(parsed.disabledSkills, ['ponytail-gain'])
+  } finally {
+    if (originalXdg === undefined) delete process.env.XDG_CONFIG_HOME
+    else process.env.XDG_CONFIG_HOME = originalXdg
+    process.env.DSH_HOME = originalDsh
+    await rm(legacyDir, { recursive: true, force: true })
+    await rm(freshDsh, { recursive: true, force: true })
+  }
+})
+

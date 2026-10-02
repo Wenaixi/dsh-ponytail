@@ -78,7 +78,7 @@ dsh --profile web --dump-config | grep -A2 ponytail
 | `ponytail-subagent.js` | `src/ponytail.ts` 的 `agent/created`（`PONYTAIL_SUBAGENT_MATCHER`） |
 
 ```
-启动:  env PONYTAIL_DEFAULT_MODE → cordis defaultMode → ~/.config/ponytail/config.json → full
+启动:  env PONYTAIL_DEFAULT_MODE → cordis defaultMode → $DSH_HOME/ponytail/config.json → full
        → setMode(flag 文件)
 
 每轮请求前: agent/pre-step (waterfall, 必须 return next())
@@ -93,7 +93,7 @@ dsh --profile web --dump-config | grep -A2 ponytail
 HMR: 全部走 ctx，热重载逆序自动清理
 ```
 
-`systemPrompt` 而非 `agent.inject`：落入日志可重建，`order: 50` 优先级高，每次 `assemble` 动态求值，`off` 零成本。flag（`.ponytail-active`）与配置同源持久化于 DSH 配置目录（`$XDG_CONFIG_HOME/ponytail` 或 `%APPDATA%\ponytail`），`/ponytail` 切换在 DSH 内闭环。
+`systemPrompt` 而非 `agent.inject`：落入日志可重建，`order: 50` 优先级高，每次 `assemble` 动态求值，`off` 零成本。flag（`.ponytail-active`）与配置同源持久化于 DSH 用户数据根目录（`$DSH_HOME/ponytail`，默认 `~/.dsh/ponytail`），`/ponytail` 切换在 DSH 内闭环。
 
 ## ⚙️ 配置
 
@@ -106,7 +106,7 @@ HMR: 全部走 ctx，热重载逆序自动清理
         defaultMode: full  # off|lite|full|ultra
 ```
 
-优先级：`PONYTAIL_DEFAULT_MODE` env > `cordis.defaultMode` > `~/.config/ponytail/config.json` > `full`。持久化：`/ponytail default <mode>` 写入文件，`review` 不可作默认。
+优先级：`PONYTAIL_DEFAULT_MODE` env > `cordis.defaultMode` > `$DSH_HOME/ponytail/config.json`（默认 `~/.dsh/ponytail/config.json`） > `full`。持久化：`/ponytail default <mode>` 写入文件，`review` 不可作默认。
 
 ## 🎮 使用
 

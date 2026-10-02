@@ -44,7 +44,7 @@ description: >
 export PONYTAIL_DEFAULT_MODE=ultra
 ```
 
-**配置文件**（`~/.config/ponytail/config.json`，Windows：`%APPDATA%\ponytail\config.json`）：
+**配置文件**（`$DSH_HOME/ponytail/config.json`，默认 `~/.dsh/ponytail/config.json`）：
 ```json
 { "defaultMode": "lite" }
 ```

@@ -70,6 +70,7 @@ const checks = [
   'lib/ponytail-runtime.js',
   'lib/ponytail-skills.js',
   'lib/ponytail-state.js',
+  'lib/client.js',
   'cordis.patch.yml',
   'package.json',
   'skills/ponytail/SKILL.md',
@@ -97,6 +98,36 @@ else console.log('[verify] ✓ no tool registration')
 const patch = await readFile(resolve(dirname(fileURLToPath(import.meta.url)), '..', 'cordis.patch.yml'), 'utf8')
 if (patch.includes('dsh-ponytail') && !patch.includes('/absolute')) console.log('[verify] ✓ cordis.patch.yml uses package name')
 else { console.error('[verify] cordis.patch.yml not referencing dsh-ponytail by package name'); ok = false }
+
+// 跨平台路径门禁（见 docs/adr/0005）：
+// 存储路径必须由 DSH 数据根解析得出，不得出现平台判断或平台特定路径字面量。
+// 唯一豁免是 getLegacyConfigDir() 的旧位置兼容读取分支——它必须保留旧平台约定，
+// 因此扫描时排除该函数体，其余位置出现即判失败。
+const legacyCompatSrc = await readFile(join(srcDir, 'ponytail-config.ts'), 'utf8')
+const legacyFnStart = legacyCompatSrc.indexOf('export function getLegacyConfigDir')
+const legacyFnEnd = legacyCompatSrc.indexOf('export function getLegacyConfigPath')
+const legacyCompatSource =
+  legacyFnStart >= 0 && legacyFnEnd > legacyFnStart
+    ? legacyCompatSrc.slice(legacyFnStart, legacyFnEnd)
+    : legacyCompatSrc
+
+const platformPathPattern = /%APPDATA%|XDG_CONFIG_HOME|process\.platform|\.config[\\/]ponytail|AppData[\\/]Roaming/
+const offenders = []
+for (const f of (await readdir(srcDir)).filter(f => f.endsWith('.ts') && f !== 'client.ts')) {
+  const code = (await readFile(join(srcDir, f), 'utf8')).replace(legacyCompatSource, '')
+  const m = code.match(platformPathPattern)
+  if (m) offenders.push(`src/${f}: ${m[0]}`)
+}
+// 客户端面板文案同样不得出现平台特定路径（src/client.ts 与其构建期副本）
+for (const rel of ['src/client.ts', 'scripts/build-client.mjs']) {
+  const code = await readFile(resolve(dirname(fileURLToPath(import.meta.url)), '..', rel), 'utf8')
+  const m = code.match(/%APPDATA%|XDG_CONFIG_HOME/)
+  if (m) offenders.push(`${rel}: ${m[0]}`)
+}
+if (offenders.length > 0) {
+  console.error(`[verify] FAIL: platform-specific path literal found (must resolve via DSH home): ${offenders.join(', ')}`)
+  ok = false
+} else console.log('[verify] ✓ no platform-specific path literals')
 
 console.log(`\n[verify] ${ok ? 'ALL PASS' : 'FAIL'}`)
 process.exit(ok ? 0 : 1)
