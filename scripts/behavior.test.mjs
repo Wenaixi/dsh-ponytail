@@ -7,7 +7,7 @@ import assert from 'node:assert/strict'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parsePonytailCommand, createCommandDispatcher, extractTextFromContent, extractText } from '../lib/ponytail-commands.js'
-import { render } from '../lib/ponytail-instructions.js'
+import { render, renderPromptSection } from '../lib/ponytail-instructions.js'
 import { apply, Config as ConfigSchema } from '../lib/ponytail.js'
 
 const skillDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'skills')
@@ -366,4 +366,74 @@ test('ponytail-runtime: setMode 落盘至 DSH 配置目录且 readMode 往返', 
   assert.equal(await readFileFsp(flagPath, 'utf8'), 'ultra')
   clearMode()
   assert.equal(readMode(), null, 'clearMode 后 readMode 应为 null')
+})
+
+test('createPonytailState: 传入自定义内存存储适配器隔离运行，无需触碰磁盘', () => {
+  let storageVal = null
+  let writeCount = 0
+  let clearCount = 0
+  const mockStorage = {
+    read: () => storageVal,
+    write: (mode) => {
+      writeCount++
+      storageVal = mode
+    },
+    clear: () => {
+      clearCount++
+      storageVal = null
+    }
+  }
+
+  const state = createPonytailState({ storage: mockStorage })
+  assert.equal(state.get(), null)
+
+  // 1. set 写入内存并同步至 mockStorage
+  state.set('ultra')
+  assert.equal(state.get(), 'ultra')
+  assert.equal(storageVal, 'ultra')
+  assert.equal(writeCount, 1)
+
+  // 2. set('off') 归一为 null 并触发 clear
+  state.set('off')
+  assert.equal(state.get(), null)
+  assert.equal(storageVal, null)
+  assert.equal(clearCount, 1)
+
+  // 3. 外部介质变更，syncFromFile 同步纠偏
+  storageVal = 'lite'
+  state.syncFromFile()
+  assert.equal(state.get(), 'lite')
+
+  // 4. syncToFile 显式落盘
+  state.syncToFile()
+  assert.equal(storageVal, 'lite')
+})
+
+test('renderPromptSection: 封装状态同步、关闭态守卫与动态模板渲染全链路', () => {
+  let mockVal = null
+  const mockStorage = {
+    read: () => mockVal,
+    write: (m) => { mockVal = m },
+    clear: () => { mockVal = null }
+  }
+  const state = createPonytailState({ storage: mockStorage })
+
+  // 1. 默认关闭态（null）返回空字符串
+  assert.equal(renderPromptSection(skillDir, state), '')
+
+  // 2. 显式设为 off 返回空字符串
+  state.set('off')
+  assert.equal(renderPromptSection(skillDir, state), '')
+
+  // 3. 激活为 lite 返回裁剪后的提示词
+  state.set('lite')
+  const litePrompt = renderPromptSection(skillDir, state)
+  assert.match(litePrompt, /PONYTAIL 已激活 — 等级：lite/)
+  assert.doesNotMatch(litePrompt, /\*\*ultra\*\*/)
+
+  // 4. 外部存储变更为 ultra，renderPromptSection 自动触发 syncFromFile 纠偏
+  mockVal = 'ultra'
+  const ultraPrompt = renderPromptSection(skillDir, state)
+  assert.match(ultraPrompt, /PONYTAIL 已激活 — 等级：ultra/)
+  assert.equal(state.get(), 'ultra')
 })

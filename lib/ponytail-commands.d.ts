@@ -1,6 +1,12 @@
 import type { PonytailState } from './ponytail-state.js';
 import { type RuntimeMode } from './ponytail-config.js';
 /**
+ * 仅当整句为该命令时失活，避免 "add a normal mode toggle" 误触发
+ * 中英文全句匹配：英文 stop ponytail / normal mode，中文 退出 ponytail / 正常模式
+ * 清洗尾部中英文标点与空白符
+ */
+export declare function isDeactivationCommand(text: string): boolean;
+/**
  * 指令解析结果（底层纯数据结构，供单元测试与内部调度使用）
  */
 export interface CommandParseResult {

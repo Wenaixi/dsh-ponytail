@@ -1,3 +1,4 @@
+import type { PonytailState } from './ponytail-state.js';
 export declare function filterSkillBodyForMode(body: string, mode: string): string;
 export declare function getFallbackInstructions(mode: string): string;
 export declare function getMainSkillPath(skillDir: string): string;
@@ -8,4 +9,10 @@ export declare function getMainSkillPath(skillDir: string): string;
  * 的同步 text 契约。skillDir 显式传入：上游硬编码包内路径，DSH 允许 config.skillDir 覆盖。
  */
 export declare function render(skillDir: string, mode: string): string;
+/**
+ * SystemPrompt section 的唯一高阶深模块出口：
+ * 封装从状态外部纠偏（syncFromFile）、激活与关闭态守卫（off/null 返回空串）、
+ * 到按需直读模板（ADR-0003）与保底降级渲染的完整链路。
+ */
+export declare function renderPromptSection(skillDir: string, state: PonytailState): string;
 //# sourceMappingURL=ponytail-instructions.d.ts.map

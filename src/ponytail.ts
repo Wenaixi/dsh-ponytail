@@ -26,7 +26,7 @@ import {
   type PonytailConfig,
 } from './ponytail-config.js'
 import { createCommandDispatcher } from './ponytail-commands.js'
-import { render } from './ponytail-instructions.js'
+import { render, renderPromptSection } from './ponytail-instructions.js'
 import { createPonytailState } from './ponytail-state.js'
 import { PonytailProvider } from './ponytail-skills.js'
 

@@ -7,12 +7,24 @@
  * - off / review / 非法值的归一
  *
  * 与 ponytail-runtime.ts 的关系：runtime 负责 DSH 配置目录下 flag 的物理存取，
- * 本模块包装它，不重复实现 flag 路径解析。
+ * 本模块默认委托它作为默认持久化实现，也可由 options.storage 注入内存适配器隔离测试。
  * 与 ponytail-config.ts 的关系：默认值解析仍归 config（默认值源 != 运行时状态）。
  *
  * 实例必须是 apply() 内的闭包变量：DSH 常驻进程下 HMR 重载会重建 apply，
  * 模块级单例会让旧状态跨实例存活，与 flag 文件双写竞争。
  */
+/**
+ * 状态持久化存储适配器契约（两个适配器证明切面价值：生产物理磁盘 + 测试内存隔离）
+ */
+export interface PonytailStorage {
+    read(): string | null;
+    write(mode: string): void;
+    clear(): void;
+}
+export interface PonytailStateOptions {
+    /** 可选注入的存储适配器；缺省时使用基于 ponytail-runtime 的 DSH 配置目录磁盘实现 */
+    storage?: PonytailStorage;
+}
 export interface PonytailState {
     /** 当前等级的内存视图；不触发任何文件读。null 表示关闭（'off' 由 set 归一为 null） */
     get(): string | null;
@@ -23,5 +35,5 @@ export interface PonytailState {
     /** 内存优先：将当前内存等级同步落盘至 flag 文件（null 删 flag，有效值写 flag） */
     syncToFile(): void;
 }
-export declare function createPonytailState(): PonytailState;
+export declare function createPonytailState(options?: PonytailStateOptions): PonytailState;
 //# sourceMappingURL=ponytail-state.d.ts.map

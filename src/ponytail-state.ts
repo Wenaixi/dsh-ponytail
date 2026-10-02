@@ -7,7 +7,7 @@
  * - off / review / 非法值的归一
  *
  * 与 ponytail-runtime.ts 的关系：runtime 负责 DSH 配置目录下 flag 的物理存取，
- * 本模块包装它，不重复实现 flag 路径解析。
+ * 本模块默认委托它作为默认持久化实现，也可由 options.storage 注入内存适配器隔离测试。
  * 与 ponytail-config.ts 的关系：默认值解析仍归 config（默认值源 != 运行时状态）。
  *
  * 实例必须是 apply() 内的闭包变量：DSH 常驻进程下 HMR 重载会重建 apply，
@@ -16,6 +16,20 @@
 
 import { normalizeMode } from './ponytail-config.js'
 import { clearMode, readMode, setMode } from './ponytail-runtime.js'
+
+/**
+ * 状态持久化存储适配器契约（两个适配器证明切面价值：生产物理磁盘 + 测试内存隔离）
+ */
+export interface PonytailStorage {
+  read(): string | null
+  write(mode: string): void
+  clear(): void
+}
+
+export interface PonytailStateOptions {
+  /** 可选注入的存储适配器；缺省时使用基于 ponytail-runtime 的 DSH 配置目录磁盘实现 */
+  storage?: PonytailStorage
+}
 
 export interface PonytailState {
   /** 当前等级的内存视图；不触发任何文件读。null 表示关闭（'off' 由 set 归一为 null） */
@@ -28,7 +42,14 @@ export interface PonytailState {
   syncToFile(): void
 }
 
-export function createPonytailState(): PonytailState {
+const defaultDiskStorage: PonytailStorage = {
+  read: () => readMode(),
+  write: (mode) => setMode(mode),
+  clear: () => clearMode(),
+}
+
+export function createPonytailState(options?: PonytailStateOptions): PonytailState {
+  const storage = options?.storage ?? defaultDiskStorage
   let current: string | null = null
 
   return {
@@ -36,8 +57,8 @@ export function createPonytailState(): PonytailState {
 
     syncToFile() {
       try {
-        if (current === null) clearMode()
-        else setMode(current)
+        if (current === null) storage.clear()
+        else storage.write(current)
       } catch {
         // best-effort：flag 写失败只影响跨进程可见性，不阻断当前会话
       }
@@ -52,7 +73,7 @@ export function createPonytailState(): PonytailState {
     syncFromFile() {
       let fileMode: string | null
       try {
-        fileMode = readMode()
+        fileMode = storage.read()
       } catch {
         return
       }

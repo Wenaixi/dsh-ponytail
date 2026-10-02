@@ -1,3 +1,4 @@
+import type { PonytailState } from './ponytail-state.js'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { DEFAULT_MODE, normalizeMode } from './ponytail-config.js'
@@ -84,4 +85,16 @@ export function render(skillDir: string, mode: string): string {
   } catch {
     return getFallbackInstructions(mode)
   }
+}
+
+/**
+ * SystemPrompt section 的唯一高阶深模块出口：
+ * 封装从状态外部纠偏（syncFromFile）、激活与关闭态守卫（off/null 返回空串）、
+ * 到按需直读模板（ADR-0003）与保底降级渲染的完整链路。
+ */
+export function renderPromptSection(skillDir: string, state: PonytailState): string {
+  state.syncFromFile()
+  const mode = state.get()
+  if (!mode || mode === 'off') return ''
+  return render(skillDir, mode)
 }
