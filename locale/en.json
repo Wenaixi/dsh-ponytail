@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "Ponytail (lazy senior mode)",
-    "description": "A DSH port of dietrichgebert/ponytail: the lazy senior engineer mindset, always-on as a seven-rung ladder, with six Chinese-native skills and zero tool registrations."
+    "description": "A full DSH port of DietrichGebert/ponytail: the always-on lazy senior developer mode and its seven-rung ladder (YAGNI down to the minimum implementation), with six native Chinese skills (core, review, audit, debt, gain, help) and zero tool registrations."
   }
 }

@@ -7,6 +7,7 @@
 ## [Unreleased]
 
 ### Added
+- **统一包描述与仓库简介**：`package.json` 的 `description` 与 GitHub 仓库简介改为「DietrichGebert/ponytail 的 DSH 完整移植：常驻懒人 senior 模式与七阶梯子（YAGNI 到最小实现），6 个中文原生技能（本体、评审、审计、债务、收益、帮助），零 tool 注册」；`locale/en.json` 与 `locale/zh.json` 同步为对应中英文长描述。
 - **补齐 DSH 卡片元信息契约**：`package.json` 的 `exports` 新增 `./package.json` 与 `./locale/*.json` 子路径白名单，`files` 收录 `locale/` 与 `assets/icon.png`，manifest 增加 `icon` 字段；新增 `locale/en.json` 与 `locale/zh.json` 双语文案，以及 227x256 的 `assets/icon.png`（28 KB，满足 DSH 256 KiB 图标上限）。修复 DSH 插件列表中本插件只显示包名、无标题无描述无图标的问题。
 - **配置与 flag 统一归入 DSH 用户数据根（ADR-0005）**：新增 `resolveDshHome()` 与 `getLegacyConfigDir()` / `getLegacyConfigPath()` / `readConfigFileText()`，`config.json` 与 `.ponytail-active` 统一落位于 `$DSH_HOME/ponytail`（默认 `~/.dsh/ponytail`），与 DSH 官方 `@deepseek-ai/dsh-home-paths` 的「所有用户数据收敛于单一根目录」契约一致。
 - **跨平台路径静态门禁**：`scripts/verify.mjs` 新增 `no platform-specific path literals` 断言，扫描 `src/` 与客户端构建期副本，禁止出现 `%APPDATA%` / `XDG_CONFIG_HOME` / `process.platform` 等平台特定字面量（仅豁免旧位置兼容读取分支）。
