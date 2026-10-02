@@ -113,13 +113,13 @@ const legacyCompatSource =
 
 const platformPathPattern = /%APPDATA%|XDG_CONFIG_HOME|process\.platform|\.config[\\/]ponytail|AppData[\\/]Roaming/
 const offenders = []
-for (const f of (await readdir(srcDir)).filter(f => f.endsWith('.ts') && f !== 'client.ts')) {
+for (const f of (await readdir(srcDir)).filter(f => f.endsWith('.ts'))) {
   const code = (await readFile(join(srcDir, f), 'utf8')).replace(legacyCompatSource, '')
   const m = code.match(platformPathPattern)
   if (m) offenders.push(`src/${f}: ${m[0]}`)
 }
-// 客户端面板文案同样不得出现平台特定路径（src/client.ts 与其构建期副本）
-for (const rel of ['src/client.ts', 'scripts/build-client.mjs']) {
+// 客户端面板文案同样不得出现平台特定路径（唯一来源为构建期脚本，产物同源）
+for (const rel of ['scripts/build-client.mjs', 'lib/client.js']) {
   const code = await readFile(resolve(dirname(fileURLToPath(import.meta.url)), '..', rel), 'utf8')
   const m = code.match(/%APPDATA%|XDG_CONFIG_HOME/)
   if (m) offenders.push(`${rel}: ${m[0]}`)

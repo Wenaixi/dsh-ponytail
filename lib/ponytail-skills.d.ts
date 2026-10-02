@@ -17,10 +17,14 @@ export declare class PonytailProvider implements SkillProvider {
     readonly name: string;
     private readonly skillDir;
     private readonly ctx;
-    constructor(ctx: Context, _control: SkillProviderControl, options: {
+    private readonly control;
+    private readonly isSkillEnabled?;
+    constructor(ctx: Context, control: SkillProviderControl, options: {
         providerName?: string;
         skillDir: string;
+        isSkillEnabled?: (name: string) => boolean;
     });
+    invalidate(): void;
     list(options: SkillLookupOptions): Promise<readonly SkillCandidate[] | SkillProviderObservation>;
     get(candidate: SkillCandidate, options: SkillLookupOptions): Promise<SkillDefinition | undefined>;
 }

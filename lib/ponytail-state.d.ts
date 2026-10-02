@@ -34,6 +34,18 @@ export interface PonytailState {
     syncFromFile(): void;
     /** 内存优先：将当前内存等级同步落盘至 flag 文件（null 删 flag，有效值写 flag） */
     syncToFile(): void;
+    /** 当前禁用的技能名称列表 */
+    getDisabledSkills(): string[];
+    /** 设置禁用的技能列表（并持久化写盘） */
+    setDisabledSkills(skills: string[]): void;
+    /** 检查某个技能是否启用（未被禁用） */
+    isSkillEnabled(name: string): boolean;
+    /** 切换某个技能的状态（启用/禁用），并持久化写盘 */
+    toggleSkill(name: string, enabled?: boolean): boolean;
+    /** 设置全局默认等级并持久化落盘 */
+    setDefaultMode(mode: string): void;
+    /** 恢复所有默认配置（等级切回 full，启用所有技能） */
+    resetToDefaults(): void;
 }
 export declare function createPonytailState(options?: PonytailStateOptions): PonytailState;
 //# sourceMappingURL=ponytail-state.d.ts.map

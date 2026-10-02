@@ -190,15 +190,27 @@ export class PonytailProvider implements SkillProvider {
   readonly name: string
   private readonly skillDir: string
   private readonly ctx: Context
+  private readonly control: SkillProviderControl
+  private readonly isSkillEnabled?: (name: string) => boolean
 
   constructor(
     ctx: Context,
-    _control: SkillProviderControl,
-    options: { providerName?: string; skillDir: string },
+    control: SkillProviderControl,
+    options: { providerName?: string; skillDir: string; isSkillEnabled?: (name: string) => boolean },
   ) {
     this.ctx = ctx
+    this.control = control
     this.name = options.providerName ?? 'ponytail'
     this.skillDir = options.skillDir
+    this.isSkillEnabled = options.isSkillEnabled
+  }
+
+  invalidate(): void {
+    try {
+      this.control.invalidate()
+    } catch {
+      // 容错处理
+    }
   }
 
   async list(options: SkillLookupOptions): Promise<readonly SkillCandidate[] | SkillProviderObservation> {
@@ -245,6 +257,9 @@ export class PonytailProvider implements SkillProvider {
           `[ponytail] skill 名称 "${base.name}" 与目录 "${entry.name}" 不一致（以 frontmatter 为准）`,
         )
       }
+      if (this.isSkillEnabled && !this.isSkillEnabled(base.name)) {
+        continue
+      }
       candidates.push({
         ...base,
         rank: PONYTAIL_RANK,
@@ -257,6 +272,7 @@ export class PonytailProvider implements SkillProvider {
 
   async get(candidate: SkillCandidate, options: SkillLookupOptions): Promise<SkillDefinition | undefined> {
     options.signal?.throwIfAborted()
+    if (this.isSkillEnabled && !this.isSkillEnabled(candidate.name)) return undefined
     const locatorObj = typeof candidate.locator === 'object' && candidate.locator !== null
       ? (candidate.locator as { path?: string; directory?: string })
       : undefined

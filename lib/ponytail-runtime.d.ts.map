@@ -1,1 +1,1 @@
-{"version":3,"file":"ponytail-runtime.d.ts","sourceRoot":"","sources":["../src/ponytail-runtime.ts"],"names":[],"mappings":"AAAA;;;;;;;GAOG;AAgBH,wBAAgB,OAAO,CAAC,IAAI,EAAE,MAAM,GAAG,IAAI,CAI1C;AAED,wBAAgB,SAAS,IAAI,IAAI,CAMhC;AAED,wBAAgB,QAAQ,IAAI,MAAM,GAAG,IAAI,CAOxC"}
+{"version":3,"file":"ponytail-runtime.d.ts","sourceRoot":"","sources":["../src/ponytail-runtime.ts"],"names":[],"mappings":"AAAA;;;;;;;;GAQG;AAgBH,wBAAgB,OAAO,CAAC,IAAI,EAAE,MAAM,GAAG,IAAI,CAI1C;AAED,wBAAgB,SAAS,IAAI,IAAI,CAMhC;AAED,wBAAgB,QAAQ,IAAI,MAAM,GAAG,IAAI,CAOxC"}

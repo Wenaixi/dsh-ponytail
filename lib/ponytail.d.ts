@@ -13,11 +13,11 @@ import { type PonytailConfig } from './ponytail-config.js';
 export type Config = PonytailConfig;
 export declare const Config: Schema<Config>;
 export declare const name = "ponytail";
-export declare const inject: readonly ["skills", "systemPrompt"];
+export declare const inject: readonly ["skills", "systemPrompt", "webServer"];
 export declare function apply(ctx: Context, config?: Config): void;
 declare const _default: {
     name: string;
-    inject: readonly ["skills", "systemPrompt"];
+    inject: readonly ["skills", "systemPrompt", "webServer"];
     Config: Schema<PonytailConfig>;
     apply: typeof apply;
 };

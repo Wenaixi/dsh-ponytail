@@ -14,7 +14,7 @@
  * 模块级单例会让旧状态跨实例存活，与 flag 文件双写竞争。
  */
 
-import { normalizeMode } from './ponytail-config.js'
+import { normalizeMode, readFullConfig, writeFullConfig, resetFullConfig } from './ponytail-config.js'
 import { clearMode, readMode, setMode } from './ponytail-runtime.js'
 
 /**
@@ -40,6 +40,18 @@ export interface PonytailState {
   syncFromFile(): void
   /** 内存优先：将当前内存等级同步落盘至 flag 文件（null 删 flag，有效值写 flag） */
   syncToFile(): void
+  /** 当前禁用的技能名称列表 */
+  getDisabledSkills(): string[]
+  /** 设置禁用的技能列表（并持久化写盘） */
+  setDisabledSkills(skills: string[]): void
+  /** 检查某个技能是否启用（未被禁用） */
+  isSkillEnabled(name: string): boolean
+  /** 切换某个技能的状态（启用/禁用），并持久化写盘 */
+  toggleSkill(name: string, enabled?: boolean): boolean
+  /** 设置全局默认等级并持久化落盘 */
+  setDefaultMode(mode: string): void
+  /** 恢复所有默认配置（等级切回 full，启用所有技能） */
+  resetToDefaults(): void
 }
 
 const defaultDiskStorage: PonytailStorage = {
@@ -52,8 +64,48 @@ export function createPonytailState(options?: PonytailStateOptions): PonytailSta
   const storage = options?.storage ?? defaultDiskStorage
   let current: string | null = null
 
+  let disabledSkills = new Set<string>(readFullConfig().disabledSkills)
+
   return {
     get: () => current,
+    getDisabledSkills(): string[] {
+      return Array.from(disabledSkills)
+    },
+
+    setDisabledSkills(skills: string[]): void {
+      disabledSkills = new Set(skills)
+      writeFullConfig({ disabledSkills: Array.from(disabledSkills) })
+    },
+
+    isSkillEnabled(name: string): boolean {
+      return !disabledSkills.has(name)
+    },
+
+    toggleSkill(name: string, enabled?: boolean): boolean {
+      const targetEnabled = enabled !== undefined ? enabled : disabledSkills.has(name)
+      if (targetEnabled) {
+        disabledSkills.delete(name)
+      } else {
+        disabledSkills.add(name)
+      }
+      writeFullConfig({ disabledSkills: Array.from(disabledSkills) })
+      return !disabledSkills.has(name)
+    },
+
+    setDefaultMode(mode: string): void {
+      const nm = normalizeMode(mode)
+      if (nm) {
+        writeFullConfig({ defaultMode: nm })
+      }
+    },
+
+    resetToDefaults(): void {
+      resetFullConfig()
+      disabledSkills.clear()
+      current = 'full'
+      storage.write('full')
+    },
+
 
     syncToFile() {
       try {
