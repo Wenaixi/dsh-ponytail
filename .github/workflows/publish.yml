@@ -39,7 +39,7 @@ jobs:
       - name: Verify (6 skills, no tool registration)
         run: pnpm verify
 
-      - name: Behavior tests (44 cases)
+      - name: Behavior tests (59 cases)
         run: pnpm test
 
       - name: Publish to npm

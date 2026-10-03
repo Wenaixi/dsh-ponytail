@@ -133,8 +133,8 @@ HMR: 全部走 ctx，热重载逆序自动清理
 # 四道门禁，改完必须全绿
 pnpm typecheck        # tsc --noEmit
 pnpm build            # tsc 出 lib/，再由 build-client.mjs 生成 lib/client.js
-node scripts/verify.mjs        # 静态门禁：产物清单、6 技能 frontmatter、description<=500、零 tool 注册、零平台路径字面量
-node scripts/behavior.test.mjs # 行为单测（44 项）
+node scripts/verify.mjs        # 静态门禁：36 条断言（产物/技能/零 tool/落点/元数据真源/locale）
+node scripts/behavior.test.mjs # 行为单测（59 项）
 
 # 0 侵入联调
 dsh --profile web --patch ./cordis.patch.yml --dump-config
