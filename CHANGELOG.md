@@ -8,6 +8,15 @@
 
 （本段暂无待发布内容）
 
+## [4.10.0-dsh.8] - 2026-10-04
+
+### Added
+- **两个常驻 UI 落点（对照参考实现 dsh-context 的策略）**：`sidebar.footer.action`（侧边栏底部入口按钮）+ `shell.overlay`（点击后弹出的全局浮层，内嵌完整配置面板）。dsh-context 共 9 个落点，其中 7 个是常驻 UI 位置、设置相关仅占 2 个——它从不把可见性赌在设置/插件管理页这一条链路上；本插件此前只有设置/插件页落点，是本次连续两轮修复无效的结构性原因。
+- **客户端注册自检标记 `window.__PONYTAIL_UI__`**：`slots.inject(key, cb)` 在插槽 spec 不存在时**回调永不执行且零报错**（`dsh-client-ui-renderer` 的 `reconcile()`），静默失败无法观测。现把实际注册成功的落点写入该全局对象，排查时在控制台输入 `__PONYTAIL_UI__` 即可分清「哪些链路通了、哪些没通」。
+
+### Changed
+- **UI 落点由三条扩为五条**：常驻 2（侧边栏按钮 / 浮层）+ 设置与插件页 3（`settings.section` / `plugins.item` / `plugins.bundle.config` 双 key）。门禁扩至 34 条并同步断言五个插槽。
+
 ## [4.10.0-dsh.7] - 2026-10-04
 
 ### Added

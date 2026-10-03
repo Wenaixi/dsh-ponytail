@@ -99,13 +99,13 @@ else console.log('[verify] ✓ no tool registration')
 // 只留后者时，宿主不为本包 serve 配置表单就没有任何落点，整块面板静默消失。
 const rootDir = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const clientSrc = await readFile(join(rootDir, 'scripts', 'build-client.mjs'), 'utf8')
-const slotsMissing = ['plugins.item', 'plugins.bundle.config', 'settings.section'].filter(
+const slotsMissing = ['sidebar.footer.action', 'shell.overlay', 'plugins.item', 'plugins.bundle.config', 'settings.section'].filter(
   (slot) => !clientSrc.includes('ctx.slots.inject("' + slot + '"'),
 )
 if (slotsMissing.length > 0) {
   console.error('[verify] FAIL: client 未注册插槽 ' + slotsMissing.join(', ') + '（UI 落点缺失会让面板在部分宿主上完全不显示）')
   ok = false
-} else console.log('[verify] ✓ client registers all UI slots (plugins.item + plugins.bundle.config + settings.section)')
+} else console.log('[verify] ✓ client registers all 5 UI slots (常驻 2 + 设置/插件页 3)')
 
 // 双 key 保险：plugins.bundle.config 必须同时以包名与 bundle id 注册，
 // 防宿主以另一种命名匹配时面板静默消失（keyed 插槽不同 key 可并存，容器按 entryKey 只渲染一份）。

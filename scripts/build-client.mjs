@@ -353,6 +353,84 @@ const content = `window.__ModuleLoader__.load({
       );
     }
 
+    // ---------------------------------------------------------------------
+    // 常驻落点（对照 dsh-context：它的 9 个落点里 7 个是常驻 UI 位置，
+    // 设置相关只占 2 个——不把 UI 赌在设置/插件管理页这一条链路上）
+    // ---------------------------------------------------------------------
+
+    // 侧边栏按钮与浮层面板共享的极简开关状态（模块级，HMR 重建即重置）
+    var overlayStore = (function () {
+      var open = false;
+      var listeners = new Set();
+      return {
+        isOpen: function () { return open; },
+        set: function (v) { open = v; for (var l of listeners) l(); },
+        subscribe: function (l) { listeners.add(l); return function () { listeners.delete(l); }; },
+      };
+    })();
+
+    function useOverlayOpen() {
+      return React.useSyncExternalStore(overlayStore.subscribe, overlayStore.isOpen);
+    }
+
+    // 侧边栏底部入口按钮（sidebar.footer.action，list 型）
+    function PonytailFooterButton() {
+      var open = useOverlayOpen();
+      return e(
+        P.Button,
+        {
+          variant: open ? "primary" : "outline",
+          size: "sm",
+          onClick: function () { overlayStore.set(!open); },
+        },
+        "Ponytail"
+      );
+    }
+
+    // 全局浮层层（shell.overlay，list 型）：点侧边栏按钮后弹出完整面板
+    function PonytailOverlay() {
+      var open = useOverlayOpen();
+      if (!open) return null;
+      var mask = {
+        position: "fixed", inset: "0", zIndex: 9999,
+        backgroundColor: "rgba(0,0,0,0.35)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+      };
+      var card = {
+        width: "min(720px, 92vw)", maxHeight: "82vh", overflow: "auto",
+        backgroundColor: "var(--dsw-alias-bg-layer-1, #fff)",
+        color: "var(--dsw-alias-label-primary)",
+        border: "0.5px solid var(--dsw-alias-border-l2)",
+        borderRadius: "var(--dsw-radius-md, 10px)",
+        padding: "18px 20px",
+        display: "flex", flexDirection: "column", gap: "12px",
+      };
+      return e(
+        "div",
+        { style: mask, onClick: function () { overlayStore.set(false); } },
+        e(
+          "div",
+          { style: card, onClick: function (ev) { ev.stopPropagation(); } },
+          e(
+            "div",
+            { style: { display: "flex", alignItems: "center", justifyContent: "space-between" } },
+            e("span", { style: { fontSize: "14px", fontWeight: "600" } }, "Ponytail 懒人模式"),
+            e(P.Button, { variant: "outline", size: "sm", onClick: function () { overlayStore.set(false); } }, "关闭")
+          ),
+          e(PonytailConfigPanel)
+        )
+      );
+    }
+
+    // 自检标记：slots.inject 的 spec 不存在时回调【永不执行且零报错】，
+    // 这里把「实际注册成功的落点」写进 window，桌面版排查时一眼可见。
+    function track(slot) {
+      var w = typeof window === "undefined" ? null : window;
+      if (!w) return;
+      var rec = w.__PONYTAIL_UI__ || (w.__PONYTAIL_UI__ = { registered: [], at: new Date().toISOString() });
+      rec.registered.push(slot);
+    }
+
     // 官方插件页两态：summary 是卡片描述位的一行文案，page 才是完整面板
     function PonytailEntry(props) {
       if (props && props.view === "summary") {
@@ -362,9 +440,28 @@ const content = `window.__ModuleLoader__.load({
     }
 
     function apply(ctx) {
+      // 常驻落点一：侧边栏底部按钮（不依赖 settings / plugin-manager）
+      ctx.slots.inject("sidebar.footer.action", function () {
+        track("sidebar.footer.action");
+        return ctx.slots.register(
+          { name: "sidebar.footer.action", id: "ponytail", order: 10 },
+          PonytailFooterButton
+        );
+      });
+
+      // 常驻落点二：全局浮层面板（点击侧边栏按钮后展开完整配置）
+      ctx.slots.inject("shell.overlay", function () {
+        track("shell.overlay");
+        return ctx.slots.register(
+          { name: "shell.overlay", id: "ponytail", order: 10 },
+          PonytailOverlay
+        );
+      });
+
       // 官方插件页条目（设置界面那条链）：与官方 shell / agent-loop / web-search 同款插槽。
       // 此前只挂 plugins.bundle.config，宿主不为本包 serve 配置表单时整块 UI 就没有落点。
       ctx.slots.inject("plugins.item", function () {
+        track("plugins.item");
         return ctx.slots.register(
           {
             name: "plugins.item",
@@ -381,6 +478,7 @@ const content = `window.__ModuleLoader__.load({
       // 设置窗口一级 Tab：由 settings-general 声明，不经过 plugin-manager，
       // 是插件管理页通道不可用时的保底落点（设置窗口左侧出现本插件，右侧为完整面板）
       ctx.slots.inject("settings.section", function () {
+        track("settings.section");
         return ctx.slots.register(
           {
             name: "settings.section",
@@ -399,6 +497,7 @@ const content = `window.__ModuleLoader__.load({
       // 但个别宿主若以 bundle id 为键，这里同样命中；容器按 entryKey 过滤，只会渲染一份。
       for (const key of ["@wenaixi/dsh-ponytail", "ponytail"]) {
         ctx.slots.inject("plugins.bundle.config", function () {
+          track("plugins.bundle.config:" + key);
           return ctx.slots.register(
             { name: "plugins.bundle.config", key: key },
             PonytailConfigPanel
