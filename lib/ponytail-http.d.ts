@@ -23,7 +23,20 @@ export interface ConfigHttpDeps {
     };
     /** PONYTAIL_DEFAULT_MODE 环境变量原值 */
     envRaw: string | undefined;
+    /** 技能目录（读取 SKILL.md frontmatter 作为元数据真源） */
+    skillDir: string;
 }
+export interface SkillMeta {
+    id: string;
+    name: string;
+    description: string;
+}
+/**
+ * 从 skills/ 目录读取全部技能元数据（SKILL.md frontmatter 为唯一真源）。
+ * 不按禁用状态过滤——面板需要展示全部 6 项（enabled 由 state.isSkillEnabled 标记）。
+ * 目录/文件不可读时回退 FALLBACK_SKILL_META（不抛错）。
+ */
+export declare function readSkillMeta(skillDirPath: string): SkillMeta[];
 /**
  * 创建 /api/plugins/ponytail/config 处理器。
  * @returns 纯 Node http handler（req/res），可被 webServer.register 直接消费

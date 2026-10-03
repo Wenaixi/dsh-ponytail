@@ -281,6 +281,7 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
           patchMode: rawConfig['defaultMode'] as string | undefined,
           logger: ctx.logger,
           envRaw: process.env['PONYTAIL_DEFAULT_MODE'],
+          skillDir,
         }),
       })
     }, 'ponytail: web route')

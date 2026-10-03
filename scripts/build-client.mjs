@@ -1,3 +1,7 @@
+import { readFileSync, readdirSync } from 'node:fs'
+import { join, resolve, dirname } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { parse as parseYaml } from 'yaml'
 import { writeFile } from 'node:fs/promises'
 
 /**
@@ -11,6 +15,43 @@ import { writeFile } from 'node:fs/promises'
  * 与 settings-general / settings-models / plugin-manager 同源，视觉自动对齐宿主；
  * 本文件不自定义任何色值与圆角，只做布局。
  */
+// ---- 构建期技能元数据提取（SKILL.md frontmatter 唯一真源，与宿侧 readSkillMeta 同源） ----
+const SKILL_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', 'skills')
+function extractSkillMeta() {
+  let dirs = []
+  try {
+    dirs = readdirSync(SKILL_ROOT, { withFileTypes: true })
+      .filter((d) => d.isDirectory() && !d.name.startsWith('.'))
+      .map((d) => d.name)
+      .sort()
+  } catch {
+    return []
+  }
+  const metas = []
+  for (const dir of dirs) {
+    let description = dir
+    try {
+      const raw = readFileSync(join(SKILL_ROOT, dir, 'SKILL.md'), 'utf8').replace(/^\uFEFF/, '').replace(/\r\n/g, '\n')
+      if (raw.startsWith('---\n')) {
+        const end = raw.indexOf('\n---\n')
+        if (end > 0) {
+          const fm = parseYaml(raw.slice(4, end))
+          if (fm && typeof fm === 'object' && typeof fm.description === 'string') description = fm.description
+        }
+      }
+    } catch {
+      // 缺 SKILL.md 时以目录名兜底
+    }
+    metas.push({ id: dir, description })
+  }
+  return metas
+}
+const SKILL_META_BUILD = extractSkillMeta()
+if (SKILL_META_BUILD.length !== 6) {
+  console.error('[build-client] 技能目录应含 6 个 SKILL.md，实际 ' + SKILL_META_BUILD.length)
+  process.exit(1)
+}
+
 const content = `window.__ModuleLoader__.load({
   id: "@wenaixi/dsh-ponytail",
   factory: (require) => {
@@ -96,6 +137,9 @@ const content = `window.__ModuleLoader__.load({
         fontSize: "12px",
         color: "var(--dsw-alias-label-tertiary)",
         lineHeight: 1.4,
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        whiteSpace: "nowrap",
       },
       footer: {
         display: "flex",
@@ -112,14 +156,10 @@ const content = `window.__ModuleLoader__.load({
       { value: "ultra", label: "激进" },
     ];
 
-    const SKILL_META = [
-      { id: "ponytail", description: "懒人模式本体：梯子七阶与三档强度总入口" },
-      { id: "ponytail-review", description: "只挑过度设计：一行一条列出能删的代码" },
-      { id: "ponytail-audit", description: "全仓审计：按可删行数降序猎取臃肿" },
-      { id: "ponytail-debt", description: "收割 ponytail: 注释，建立延期债务台账" },
-      { id: "ponytail-gain", description: "收益看板：展示 benchmark 中位数" },
-      { id: "ponytail-help", description: "速查卡：模式、技能与命令一览" },
-    ];
+
+    // 技能元数据从 SKILL.md frontmatter 提取（唯一真源，与宿侧 readSkillMeta 同源）
+    const skillRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', 'skills')
+    const SKILL_META = ${JSON.stringify(SKILL_META_BUILD)};
 
     const EMPTY_CONFIG = {
       currentMode: "full",

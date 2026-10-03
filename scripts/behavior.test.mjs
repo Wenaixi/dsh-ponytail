@@ -766,6 +766,7 @@ function createEndpointDeps(extra = {}) {
     patchMode: undefined,
     logger: { info: () => {} },
     envRaw: undefined,
+    skillDir,
     ...extra,
   }
   return { deps, mockStorage, getInvalidated: () => invalidated }
@@ -829,4 +830,53 @@ test('C1 端点: PATCH 返回 405', async () => {
   const res = fakeRes()
   await handler({ method: 'PATCH' }, res)
   assert.equal(res.status, 405)
+})
+
+// ---------------------------------------------------------------------------
+// C2：技能元数据单一真源（SKILL.md frontmatter）
+// ---------------------------------------------------------------------------
+
+test('C2 技能元数据: readSkillMeta 从 frontmatter 提取 6 项且含禁用技能', async () => {
+  const { readSkillMeta } = await import('../lib/ponytail-http.js')
+  const metas = readSkillMeta(skillDir)
+  assert.equal(metas.length, 6)
+  const names = metas.map(m => m.id).sort()
+  assert.deepStrictEqual(names, ['ponytail', 'ponytail-audit', 'ponytail-debt', 'ponytail-gain', 'ponytail-help', 'ponytail-review'])
+  // frontmatter 原文特征（触发词），而非手写短摘要
+  const main = metas.find(m => m.id === 'ponytail')
+  assert.ok(main.description.includes('触发词'), '描述应来自 frontmatter 原文（含触发词）')
+  assert.ok(main.description.length > 60, 'frontmatter 描述是长文，不是一行摘要')
+})
+
+test('C2 技能元数据: GET 响应 skills 描述与 frontmatter 同源', async () => {
+  const { createConfigHttpEndpoint, readSkillMeta } = await import('../lib/ponytail-http.js')
+  const { deps } = createEndpointDeps()
+  const handler = createConfigHttpEndpoint(deps)
+  const res = fakeRes()
+  await handler({ method: 'GET' }, res)
+  const fromFm = readSkillMeta(skillDir)
+  for (const s of res.json.skills) {
+    const fm = fromFm.find(m => m.id === s.id)
+    assert.ok(fm, '每个下发技能都应在 frontmatter 真源中')
+    assert.equal(s.description, fm.description, s.id + ' 描述必须与 frontmatter 一致')
+  }
+})
+
+test('C2 技能元数据: 禁用技能仍在下发列表（面板需展示开关）', async () => {
+  const { createConfigHttpEndpoint } = await import('../lib/ponytail-http.js')
+  const { deps } = createEndpointDeps()
+  deps.state.setDisabledSkills(['ponytail-gain'])
+  const handler = createConfigHttpEndpoint(deps)
+  const res = fakeRes()
+  await handler({ method: 'GET' }, res)
+  const gain = res.json.skills.find(s => s.id === 'ponytail-gain')
+  assert.ok(gain, '禁用技能必须在列表中（否则面板无法重新启用）')
+  assert.equal(gain.enabled, false)
+})
+
+test('C2 技能元数据: frontmatter 不可读时回退内置兜底而非抛错', async () => {
+  const { readSkillMeta } = await import('../lib/ponytail-http.js')
+  const metas = readSkillMeta(skillDir + '__missing__')
+  assert.equal(metas.length, 6, '读不到目录时应回退内置元数据')
+  assert.equal(metas[0].id, 'ponytail')
 })

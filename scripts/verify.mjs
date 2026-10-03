@@ -112,6 +112,23 @@ if (extra.length > 0) {
 } else {
   console.log('[verify] ✓ client registers exactly one UI slot: plugins.bundle.config (key = 包名)')
 }
+// 技能元数据单一真源反向断言：描述只能来自 SKILL.md frontmatter（readSkillMeta/extractSkillMeta），
+// 出现「懒人模式本体」等硬编码短摘要即失败（防三处漂移回潮，C2）。
+// 客户端构建脚本不得出现硬编码技能描述：SKILL_META 必须由 frontmatter 生成
+const clientBuildSrc = await readFile(join(rootDir, 'scripts', 'build-client.mjs'), 'utf8')
+const clientDrift = clientBuildSrc.match(/懒人模式本体|过度设计评审|全仓过度设计审计|债务台账收割|收益看板：展示[^，。]*|速查卡：模式/)
+if (clientDrift) {
+  console.error(`[verify] FAIL: build-client.mjs 出现硬编码技能描述（必须由 SKILL.md frontmatter 生成）：${clientDrift[0]}`)
+  ok = false
+}
+// 宿侧必须经 readSkillMeta 取真源（FALLBACK_SKILL_META 仅作不可读兜底）
+const httpSrc = await readFile(join(rootDir, 'src', 'ponytail-http.ts'), 'utf8')
+if (!httpSrc.includes('readSkillMeta(deps.skillDir)')) {
+  console.error('[verify] FAIL: src/ponytail-http.ts 的 snapshot 必须经 readSkillMeta 取 frontmatter 真源')
+  ok = false
+}
+console.log('[verify] ✓ skill meta single-source (SKILL.md frontmatter)')
+
 // 宿侧必须注册 settings 命名空间：插件页据此为 ponytail serve 配置表单
 const hostSrc = await readFile(join(rootDir, 'src', 'ponytail.ts'), 'utf8')
 if (hostSrc.includes("service.register('ponytail'")) {
