@@ -8,6 +8,21 @@
 
 （本段暂无待发布内容）
 
+## [4.10.0-dsh.6] - 2026-10-03
+
+### Added
+- **官方插件页通道 `plugins.item`**：`scripts/build-client.mjs` 新增 `plugins.item` 插槽注册（与官方 shell / agent-loop / web-search / subagent 同款），组件按 `props.view` 分态——`summary` 返回一行文案（卡片描述位），`page` 渲染完整配置面板。
+- **宿侧设置命名空间注册**：`src/ponytail.ts` 经 `ctx.inject(['settings'])` 调用 `settings.register('ponytail', Config)`（复用现有 `Config` schema；刻意不写进 `inject` 数组，桌面版未装配该服务时静默降级），插件页据此为 ponytail serve 配置表单。
+- **UI 落点静态门禁**：`scripts/verify.mjs` 新增两条断言——客户端必须同时注册 `plugins.item` 与 `plugins.bundle.config`，宿侧必须调用 `settings.register("ponytail", Config)`。已完成破坏实测：删掉 `plugins.item` 注册即变红，还原后变绿。
+
+### Fixed
+- **桌面版设置界面无任何 ponytail UI**（根因修复，非渲染问题）：此前客户端只挂 `plugins.bundle.config`（已安装包卡片详情），而该区域仅在宿主为该包 serve 配置表单时渲染；宿侧从未注册 settings 命名空间，整块面板因此静默消失。经与 dsh-context（宿侧 `settings.register(NS, Schema)`）对照取证定位。
+- **设置表单与 config.json 的真源对齐**：宿侧注册后于启动时把表单写入的默认档对齐回 `config.json`，保持 ADR-0005 单一真源，避免「界面上改了、运行却不生效」的静默失效。`ponytail:` 注释已标注天花板：仅启动时对齐一次，无实时订阅。
+- **`ctx.inject` 缺失时的降级守卫**：行为测试的精简 ctx 未提供 `ctx.inject`，注册段抛 `TypeError`。守卫与既有 `if ((ctx as any).webServer)` 同款，`ctx.inject` 缺失时整段跳过，不阻断插件其余能力。
+
+### Changed
+- **`readRawConfigMode` 提为 `apply()` 内共享函数**：原为 Web 端处理器内的局部函数，提升后由设置通道对齐与优先级诊断链共用一份（消除重复实现）。
+
 ## [4.10.0-dsh.5] - 2026-10-03
 
 ### Added
