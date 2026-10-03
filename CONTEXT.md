@@ -58,6 +58,20 @@
   插件在 DSH 卡片中的标题、描述、图标经 `readPluginMeta` 读取，它把 `${specifier}/package.json` 与 `${specifier}/locale/en.json` 交给 Node exports 解析。**只要包声明了 `exports`，就必须同时放行这两个子路径**，否则卡片只剩包名且零报错。图标须为包内相对路径的 svg/png/jpg/webp 且 <= 256 KiB。
   *Avoid (严禁混用)*: Card Meta, 卡片元信息, Manifest Display, Badge Config
 
+- **Skill Meta Single Source（技能元数据单一真源）**:
+  技能的名称与描述一律以 `skills/*/SKILL.md` frontmatter 为唯一真源；宿侧 `readSkillMeta` 实时读取（读不到回退 `FALLBACK_SKILL_META`），客户端构建期提取内嵌。任何模块不得再硬编码技能描述（verify 反向断言锁死）。
+  *Avoid (严禁混用)*: Skill Catalog, Meta Copy, 技能清单、描述摘要
+
+- **Config Http Endpoint（配置端点深工厂）**:
+  `src/ponytail-http.ts` 的 `createConfigHttpEndpoint(deps)`：GET/POST/405、请求体解析、快照组装、
+  readSkillMeta 读取全部内聚，依赖全注入、不碰 ctx，可用假 req/res 直接单测。apply() 只保留接线。
+  *Avoid (严禁混用)*: Web Route Handler, Config API, 路由回调
+
+- **Client Locale Dict（客户端双语字典）**:
+  面板文案经官方 `ctx.locale.register('ponytail', {zh, en})` + `bind` 提供，字典真源在 `locale/*.json`；
+  技能说明保持中文不翻译（用户边界）。诊断链 label/problem 在客户端按 level 查字典覆盖。
+  *Avoid (严禁混用)*: i18n System, 国际化框架、前端文案表
+
 - **Waterfall Middleware Boundary（流水线中间件边界）**:
   不可逾越的链式调用契约，要求 Cordis 事件处理函数无论执行成败必须最终调用并返回 `await next()`。
   *Avoid (严禁混用)*: Hook Guard, Event Wrapper, Filter Chain, Pass-through
@@ -101,6 +115,8 @@
 | `fallback` | 内置 `full` | 兜底 |
 
 每一项带 `label` / `location` / `value` / `hit` / `shadowed` / `problem`，UI 渲染为四种状态：生效中（success）、被覆盖（warning）、未设置（quiet）、值非法或文件损坏（danger）。
+
+> **唯一真源（ADR-0006）**：`resolvePriority().effective` 同时是 apply 的 initialMode 与 GET/POST 响应 defaultMode 的取值来源；客户端面板的 label/problem 展示按 level 查双语字典覆盖（宿侧契约零改动）。
 
 *Avoid（严禁混用）*: priority order, precedence list, 优先级数组、权重排序
 
