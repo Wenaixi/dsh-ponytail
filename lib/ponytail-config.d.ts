@@ -15,13 +15,9 @@
  * 不再使用 XDG / APPDATA 等宿主平台约定（旧位置仅作一次性兼容读取）。
  */
 export declare const DEFAULT_MODE = "full";
-export declare const VALID_MODES: readonly ["off", "lite", "full", "ultra", "review"];
 export declare const RUNTIME_MODES: readonly ["off", "lite", "full", "ultra"];
 export type RuntimeMode = (typeof RUNTIME_MODES)[number];
-export type ValidMode = (typeof VALID_MODES)[number];
 export declare function normalizeMode(mode: string): RuntimeMode | null;
-export declare function normalizeConfigMode(mode: string): ValidMode | null;
-export declare function isDeactivationCommand(text: string): boolean;
 export declare function isShellSafe(p: string): boolean;
 /** DSH 数据根环境变量（与 @deepseek-ai/dsh-home-paths 的 DSH_HOME_ENV 一致） */
 export declare const DSH_HOME_ENV = "DSH_HOME";
@@ -63,6 +59,11 @@ export interface FullConfigData {
     disabledSkills: string[];
 }
 export declare function readFullConfig(): FullConfigData;
+/**
+ * 字段级 merge 写盘：保留 config.json 中用户手写的未知字段（不再重建为两键对象），
+ * defaultMode 经 normalizeMode 校验——非法值拒绝返回 null 不写盘（writeDefaultMode 语义统一）。
+ * 失败契约：写盘异常返回 null（与 resetFullConfig/writeDefaultMode 一致）。
+ */
 export declare function writeFullConfig(patch: Partial<FullConfigData>): FullConfigData | null;
 export declare function resetFullConfig(): FullConfigData | null;
 export declare function writeDefaultMode(mode: string): RuntimeMode | null;

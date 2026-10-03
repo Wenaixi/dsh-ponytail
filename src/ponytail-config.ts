@@ -20,11 +20,9 @@ import { homedir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 
 export const DEFAULT_MODE = 'full'
-export const VALID_MODES = ['off', 'lite', 'full', 'ultra', 'review'] as const
 export const RUNTIME_MODES = ['off', 'lite', 'full', 'ultra'] as const
 
 export type RuntimeMode = (typeof RUNTIME_MODES)[number]
-export type ValidMode = (typeof VALID_MODES)[number]
 
 export function normalizeMode(mode: string): RuntimeMode | null {
   if (typeof mode !== 'string') return null
@@ -32,18 +30,6 @@ export function normalizeMode(mode: string): RuntimeMode | null {
   return (RUNTIME_MODES as readonly string[]).includes(n) ? (n as RuntimeMode) : null
 }
 
-export function normalizeConfigMode(mode: string): ValidMode | null {
-  if (typeof mode !== 'string') return null
-  const n = mode.trim().toLowerCase()
-  return (VALID_MODES as readonly string[]).includes(n) ? (n as ValidMode) : null
-}
-
-// 仅当整句为该命令时失活，避免 "add a normal mode toggle" 误触发
-// 中英文全句匹配：英文 stop ponytail / normal mode，中文 退出 ponytail / 正常模式
-export function isDeactivationCommand(text: string): boolean {
-  const t = String(text ?? '').trim().toLowerCase().replace(/[.!?\s。！？]+$/, '')
-  return t === 'stop ponytail' || t === 'normal mode' || t === '退出 ponytail' || t === '正常模式'
-}
 
 // 仅白名单路径字符，避免注入 shell 元字符
 export function isShellSafe(p: string): boolean {
@@ -188,19 +174,37 @@ export function readFullConfig(): FullConfigData {
   }
 }
 
+/**
+ * 字段级 merge 写盘：保留 config.json 中用户手写的未知字段（不再重建为两键对象），
+ * defaultMode 经 normalizeMode 校验——非法值拒绝返回 null 不写盘（writeDefaultMode 语义统一）。
+ * 失败契约：写盘异常返回 null（与 resetFullConfig/writeDefaultMode 一致）。
+ */
 export function writeFullConfig(patch: Partial<FullConfigData>): FullConfigData | null {
   try {
     const configPath = getConfigPath()
     mkdirSync(dirname(configPath), { recursive: true })
-    const current = readFullConfig()
-    const updated: Record<string, unknown> = {
-      defaultMode: patch.defaultMode ? normalizeMode(patch.defaultMode) ?? current.defaultMode : current.defaultMode,
-      disabledSkills: patch.disabledSkills !== undefined ? patch.disabledSkills : current.disabledSkills,
+    let config: Record<string, unknown> = {}
+    try {
+      const raw = readConfigFileText()
+      const parsed = raw === null ? null : (JSON.parse(raw) as unknown)
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) config = parsed as Record<string, unknown>
+    } catch {
+      // 文件损坏时按空对象处理（保留未知键的前提是不覆盖原文件）
     }
-    writeFileSync(configPath, JSON.stringify(updated, null, 2), 'utf8')
+    if (patch.defaultMode !== undefined) {
+      const nm = normalizeMode(patch.defaultMode)
+      if (nm === null) return null
+      config['defaultMode'] = nm
+    }
+    if (patch.disabledSkills !== undefined) {
+      config['disabledSkills'] = patch.disabledSkills.filter((s: unknown) => typeof s === 'string')
+    }
+    writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf8')
     return {
-      defaultMode: updated.defaultMode as RuntimeMode,
-      disabledSkills: updated.disabledSkills as string[],
+      defaultMode: (normalizeMode(config['defaultMode'] as string) ?? DEFAULT_MODE) as RuntimeMode,
+      disabledSkills: Array.isArray(config['disabledSkills'])
+        ? config['disabledSkills'].filter((s: unknown): s is string => typeof s === 'string')
+        : [],
     }
   } catch {
     return null
@@ -217,24 +221,9 @@ export function resetFullConfig(): FullConfigData | null {
 export function writeDefaultMode(mode: string): RuntimeMode | null {
   const normalized = normalizeMode(mode)
   if (!normalized) return null
-  try {
-    const configPath = getConfigPath()
-    mkdirSync(dirname(configPath), { recursive: true })
-    let config: Record<string, unknown> = {}
-    try {
-      const raw = readConfigFileText()
-      const parsed = raw === null ? null : (JSON.parse(raw) as unknown)
-      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) config = parsed as Record<string, unknown>
-    } catch {
-      // 忽略
-    }
-    config['defaultMode'] = normalized
-    writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf8')
-    return normalized
-  } catch {
-    // 磁盘写保护、EACCES 权限受限或独占锁等底层 I/O 异常时优雅回退 null，契约完全闭环
-    return null
-  }
+  const written = writeFullConfig({ defaultMode: normalized })
+  if (written === null) return null
+  return normalized
 }
 
 /**

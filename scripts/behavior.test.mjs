@@ -880,3 +880,40 @@ test('C2 技能元数据: frontmatter 不可读时回退内置兜底而非抛错
   assert.equal(metas.length, 6, '读不到目录时应回退内置元数据')
   assert.equal(metas[0].id, 'ponytail')
 })
+
+// ---------------------------------------------------------------------------
+// C3：配置写盘字段级 merge（保留未知键）+ 孤儿函数清理
+// ---------------------------------------------------------------------------
+
+test('C3 写盘: writeFullConfig 保留 config.json 未知字段（字段级 merge）', async () => {
+  const { writeFullConfig, readConfigFileText } = await import('../lib/ponytail-config.js')
+  const configPath = join(process.env.DSH_HOME, 'ponytail', 'config.json')
+  const { mkdir, writeFile: wf } = await import('node:fs/promises')
+  await mkdir(join(process.env.DSH_HOME, 'ponytail'), { recursive: true })
+  await wf(configPath, JSON.stringify({ defaultMode: 'lite', unknownKey: 'keep-me' }), 'utf8')
+  const written = writeFullConfig({ defaultMode: 'ultra' })
+  assert.equal(written?.defaultMode, 'ultra')
+  const raw = JSON.parse((await import('node:fs/promises')).readFileSync ? '{}' : '{}')
+  // 用 readConfigFileText 直接核对未知键保留
+  const text = readConfigFileText()
+  assert.ok(text.includes('unknownKey'), '未知字段必须保留（现状 writeFullConfig 会丢弃）')
+  assert.ok(text.includes('"keep-me"'), '未知字段值必须原样保留')
+  assert.ok(text.includes('"ultra"'), 'defaultMode 已更新')
+})
+
+test('C3 写盘: writeDefaultMode 非法值拒绝且不改文件', async () => {
+  const { writeDefaultMode, readConfigFileText } = await import('../lib/ponytail-config.js')
+  const before = readConfigFileText()
+  const result = writeDefaultMode('bogus')
+  assert.equal(result, null)
+  const after = readConfigFileText()
+  assert.equal(after, before, '非法 defaultMode 不得写盘')
+})
+
+test('C3 清理: config 版 isDeactivationCommand 与 normalizeConfigMode 已删除', async () => {
+  const config = await import('../lib/ponytail-config.js')
+  assert.equal(config.isDeactivationCommand, undefined, 'config 版孤儿 isDeactivationCommand 应删除（commands 保留）')
+  assert.equal(config.normalizeConfigMode, undefined, 'normalizeConfigMode 孤儿应删除')
+  const commands = await import('../lib/ponytail-commands.js')
+  assert.equal(typeof commands.isDeactivationCommand, 'function', 'commands 版唯一实现保留')
+})
