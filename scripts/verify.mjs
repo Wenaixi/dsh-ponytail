@@ -112,6 +112,19 @@ if (extra.length > 0) {
 } else {
   console.log('[verify] ✓ client registers exactly one UI slot: plugins.bundle.config (key = 包名)')
 }
+// 客户端 i18n 接入反向断言：面板文案必须经 ctx.locale 双语字典（C6），
+// 产物构建脚本不得回退到硬编码中文文案（t( 调用之外无中文字符串字面量，字典 JSON 除外）。
+const buildScript = await readFile(join(rootDir, 'scripts', 'build-client.mjs'), 'utf8')
+if (!buildScript.includes("ctx.locale.register(NS") || !buildScript.includes('exports.inject = ["slots", "locale"]')) {
+  console.error('[verify] FAIL: 客户端必须接入 ctx.locale（register + bind + inject locale）')
+  ok = false
+}
+if (!buildScript.includes('t("level." + source.level)')) {
+  console.error('[verify] FAIL: 诊断链 label 必须经字典按 level 覆盖（英文界面不可显示中文 label）')
+  ok = false
+}
+console.log('[verify] ✓ client i18n via ctx.locale (bilingual panel)')
+
 // 技能元数据单一真源反向断言：描述只能来自 SKILL.md frontmatter（readSkillMeta/extractSkillMeta），
 // 出现「懒人模式本体」等硬编码短摘要即失败（防三处漂移回潮，C2）。
 // 客户端构建脚本不得出现硬编码技能描述：SKILL_META 必须由 frontmatter 生成
