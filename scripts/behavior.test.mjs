@@ -724,3 +724,109 @@ test('C4 一致性: resolvePriority env 带空白时 trim 后生效', async () =
   assert.strictEqual(r.effective, 'lite')
   assert.strictEqual(r.chain[0].hit, true)
 })
+
+// ---------------------------------------------------------------------------
+// C1：HTTP 配置端点深工厂（独立可测，不经 apply）
+// ---------------------------------------------------------------------------
+
+function fakeRes() {
+  let status = 0
+  let body = ''
+  return {
+    setHeader() {},
+    writeHead(code) { status = code },
+    end(data) { body = data ?? '' },
+    get status() { return status },
+    get json() { try { return JSON.parse(body) } catch { return null } },
+  }
+}
+
+function fakePostReq(bodyStr) {
+  return {
+    method: 'POST',
+    [Symbol.asyncIterator]: async function* () {
+      yield bodyStr
+    },
+  }
+}
+
+function createEndpointDeps(extra = {}) {
+  let storageVal = null
+  const mockStorage = {
+    read: () => storageVal,
+    write: (m) => { storageVal = m },
+    clear: () => { storageVal = null },
+  }
+  const state = createPonytailState({ storage: mockStorage })
+  let invalidated = 0
+  const deps = {
+    state,
+    readRawConfigMode: () => undefined,
+    invalidateSkills: () => { invalidated++ },
+    patchMode: undefined,
+    logger: { info: () => {} },
+    envRaw: undefined,
+    ...extra,
+  }
+  return { deps, mockStorage, getInvalidated: () => invalidated }
+}
+
+test('C1 端点: GET 返回 200 且诊断链恒 4 项、技能 6 项', async () => {
+  const { createConfigHttpEndpoint } = await import('../lib/ponytail-http.js')
+  const { deps } = createEndpointDeps()
+  const handler = createConfigHttpEndpoint(deps)
+  const res = fakeRes()
+  await handler({ method: 'GET' }, res)
+  assert.equal(res.status, 200)
+  assert.equal(res.json.currentMode, 'off')
+  assert.equal(res.json.defaultMode, 'full')
+  assert.equal(res.json.priority.chain.length, 4)
+  assert.equal(res.json.skills.length, 6)
+  assert.equal(res.json.skills[0].enabled, true)
+})
+
+test('C1 端点: POST mode 切换即时生效且持久化默认档', async () => {
+  const { createConfigHttpEndpoint } = await import('../lib/ponytail-http.js')
+  const { deps } = createEndpointDeps()
+  // 让 config.json 的 defaultMode 可读：临时 DSH_HOME 下写入
+  const handler = createConfigHttpEndpoint(deps)
+  const res = fakeRes()
+  await handler(fakePostReq(JSON.stringify({ mode: 'lite' })), res)
+  assert.equal(res.status, 200)
+  assert.equal(res.json.success, true)
+  // mode 切换即时生效：内存态立即变为 lite
+  assert.equal(res.json.currentMode, 'lite')
+  // 持久化后的默认档：由真实 config.json 提供（测试 DSH_HOME 隔离，写盘后 readRawConfigMode 可读到）
+  const { readFullConfig } = await import('../lib/ponytail-config.js')
+  assert.equal(readFullConfig().defaultMode, 'lite')
+})
+
+test('C1 端点: POST 非法 JSON 返回 400', async () => {
+  const { createConfigHttpEndpoint } = await import('../lib/ponytail-http.js')
+  const { deps } = createEndpointDeps()
+  const handler = createConfigHttpEndpoint(deps)
+  const res = fakeRes()
+  await handler(fakePostReq('{bad json'), res)
+  assert.equal(res.status, 400)
+})
+
+test('C1 端点: POST reset 触发 invalidateSkills 且状态复位', async () => {
+  const { createConfigHttpEndpoint } = await import('../lib/ponytail-http.js')
+  const { deps, getInvalidated } = createEndpointDeps()
+  deps.state.set('ultra')
+  const handler = createConfigHttpEndpoint(deps)
+  const res = fakeRes()
+  await handler(fakePostReq(JSON.stringify({ action: 'reset' })), res)
+  assert.equal(res.status, 200)
+  assert.equal(res.json.currentMode, 'full')
+  assert.ok(getInvalidated() >= 1, 'reset 必须触发 invalidateSkills')
+})
+
+test('C1 端点: PATCH 返回 405', async () => {
+  const { createConfigHttpEndpoint } = await import('../lib/ponytail-http.js')
+  const { deps } = createEndpointDeps()
+  const handler = createConfigHttpEndpoint(deps)
+  const res = fakeRes()
+  await handler({ method: 'PATCH' }, res)
+  assert.equal(res.status, 405)
+})

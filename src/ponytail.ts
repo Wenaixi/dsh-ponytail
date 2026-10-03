@@ -25,6 +25,7 @@ import {
   type PonytailConfig,
 } from './ponytail-config.js'
 import { resolvePriority } from './ponytail-priority.js'
+import { createConfigHttpEndpoint } from './ponytail-http.js'
 import { createCommandDispatcher } from './ponytail-commands.js'
 import { render, renderPromptSection } from './ponytail-instructions.js'
 import { createPonytailState } from './ponytail-state.js'
@@ -152,13 +153,18 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
 
   // SkillProvider 注册：深模块构造函数接收已解析的 providerName 与 skillDir（优先级归 entry）
   const skills = (ctx as unknown as { skills: { registerProvider: (factory: (control: SkillProviderControl) => SkillProvider) => () => void } }).skills
-  skills.registerProvider((control) =>
-    new PonytailProvider(ctx, control, { providerName: resolved.providerName ?? 'ponytail', skillDir }),
-  )
+  skills.registerProvider((control) => {
+    providerInstance = new PonytailProvider(ctx, control, { providerName: resolved.providerName ?? 'ponytail', skillDir })
+    return providerInstance
+  })
 
   // 类型不安全的事件监听通过 any 绕过，运行时由 cordis 校验
   const anyCtx = ctx as unknown as { on: (event: string, handler: (...args: unknown[]) => unknown) => void }
 
+  // ponytail: skills/change 只保留 debug——官方语义是给消费方（host UI/agent-loop）的
+  // 通知缝，提供者不应在其内反向调 control.invalidate()（invalidateCache→notifyChange
+  // 会再次 emit 同事件，同步广播无防重入守卫，直接栈溢出）。本插件技能目录变更由
+  // UI 变更点直调 invalidateSkills() 收敛（C1 修活 providerInstance 后生效）。
   anyCtx.on('skills/change', (..._args: unknown[]) => {
     ctx.logger.debug('[ponytail] 技能目录已变更')
   })
@@ -251,151 +257,31 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
 
 
   // ---------------------------------------------------------------------------
-  // Web GUI 配置端点：为插件管理面板提供配置查询与修改 API
   // ---------------------------------------------------------------------------
-  const invalidateSkills = () => {
-    if (providerInstance) {
-      try {
-        (providerInstance as any).invalidate()
-      } catch {
-        // 忽略异常
-      }
-    }
-  }
-
-  // 使用 Cordis 响应式服务注入：当 webServer 服务就绪时安全注册路由（防御性兼容轻量 mock ctx）
-  // Web 配置端点挂载
+  // Web 配置端点：独立深工厂（src/ponytail-http.ts），apply 只保留接线
+  // invalidateSkills 依赖 providerInstance（上方注册时已捕获实例，C1 修复）
   if ((ctx as any).webServer) {
     ctx.effect(() => {
       ctx.logger.info('[ponytail] Web 配置端点已就绪: /api/plugins/ponytail/config')
       return (ctx as any).webServer.register({
         kind: 'exact',
         path: '/api/plugins/ponytail/config',
-        handler: async (req: import('node:http').IncomingMessage, res: import('node:http').ServerResponse) => {
-          res.setHeader('Content-Type', 'application/json; charset=utf-8')
-          res.setHeader('Cache-Control', 'no-store')
-
-          // readRawConfigMode 定义在 apply 顶部（设置通道对齐与诊断链共用一份）
-          const rawSkillsMeta = [
-            { id: 'ponytail', name: 'ponytail', description: '懒人模式本体：3 档强度，梯子七阶注入' },
-            { id: 'ponytail-review', name: 'ponytail-review', description: '过度设计评审：只挑能删的代码，一行一条' },
-            { id: 'ponytail-audit', name: 'ponytail-audit', description: '全仓过度设计审计：按可删行数降序猎取臃肿' },
-            { id: 'ponytail-debt', name: 'ponytail-debt', description: '债务台账收割：收割所有 ponytail: 注释，建立债务台账' },
-            { id: 'ponytail-gain', name: 'ponytail-gain', description: '收益看板：展示 benchmark 中位数收益' },
-            { id: 'ponytail-help', name: 'ponytail-help', description: '速查卡：模式、技能、命令与配置速查' },
-          ]
-
-          if (req.method === 'GET') {
-            const currentMode = state.get() ?? 'off'
-            const defaultMode = resolvePriority({
-              envRaw: process.env['PONYTAIL_DEFAULT_MODE'],
-              patchMode: rawConfig['defaultMode'] as string | undefined,
-              configMode: readRawConfigMode(),
-            }).effective
-            const disabledSkills = state.getDisabledSkills()
-            const skillsList = rawSkillsMeta.map((s) => ({
-              ...s,
-              enabled: state.isSkillEnabled(s.id),
-            }))
-            res.writeHead(200)
-            res.end(JSON.stringify({
-              currentMode,
-              defaultMode,
-              disabledSkills,
-              skills: skillsList,
-              priority: resolvePriority({
-                envRaw: process.env['PONYTAIL_DEFAULT_MODE'],
-                patchMode: rawConfig['defaultMode'] as string | undefined,
-                configMode: readRawConfigMode(),
-              }),
-            }))
-            return
-          }
-
-          if (req.method === 'POST') {
-            let bodyStr = ''
-            for await (const chunk of req) {
-              bodyStr += chunk
-            }
-            let payload: Record<string, unknown> = {}
-            try {
-              if (bodyStr) payload = JSON.parse(bodyStr)
-            } catch {
-              res.writeHead(400)
-              res.end(JSON.stringify({ error: 'Invalid JSON body' }))
-              return
-            }
-
-            // 一键恢复默认配置 (神秘需求 Q4)
-            if (payload.action === 'reset') {
-              state.resetToDefaults()
-              invalidateSkills()
-              ctx.logger.info('[ponytail] UI 一键重置为默认配置（full 等级，开启所有技能）')
-            } else {
-              // 修改等级 (2B 全局持久化与即时生效)
-              if (typeof payload.mode === 'string') {
-                const targetMode = payload.mode.toLowerCase()
-                state.setDefaultMode(targetMode)
-                state.set(targetMode === 'off' ? null : targetMode)
-                ctx.logger.info(`[ponytail] UI 切换运行等级：${targetMode}（已持久化为默认等级）`)
-              }
-
-              // 修改禁用的技能列表 (3A 物理隐藏)
-              if (Array.isArray(payload.disabledSkills)) {
-                const newDisabled = payload.disabledSkills.filter((s): s is string => typeof s === 'string')
-                state.setDisabledSkills(newDisabled)
-                if (newDisabled.includes('ponytail')) {
-                  state.set(null)
-                }
-                invalidateSkills()
-                ctx.logger.info(`[ponytail] UI 更新禁用技能列表：${JSON.stringify(newDisabled)}`)
-              }
-
-              // 切换单个技能
-              if (typeof payload.toggleSkill === 'object' && payload.toggleSkill !== null) {
-                const tg = payload.toggleSkill as { name?: string; enabled?: boolean }
-                if (typeof tg.name === 'string') {
-                  state.toggleSkill(tg.name, tg.enabled)
-                  if (tg.name === 'ponytail' && tg.enabled === false) {
-                    state.set(null)
-                  }
-                  invalidateSkills()
-                  ctx.logger.info(`[ponytail] UI 切换技能 ${tg.name} 状态：${tg.enabled}`)
-                }
+        handler: createConfigHttpEndpoint({
+          state,
+          readRawConfigMode,
+          invalidateSkills: () => {
+            if (providerInstance) {
+              try {
+                providerInstance.invalidate()
+              } catch {
+                // 忽略异常
               }
             }
-
-            const currentMode = state.get() ?? 'off'
-            const defaultMode = resolvePriority({
-              envRaw: process.env['PONYTAIL_DEFAULT_MODE'],
-              patchMode: rawConfig['defaultMode'] as string | undefined,
-              configMode: readRawConfigMode(),
-            }).effective
-            const disabledSkills = state.getDisabledSkills()
-            const skillsList = rawSkillsMeta.map((s) => ({
-              ...s,
-              enabled: state.isSkillEnabled(s.id),
-            }))
-
-            res.writeHead(200)
-            res.end(JSON.stringify({
-              success: true,
-              currentMode,
-              defaultMode,
-              disabledSkills,
-              skills: skillsList,
-              priority: resolvePriority({
-                envRaw: process.env['PONYTAIL_DEFAULT_MODE'],
-                patchMode: rawConfig['defaultMode'] as string | undefined,
-                configMode: readRawConfigMode(),
-              }),
-            }))
-            return
-          }
-
-          res.writeHead(405)
-          res.end(JSON.stringify({ error: 'Method Not Allowed' }))
-        },
+          },
+          patchMode: rawConfig['defaultMode'] as string | undefined,
+          logger: ctx.logger,
+          envRaw: process.env['PONYTAIL_DEFAULT_MODE'],
+        }),
       })
     }, 'ponytail: web route')
   }
