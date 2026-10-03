@@ -8,6 +8,19 @@
 
 （本段暂无待发布内容）
 
+## [4.10.0-dsh.7] - 2026-10-04
+
+### Added
+- **设置窗口一级 Tab（`settings.section`）**：客户端新增第三条 UI 落点。该插槽由 `@deepseek-ai/dsh-client-ui-settings-general` 声明、官方 agent-preset / models / plugins / account 等插件同款，**不经过插件管理页**，因此是插件页通道不可用时（宿主版本差异、模块时序差异）的保底入口——设置窗口左侧出现「Ponytail 懒人模式」，右侧渲染完整配置面板。
+- **卡片配置双 key 保险**：`plugins.bundle.config` 同时以包名 `@wenaixi/dsh-ponytail` 与 bundle id `ponytail` 注册。宿主 `listBundles` 的 `name` 实测为包名，但个别宿主若以 bundle id 为键同样命中；keyed 插槽允许不同 key 并存，容器按 `entryKey` 过滤，**只会渲染一份**，不会出现双面板。
+- **门禁扩充至 32 条**：新增「三条 UI 落点插槽齐全」与「双 key 拼写齐全」两条静态断言，并完成破坏实测（移除 `settings.section` 注册即变红，还原后变绿）。
+
+### Fixed
+- **桌面版设置界面仍无面板**（0.6 修复不彻底）：0.6 只补了 `plugins.item`，而该插槽与 `plugins.bundle.config` 同属插件管理页链路——两者都由 plugin-manager 注册到 `main` 时经 `children` 表声明；`slots.inject(key, cb)` 在 spec 缺失时**静默 return 且不报错**（`dsh-client-ui-renderer` 的 `reconcile()`），故插件管理页链路一旦不通，前两条落点会同时失效且无任何错误信号。本次补上不依赖 plugin-manager 的 `settings.section` 作为兜底。
+
+### Changed
+- **UI 落点策略由「双通道」改为「三通道冗余」**：设置窗口 Tab、插件页条目、卡片详情面板各占一条，任一条链路在特定宿主上不可用都不会导致插件完全无 UI。
+
 ## [4.10.0-dsh.6] - 2026-10-03
 
 ### Added

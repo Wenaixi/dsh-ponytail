@@ -378,13 +378,33 @@ const content = `window.__ModuleLoader__.load({
         );
       });
 
-      // 插件卡片详情页：内联配置面板（keyed by 包名，仅本插件命中）
-      ctx.slots.inject("plugins.bundle.config", function () {
+      // 设置窗口一级 Tab：由 settings-general 声明，不经过 plugin-manager，
+      // 是插件管理页通道不可用时的保底落点（设置窗口左侧出现本插件，右侧为完整面板）
+      ctx.slots.inject("settings.section", function () {
         return ctx.slots.register(
-          { name: "plugins.bundle.config", key: "@wenaixi/dsh-ponytail" },
+          {
+            name: "settings.section",
+            id: "ponytail",
+            order: 60,
+            label: function () {
+              return "Ponytail 懒人模式";
+            },
+          },
           PonytailConfigPanel
         );
       });
+
+      // 插件卡片详情页：内联配置面板。
+      // 双 key 保险：宿主按包名匹配（已核实 listBundles 的 name 即包名），
+      // 但个别宿主若以 bundle id 为键，这里同样命中；容器按 entryKey 过滤，只会渲染一份。
+      for (const key of ["@wenaixi/dsh-ponytail", "ponytail"]) {
+        ctx.slots.inject("plugins.bundle.config", function () {
+          return ctx.slots.register(
+            { name: "plugins.bundle.config", key: key },
+            PonytailConfigPanel
+          );
+        });
+      }
     }
 
     exports.apply = apply;
