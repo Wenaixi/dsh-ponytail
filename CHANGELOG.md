@@ -8,6 +8,18 @@
 
 （本段暂无待发布内容）
 
+## [4.10.0-dsh.9] - 2026-10-04
+
+### Removed
+- **移除 0.7 / 0.8 加入的四条多余 UI 落点**（`settings.section`、`sidebar.footer.action`、`shell.overlay`、`plugins.item`）及其配套组件与 `window.__PONYTAIL_UI__` 自检标记。用户实测确认：配置面板在 0.6 起就已正常显示于「插件列表 → 懒人模式（ponytail）→ 卡片详情」，多余落点反而让同一面板在设置窗口、侧边栏底部、插件页「官方」分组重复出现，属明确的 UI 污染。客户端产物由 15969 字节回落至 11112 字节。
+- **卡片配置恢复单 key**：仅以包名 `@wenaixi/dsh-ponytail` 注册。宿主 `listBundles` 的 `name` 即包名（README 与实测双向确认），bundle id 那条 key 永不会命中，属臆想的兼容。
+
+### Changed
+- **门禁改为反向断言**：由「断言五条落点齐全」改为「只允许 `plugins.bundle.config` 一条，出现任何其他 `ctx.slots.inject` 即 FAIL」，锁死 UI 落点不被再次扩散。断言总数 34 → 33。
+
+### Fixed
+- **`settings.section` 与宿侧 settings 注册的关系澄清**：宿侧 `settings.register("ponytail", Config)` 保留——它让宿主为插件页卡片 serve「实时 Config 表单」，是卡片面板的数据来源；被移除的只是客户端那条多余的设置窗口 Tab。
+
 ## [4.10.0-dsh.8] - 2026-10-04
 
 ### Added

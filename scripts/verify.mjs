@@ -94,26 +94,24 @@ for (const f of (await readdir(srcDir)).filter(f => f.endsWith('.ts'))) {
 if (badTool) { console.error(`[verify] FAIL: found tool registration (must not register tools): ${badTool}`); ok = false }
 else console.log('[verify] ✓ no tool registration')
 
-// UI 落点门禁（2026-10-03 定位的桌面版无 UI 缺陷）：
-// plugins.item = 插件页条目（设置界面那条链）；plugins.bundle.config = 已安装包卡片详情。
-// 只留后者时，宿主不为本包 serve 配置表单就没有任何落点，整块面板静默消失。
+// UI 落点门禁：本插件只在「插件卡片详情」提供配置面板（plugins.bundle.config，key 为包名）。
+// 2026-10-04 实测确认：宿主 listBundles 的 name 即包名，卡片详情页按 entryKey 匹配即可命中。
+// 禁止再往 settings.section / sidebar.footer.action / shell.overlay / plugins.item 等位置加落点——
+// 那些会让同一个面板在设置窗口、侧边栏、插件页重复出现，属用户明确拒绝的 UI 污染。
 const rootDir = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const clientSrc = await readFile(join(rootDir, 'scripts', 'build-client.mjs'), 'utf8')
-const slotsMissing = ['sidebar.footer.action', 'shell.overlay', 'plugins.item', 'plugins.bundle.config', 'settings.section'].filter(
-  (slot) => !clientSrc.includes('ctx.slots.inject("' + slot + '"'),
-)
-if (slotsMissing.length > 0) {
-  console.error('[verify] FAIL: client 未注册插槽 ' + slotsMissing.join(', ') + '（UI 落点缺失会让面板在部分宿主上完全不显示）')
+const slotCalls = [...clientSrc.matchAll(/ctx\.slots\.inject\("([^"]+)"/g)].map((m) => m[1])
+const allowed = ['plugins.bundle.config']
+const extra = slotCalls.filter((s) => !allowed.includes(s))
+if (extra.length > 0) {
+  console.error('[verify] FAIL: 出现多余 UI 落点 ' + extra.join(', ') + '（会让面板在多个位置重复出现）')
   ok = false
-} else console.log('[verify] ✓ client registers all 5 UI slots (常驻 2 + 设置/插件页 3)')
-
-// 双 key 保险：plugins.bundle.config 必须同时以包名与 bundle id 注册，
-// 防宿主以另一种命名匹配时面板静默消失（keyed 插槽不同 key 可并存，容器按 entryKey 只渲染一份）。
-if (!clientSrc.includes('"@wenaixi/dsh-ponytail", "ponytail"')) {
-  console.error('[verify] FAIL: plugins.bundle.config 必须同时注册包名与 bundle id 两个 key')
+} else if (!clientSrc.includes('key: "@wenaixi/dsh-ponytail"')) {
+  console.error('[verify] FAIL: plugins.bundle.config 未以包名为 key 注册')
   ok = false
-} else console.log('[verify] ✓ plugin card config registers both key spellings')
-
+} else {
+  console.log('[verify] ✓ client registers exactly one UI slot: plugins.bundle.config (key = 包名)')
+}
 // 宿侧必须注册 settings 命名空间：插件页据此为 ponytail serve 配置表单
 const hostSrc = await readFile(join(rootDir, 'src', 'ponytail.ts'), 'utf8')
 if (hostSrc.includes("service.register('ponytail'")) {
