@@ -687,3 +687,40 @@ test('resolvePriority: 链的顺序与中文标签固定不变', async () => {
     '代码常量',
   ])
 })
+// ---------------------------------------------------------------------------
+// C4：apply initialMode 与 resolvePriority 一致性锁定（优先级唯一真源）
+// 背景：apply 旧判定把 patch 显式值（未归一）直接 state.set()，大小写/非法值会
+// 注入垃圾态；resolvePriority 的 patch 级经 normalizeMode 校验。替换后必须一致。
+// ---------------------------------------------------------------------------
+
+test('C4 一致性: apply patch 大写变体归一为小写且 flag 落合法档', () => {
+  let sectionText = null
+  const ctx = {
+    on: () => {},
+    effect: () => {},
+    logger: { info: () => {}, warn: () => {}, debug: () => {} },
+    skills: { registerProvider: () => () => {} },
+    systemPrompt: { section: (s) => { sectionText = s.text } },
+  }
+  delete process.env.PONYTAIL_DEFAULT_MODE
+  apply(ctx, { defaultMode: 'LITE' })
+  // state.set(initialMode) 会同步写 flag：断言 flag 内容是合法小写档
+  assert.equal(readMode(), 'lite', 'patch 大写变体应归一为 lite，而非注入 LITE 垃圾态')
+  // systemPrompt section 渲染等级也应是小写
+  assert.match(String(sectionText()), /等级：lite/)
+})
+
+test('C4 一致性: resolvePriority patch 非法且 config 缺失时落内置兜底', async () => {
+  const { resolvePriority } = await import('../lib/ponytail-priority.js')
+  const r = resolvePriority({ envRaw: undefined, patchMode: 'REVIEW', configMode: undefined })
+  assert.strictEqual(r.effective, 'full')
+  assert.strictEqual(r.chain[3].hit, true)
+  assert.strictEqual(r.chain[3].shadowed, false)
+})
+
+test('C4 一致性: resolvePriority env 带空白时 trim 后生效', async () => {
+  const { resolvePriority } = await import('../lib/ponytail-priority.js')
+  const r = resolvePriority({ envRaw: ' lite ', patchMode: undefined, configMode: undefined })
+  assert.strictEqual(r.effective, 'lite')
+  assert.strictEqual(r.chain[0].hit, true)
+})

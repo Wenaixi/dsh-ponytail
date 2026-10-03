@@ -18,8 +18,6 @@ import type {
 import Schema from '@deepseek-ai/schemastery'
 
 import {
-  DEFAULT_MODE,
-  getDefaultMode,
   isShellSafe,
   normalizeMode,
   readConfigFileText,
@@ -42,8 +40,8 @@ export const Config: Schema<Config> = Schema.object({
   providerName: Schema.string().default('ponytail'),
   skillDir: Schema.string(),
   // 注意：不给 defaultMode 设 Schema 默认值——Cordis 校验会把缺省 fill 成显式配置，
-  // 从而 shadow 掉 config.json 的 defaultMode 档（上游 env > config > full 语义）；
-  // 缺省时由 apply 走 getDefaultMode()（env > config 文件 > full）并 ?? DEFAULT_MODE
+  // 从而 shadow 掉 config.json 的 defaultMode 档；缺省时由 apply 走
+  // resolvePriority()（env > patch > config 文件 > full，见 ponytail-priority.ts）
   defaultMode: Schema.union(['off', 'lite', 'full', 'ultra']),
 })
 
@@ -78,30 +76,19 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
   const resolved: Config = {
     providerName: (rawConfig['providerName'] as string | undefined) ?? 'ponytail',
     ...(rawConfig['skillDir'] !== undefined ? { skillDir: rawConfig['skillDir'] as string } : {}),
-    defaultMode: (rawConfig['defaultMode'] as Config['defaultMode']) ?? DEFAULT_MODE,
   }
 
-  // 优先级：PONYTAIL_DEFAULT_MODE env > cordis config 的 defaultMode（显式）> 配置文件 > full
-  // 与上游 ponytail-config.js 的 getDefaultMode(env > file > full) 保持一致，
-  // 但 cordis 显式配置应夹在 env 与 file 之间
+  // 优先级唯一真源（ADR-0006）：apply 启动判定与 UI 诊断链共用 resolvePriority，
+  // env > patch（cordis 显式声明）> config.json > full，逐级 normalizeMode 归一。
+  // 旧判定把未归一的 patch 值直接 state.set()（大小写/非法值注入垃圾态），此处一并修复。
   const envRaw = process.env['PONYTAIL_DEFAULT_MODE']
-  const envMode = envRaw ? normalizeMode(envRaw) : null
-  if (envRaw && !envMode) {
+  if (envRaw && !normalizeMode(envRaw)) {
     // ponytail: env 非法值静默回退与上游一致，此处 warn 为 DSH 差分（不改变回退语义），便于定位配置错误
     ctx.logger.warn(`[ponytail] PONYTAIL_DEFAULT_MODE 值无效（回退后续来源）：${envRaw}`)
   }
-  let initialMode: string | null
-  if (envMode) {
-    initialMode = envMode
-  } else if (rawConfig['defaultMode'] !== undefined) {
-    initialMode = resolved.defaultMode as string
-  } else {
-    initialMode = getDefaultMode()
-  }
-
-  const skillDir = resolveDefaultSkillDir(resolved.skillDir)
-
+  const patchMode = rawConfig['defaultMode'] as string | undefined
   // 读取 config.json 的 defaultMode 原始值：区分「字段缺失」与「文件损坏」交给诊断链统一标注
+  // （initialMode 判定与 HTTP 诊断链共用同一份，必须先于 initialMode 定义）
   const readRawConfigMode = (): string | undefined => {
     try {
       const raw = readConfigFileText()
@@ -113,6 +100,13 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
       return undefined
     }
   }
+  const initialMode = resolvePriority({
+    envRaw,
+    patchMode,
+    configMode: readRawConfigMode(),
+  }).effective
+
+  const skillDir = resolveDefaultSkillDir(resolved.skillDir)
 
   // 官方设置通道：注册 ponytail 命名空间（与官方 shell、dsh-context 同款），插件页据此 serve 配置表单。
   // 用 ctx.inject 动态探测而非写进 inject 数组——桌面版未装配 settings 服务时静默降级，不影响其余能力。
@@ -142,7 +136,7 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
   // 等级状态唯一归属：get()/set()/syncFromFile() 三方法，闭包态随 HMR 重建
   const state = createPonytailState()
   // 会话启动对齐（对齐上游 ponytail-activate.js SessionStart 语义）：
-  // 每次会话启动都按 getDefaultMode()（env > config 文件 > full）重写 flag，
+  // 每次会话启动都按 resolvePriority()（env > patch > config 文件 > full）重写 flag，
   // 因此 /ponytail <档> 只在本会话生效，跨会话持久化必须用 /ponytail default <档>。
   state.set(initialMode === 'off' ? null : initialMode)
 
@@ -191,8 +185,7 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
   const dispatcher = createCommandDispatcher({
     state,
     logger: ctx.logger,
-    getDefaultMode,
-    writeDefaultMode,
+        writeDefaultMode,
   })
 
   // 监听 agent/pre-step waterfall：模型请求前的最后拦截点（对齐上游 UserPromptSubmit）
@@ -294,7 +287,11 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
 
           if (req.method === 'GET') {
             const currentMode = state.get() ?? 'off'
-            const defaultMode = getDefaultMode()
+            const defaultMode = resolvePriority({
+              envRaw: process.env['PONYTAIL_DEFAULT_MODE'],
+              patchMode: rawConfig['defaultMode'] as string | undefined,
+              configMode: readRawConfigMode(),
+            }).effective
             const disabledSkills = state.getDisabledSkills()
             const skillsList = rawSkillsMeta.map((s) => ({
               ...s,
@@ -369,7 +366,11 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
             }
 
             const currentMode = state.get() ?? 'off'
-            const defaultMode = getDefaultMode()
+            const defaultMode = resolvePriority({
+              envRaw: process.env['PONYTAIL_DEFAULT_MODE'],
+              patchMode: rawConfig['defaultMode'] as string | undefined,
+              configMode: readRawConfigMode(),
+            }).effective
             const disabledSkills = state.getDisabledSkills()
             const skillsList = rawSkillsMeta.map((s) => ({
               ...s,
