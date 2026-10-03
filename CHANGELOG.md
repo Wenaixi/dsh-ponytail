@@ -8,6 +8,27 @@
 
 （本段暂无待发布内容）
 
+## [4.10.0-dsh.10] - 2026-10-04
+
+### Added
+- **客户端面板接入官方 `ctx.locale`（C6）**：新增 `@deepseek-ai/dsh-client-locale` 到 `dsh.client.inject`，面板全部文案经 `ctx.locale.register('ponytail', {zh, en})` + `bind` 双语提供（36 键成对，真源 `locale/*.json`），诊断链 label/problem 在客户端按 level 查字典覆盖（宿侧契约零改动），语言切换即时刷新；**技能说明保持中文不翻译**（用户边界）。`scripts/verify.mjs` 新增 locale 接入反向断言。
+- **HTTP 配置端点剥离为独立深工厂（C1）**：新增 `src/ponytail-http.ts` 的 `createConfigHttpEndpoint(deps)`，GET/POST/405、请求体解析、快照组装、技能元数据读取全部内聚，依赖全注入不碰 `ctx`，行为测试新增 5 条端点单测（此前 0 覆盖）。
+- **技能元数据单一真源（C2）**：宿侧 `readSkillMeta` 实时读取 `skills/*/SKILL.md` frontmatter 为唯一真源（读不到回退 `FALLBACK_SKILL_META`），客户端构建期提取内嵌；删除 `rawSkillsMeta` / `SKILL_META` 两处硬编码（6/6 技能文案原已漂移）。`verify.mjs` 反向断言锁死描述不回退到硬编码。
+- **行为测试 44 → 59 项全绿**：新增 C1 端点 5 条、C2 技能元数据 4 条、C3 写盘 3 条、C4 一致性 3 条。
+- **ADR-0006**：记录优先级与配置收敛、HTTP 剥离、元数据真源、客户端 locale 接入全部决策，含 C5 否决理由（官方 `skills/change` 是消费方通知缝，提供者反向 invalidate 会同步递归栈溢出）。
+
+### Changed
+- **优先级统一为 `resolvePriority` 唯一真源（C4）**：apply initialMode 与 GET/POST defaultMode 全部消费其 `effective`（此前三处并行实现）。**行为变更声明**：patch 显式值的大小写变体/非法值从「生效（注入垃圾态）」变为「忽略（落合法档）」。
+- **配置写盘字段级 merge（C3）**：`writeFullConfig` 保留 `config.json` 中用户手写的未知字段（不再重建为两键对象），defaultMode 非法值拒绝写盘返回 null；`writeDefaultMode` 退化为其薄包装。
+- **修复 `providerInstance` 死变量（C1）**：`skills.registerProvider` 工厂现捕获实例到 `providerInstance`，UI 变更后的 `invalidateSkills()` 从空操作恢复真实失效语义（此前 UI 改禁用技能后模型侧目录不刷新）。
+
+### Removed
+- **双孤儿函数**：`ponytail-config.ts` 的 `isDeactivationCommand`（`commands` 版唯一实现保留）与 `normalizeConfigMode`（全仓零调用方），以及失效类型 `VALID_MODES` / `ValidMode`。
+- **HTTP 端点从 `apply()` 剥离**：`src/ponytail.ts` 410 行 → 约 330 行，回归纯生命周期编排。
+
+### Migration
+- 行为变更：曾有非法/大小写 patch 显式值的现有配置在升级后按新语义忽略（落合法档），属有意修复，非数据丢失。
+
 ## [4.10.0-dsh.9] - 2026-10-04
 
 ### Removed
