@@ -94,6 +94,28 @@ for (const f of (await readdir(srcDir)).filter(f => f.endsWith('.ts'))) {
 if (badTool) { console.error(`[verify] FAIL: found tool registration (must not register tools): ${badTool}`); ok = false }
 else console.log('[verify] ✓ no tool registration')
 
+// UI 落点门禁（2026-10-03 定位的桌面版无 UI 缺陷）：
+// plugins.item = 插件页条目（设置界面那条链）；plugins.bundle.config = 已安装包卡片详情。
+// 只留后者时，宿主不为本包 serve 配置表单就没有任何落点，整块面板静默消失。
+const rootDir = resolve(dirname(fileURLToPath(import.meta.url)), '..')
+const clientSrc = await readFile(join(rootDir, 'scripts', 'build-client.mjs'), 'utf8')
+const slotsMissing = ['plugins.item', 'plugins.bundle.config'].filter(
+  (slot) => !clientSrc.includes('ctx.slots.inject("' + slot + '"'),
+)
+if (slotsMissing.length > 0) {
+  console.error('[verify] FAIL: client 未注册插槽 ' + slotsMissing.join(', ') + '（UI 落点缺失会让面板在部分宿主上完全不显示）')
+  ok = false
+} else console.log('[verify] ✓ client registers both UI slots (plugins.item + plugins.bundle.config)')
+
+// 宿侧必须注册 settings 命名空间：插件页据此为 ponytail serve 配置表单
+const hostSrc = await readFile(join(rootDir, 'src', 'ponytail.ts'), 'utf8')
+if (hostSrc.includes("service.register('ponytail'")) {
+  console.log('[verify] ✓ host registers settings namespace "ponytail"')
+} else {
+  console.error('[verify] FAIL: host 必须调用 settings.register("ponytail", Config)，否则设置界面不出现本插件')
+  ok = false
+}
+
 // 检查 cordis.patch.yml 引用包名而非绝对路径
 const patch = await readFile(resolve(dirname(fileURLToPath(import.meta.url)), '..', 'cordis.patch.yml'), 'utf8')
 if (patch.includes('dsh-ponytail') && !patch.includes('/absolute')) console.log('[verify] ✓ cordis.patch.yml uses package name')

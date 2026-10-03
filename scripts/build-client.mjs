@@ -353,7 +353,31 @@ const content = `window.__ModuleLoader__.load({
       );
     }
 
+    // 官方插件页两态：summary 是卡片描述位的一行文案，page 才是完整面板
+    function PonytailEntry(props) {
+      if (props && props.view === "summary") {
+        return e("span", null, "懒人模式：梯子七阶 + 6 个中文技能（零 tool 注册）");
+      }
+      return e(PonytailConfigPanel, props);
+    }
+
     function apply(ctx) {
+      // 官方插件页条目（设置界面那条链）：与官方 shell / agent-loop / web-search 同款插槽。
+      // 此前只挂 plugins.bundle.config，宿主不为本包 serve 配置表单时整块 UI 就没有落点。
+      ctx.slots.inject("plugins.item", function () {
+        return ctx.slots.register(
+          {
+            name: "plugins.item",
+            id: "ponytail",
+            order: 60,
+            label: function () {
+              return "Ponytail 懒人模式";
+            },
+          },
+          PonytailEntry
+        );
+      });
+
       // 插件卡片详情页：内联配置面板（keyed by 包名，仅本插件命中）
       ctx.slots.inject("plugins.bundle.config", function () {
         return ctx.slots.register(

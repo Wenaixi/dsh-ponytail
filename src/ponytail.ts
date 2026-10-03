@@ -101,6 +101,44 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
 
   const skillDir = resolveDefaultSkillDir(resolved.skillDir)
 
+  // 读取 config.json 的 defaultMode 原始值：区分「字段缺失」与「文件损坏」交给诊断链统一标注
+  const readRawConfigMode = (): string | undefined => {
+    try {
+      const raw = readConfigFileText()
+      if (raw === null) return undefined
+      const parsed = JSON.parse(raw) as Record<string, unknown>
+      const dm = parsed['defaultMode']
+      return typeof dm === 'string' ? dm : undefined
+    } catch {
+      return undefined
+    }
+  }
+
+  // 官方设置通道：注册 ponytail 命名空间（与官方 shell、dsh-context 同款），插件页据此 serve 配置表单。
+  // 用 ctx.inject 动态探测而非写进 inject 数组——桌面版未装配 settings 服务时静默降级，不影响其余能力。
+  // 守卫与 webServer 同款：ctx.inject 缺失（精简宿主或 mock）时整段跳过，不阻断插件其余能力。
+  if (typeof (ctx as unknown as { inject?: unknown }).inject === 'function') {
+    ctx.inject(['settings'], (sctx) => {
+      const service = (sctx as unknown as {
+        settings?: { register?: (ns: string, schema: unknown) => void; get?: (ns: string) => unknown }
+      }).settings
+      if (typeof service?.register !== 'function') return
+      service.register('ponytail', Config)
+      // 真源仍在 config.json（ADR-0005）：设置表单写入的档位在启动时对齐回来，
+      // 否则会出现「界面上改了、运行却不生效」的静默失效。
+      // ponytail: 仅启动时对齐一次，无实时订阅；需要即时生效时改挂 settings 的变更回调
+      if (typeof service.get === 'function') {
+        const stored = service.get('ponytail') as { defaultMode?: string } | null | undefined
+        const mode = stored?.defaultMode ? normalizeMode(stored.defaultMode) : null
+        if (mode && mode !== readRawConfigMode()) {
+          writeDefaultMode(mode)
+          ctx.logger.info(`[ponytail] 设置命名空间的默认档已对齐到 config.json：${mode}`)
+        }
+      }
+      ctx.logger.info('[ponytail] 设置命名空间已注册: ponytail')
+    })
+  }
+
   // 等级状态唯一归属：get()/set()/syncFromFile() 三方法，闭包态随 HMR 重建
   const state = createPonytailState()
   // 会话启动对齐（对齐上游 ponytail-activate.js SessionStart 语义）：
@@ -244,19 +282,7 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
           res.setHeader('Content-Type', 'application/json; charset=utf-8')
           res.setHeader('Cache-Control', 'no-store')
 
-          // 读取 config.json 的 defaultMode 原始值：区分「字段缺失」与「文件损坏」交给诊断链统一标注
-          const readRawConfigMode = (): string | undefined => {
-            try {
-              const raw = readConfigFileText()
-              if (raw === null) return undefined
-              const parsed = JSON.parse(raw) as Record<string, unknown>
-              const dm = parsed['defaultMode']
-              return typeof dm === 'string' ? dm : undefined
-            } catch {
-              return undefined
-            }
-          }
-
+          // readRawConfigMode 定义在 apply 顶部（设置通道对齐与诊断链共用一份）
           const rawSkillsMeta = [
             { id: 'ponytail', name: 'ponytail', description: '懒人模式本体：3 档强度，梯子七阶注入' },
             { id: 'ponytail-review', name: 'ponytail-review', description: '过度设计评审：只挑能删的代码，一行一条' },
