@@ -6,6 +6,10 @@
 
 ## [Unreleased]
 
+（本段暂无待发布内容）
+
+## [4.10.0-dsh.11] - 2026-10-04
+
 ### Fixed
 - **客户端产物内嵌宿侧死代码 `import.meta`（C4 回归）**：`build-client.mjs` 模板残留一行
   `const skillRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', 'skills')`
@@ -42,7 +46,6 @@
 - 命令层兜底切档语义变更：从「独立于 patch 层」变为「并入 patch 层」——这是修复而非回归
   （分裂本身就是 bug）；无数据丢失，无配置格式变化。
 
-> 本段内容已包含在 4.10.0-dsh.11 版本发布中（发版时本段移动至该版本标题下）。
 
 ## [4.10.0-dsh.10] - 2026-10-04
 
@@ -286,7 +289,7 @@
 - 不注册 tool（不在 `ctx.tools` 注册任何占位），`scripts/verify.mjs` 校验
 - 构建：`pnpm build` (`tsc -p tsconfig.build.json`)，`pnpm typecheck`，`pnpm verify`
 
-[Unreleased]: https://github.com/Wenaixi/dsh-ponytail/compare/v4.10.0-dsh.2...HEAD
+[Unreleased]: https://github.com/Wenaixi/dsh-ponytail/compare/v4.10.0-dsh.11...HEAD
 [4.10.0-dsh.2]: https://github.com/Wenaixi/dsh-ponytail/compare/v4.10.0-dsh.1...v4.10.0-dsh.2
 [4.10.0-dsh.1]: https://github.com/Wenaixi/dsh-ponytail/compare/v4.10.0-dsh.0...v4.10.0-dsh.1
 [4.10.0-dsh.0]: https://github.com/Wenaixi/dsh-ponytail/compare/v4.9.0-dsh.5...v4.10.0-dsh.0
@@ -298,3 +301,10 @@
 [4.9.0-dsh.0]: https://github.com/Wenaixi/dsh-ponytail/releases/tag/v4.9.0-dsh.0
 
 [4.10.0-dsh.4]: https://github.com/Wenaixi/dsh-ponytail/compare/v4.10.0-dsh.3...v4.10.0-dsh.4
+[4.10.0-dsh.5]: https://github.com/Wenaixi/dsh-ponytail/compare/v4.10.0-dsh.4...v4.10.0-dsh.5
+[4.10.0-dsh.6]: https://github.com/Wenaixi/dsh-ponytail/compare/v4.10.0-dsh.5...v4.10.0-dsh.6
+[4.10.0-dsh.7]: https://github.com/Wenaixi/dsh-ponytail/compare/v4.10.0-dsh.6...v4.10.0-dsh.7
+[4.10.0-dsh.8]: https://github.com/Wenaixi/dsh-ponytail/compare/v4.10.0-dsh.7...v4.10.0-dsh.8
+[4.10.0-dsh.9]: https://github.com/Wenaixi/dsh-ponytail/compare/v4.10.0-dsh.8...v4.10.0-dsh.9
+[4.10.0-dsh.10]: https://github.com/Wenaixi/dsh-ponytail/compare/v4.10.0-dsh.9...v4.10.0-dsh.10
+[4.10.0-dsh.11]: https://github.com/Wenaixi/dsh-ponytail/compare/v4.10.0-dsh.10...v4.10.0-dsh.11
