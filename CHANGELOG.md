@@ -1,8 +1,19 @@
 # Changelog
 
-所有重要变更记录于此，格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号与上游 [DietrichGebert/ponytail](https://github.com/DietrichGebert/ponytail) 同步。
+所有重要变更记录于此，格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)。本地版本与上游参考版本独立维护。
 
-> **版本策略**：每个版本固定带 `-dsh.N` 后缀（如 `4.10.0-dsh.0`、`4.10.0-dsh.1`），初始即 `-dsh.0`。上游发新版时重置为新上游版本的 `-dsh.0`（如 `4.10.0-dsh.0`），用 `pnpm run bump:dsh -- 4.10.0`。递增：`pnpm run bump:dsh`。遵循 SemVer 预发布语义。
+> 当前本地版本：`5.0.0`。上游参考：`DietrichGebert/ponytail 4.10.3`（2026-10-04 核验）。历史 `-dsh.N` 记录仅用于追溯，不再作为现行版本规则。
+
+## [5.0.0] - 2026-10-04
+
+### Changed
+- 本地版本从 `4.10.0-dsh.12` 切换为独立的 `5.0.0`，不再随上游版本自动重置或生成 `-dsh.N`。
+- README、架构记录和发布流程明确区分本地发行版本与上游参考版本。
+- CI 行为测试步骤改为以实际命令输出为准，不再写死历史数量。
+
+### Fixed
+- 客户端 locale 字典改为 DSH 要求的扁平键，避免界面显示 `panel.title`、`priority.title` 等裸 key。
+- 客户端产物继续禁止 `import.meta` 和 `process.`，避免浏览器导入失败。
 
 ## [Unreleased]
 
@@ -302,7 +313,8 @@
 - 不注册 tool（不在 `ctx.tools` 注册任何占位），`scripts/verify.mjs` 校验
 - 构建：`pnpm build` (`tsc -p tsconfig.build.json`)，`pnpm typecheck`，`pnpm verify`
 
-[Unreleased]: https://github.com/Wenaixi/dsh-ponytail/compare/v4.10.0-dsh.11...HEAD
+[Unreleased]: https://github.com/Wenaixi/dsh-ponytail/compare/v5.0.0...HEAD
+[5.0.0]: https://github.com/Wenaixi/dsh-ponytail/releases/tag/v5.0.0
 [4.10.0-dsh.2]: https://github.com/Wenaixi/dsh-ponytail/compare/v4.10.0-dsh.1...v4.10.0-dsh.2
 [4.10.0-dsh.1]: https://github.com/Wenaixi/dsh-ponytail/compare/v4.10.0-dsh.0...v4.10.0-dsh.1
 [4.10.0-dsh.0]: https://github.com/Wenaixi/dsh-ponytail/compare/v4.9.0-dsh.5...v4.10.0-dsh.0
