@@ -8,6 +8,19 @@
 
 （本段暂无待发布内容）
 
+## [4.10.0-dsh.12] - 2026-10-04
+
+### Fixed
+- 修复默认档持久化后 HTTP 诊断仍读取旧 patch/env 快照的问题：配置端点改用实时 getter，GET 与 POST 共享当前优先级事实。
+- 修复 systemPrompt 生产接线绕过 `renderPromptSection` 的问题，保留技能禁用配置热收敛。
+
+### Changed
+- 新增两项生产接线回归测试，覆盖动态 HTTP handler 与外部 flag 变化；行为测试达到 64 项。
+- 延后统一多个 SKILL.md frontmatter 解析器：provider、HTTP 与构建脚本的输入接受范围和 fallback 语义不同，暂不引入共享 seam。
+
+### Migration
+- 无配置格式迁移；现有配置继续有效。
+
 ## [4.10.0-dsh.11] - 2026-10-04
 
 ### Fixed

@@ -54,7 +54,7 @@ dsh --profile web --dump-config | grep -A2 ponytail
 
 - **梯子 7 阶**：YAGNI → 复用 → 标准库 → 平台原生 → 已有依赖 → 一行 → 最小实现，`off` 时静默
 - **6 个中文 Skill**（`rank: 550`）：`ponytail` / `ponytail-review` / `ponytail-audit` / `ponytail-debt` / `ponytail-gain` / `ponytail-help`
-- **三档强度**：`lite` / `full`（默认）/ `ultra`
+- **四种运行模式**：`off` / `lite` / `full`（默认）/ `ultra`
 - **无 tool 注册**：全部能力经 `ctx.skills` 暴露
 
 | 能力 | 说明 |
@@ -118,7 +118,7 @@ HMR: 全部走 ctx，热重载逆序自动清理
 
 插件在已安装插件卡片详情内嵌配置面板（`plugins.bundle.config` 插槽），支持四档运行等级、6 个技能的独立开关、一键恢复默认，并给出**四级优先级诊断链**——逐行显示环境变量、Profile 补丁、配置文件、内置兜底各自的值与生效状态，被更高优先级压制的那一级会显式标为"被覆盖"，等级选择器同时禁用。面板读写均经 `/api/plugins/ponytail/config`，落盘位置同样是 `$DSH_HOME/ponytail/config.json`。
 
-若从旧位置（`%APPDATA%\ponytail` / `~/.config/ponytail`）升级，首次读取会兼容旧配置，但新写入一律落到 DSH 数据根；旧目录不删不改。
+若从旧位置升级，首次读取会兼容旧配置，但新写入一律落到 DSH 数据根；旧目录不删不改。
 
 ## 🎮 使用
 
@@ -133,11 +133,11 @@ HMR: 全部走 ctx，热重载逆序自动清理
 # 四道门禁，改完必须全绿
 pnpm typecheck        # tsc --noEmit
 pnpm build            # tsc 出 lib/，再由 build-client.mjs 生成 lib/client.js
-node scripts/verify.mjs        # 静态门禁：37 条断言（含 client.js Node API 残留反向断言）（产物/技能/零 tool/落点/元数据真源/locale）
-node scripts/behavior.test.mjs # 行为单测（61 项）
+node scripts/verify.mjs        # 静态门禁：38 条断言（含 client.js Node API 残留反向断言）（产物/技能/零 tool/落点/元数据真源/locale）
+node scripts/behavior.test.mjs # 行为单测（64 项）
 
 # 0 侵入联调
-dsh --profile web --patch ./cordis.patch.yml --dump-config
+dsh --profile web --patch ./cordis.patch.yml --dump-config  # 仅验证补丁解析，不替代真实启动验收
 pnpm dsh web --patch ./cordis.patch.yml   # 热重载
 ```
 
