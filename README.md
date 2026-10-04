@@ -68,13 +68,13 @@ dsh --profile web --dump-config | grep -A2 ponytail
 
 ## 🪝 Hook 注入
 
-> 上游 `hooks/` 的 6 个 Hook（config / instructions / runtime / activate / mode-tracker / subagent）已合并进单一 DSH 插件，无需宿主配置。
+> 上游 `hooks/` 的 6 个 Hook（config / instructions / runtime / activate / mode-tracker / subagent）已合并进单一 DSH 插件（runtime 的 flag 存取并入 state），无需宿主配置。
 
 | 上游 | DSH 侧 |
 |---|---|
 | `ponytail-config.js` | `src/ponytail-config.ts`（`env > 文件 > full`，`review` 不可默认） |
 | `ponytail-instructions.js` | `src/ponytail-instructions.ts`（唯一出口 `renderPromptSection(skillDir, state)`：review 短路 + 按档裁剪 + 中文 fallback 全部内聚） |
-| `ponytail-state.js` | `src/ponytail-state.ts`（`.ponytail-active` 内联于此，DSH 单一宿主，无外部平台探针） |
+| `ponytail-state.js` | `src/ponytail-state.ts`（`.ponytail-active` 物理存取内联于此——上游 runtime 的 flag 存取已并入 state，DSH 单一宿主无外部探针；技能禁用 reload 收敛同在此） |
 | `ponytail-activate.js` | `src/ponytail.ts` 的 `agent/created`（startup/resume 对齐 flag） |
 | `ponytail-mode-tracker.js` | `src/ponytail-commands.ts` 的 `createCommandDispatcher`（指令解析纯函数 + 状态机副作用） |
 | `ponytail-subagent.js` | `src/ponytail.ts` 的 `agent/created`（`PONYTAIL_SUBAGENT_MATCHER`） |
@@ -133,8 +133,8 @@ HMR: 全部走 ctx，热重载逆序自动清理
 # 四道门禁，改完必须全绿
 pnpm typecheck        # tsc --noEmit
 pnpm build            # tsc 出 lib/，再由 build-client.mjs 生成 lib/client.js
-node scripts/verify.mjs        # 静态门禁：36 条断言（产物/技能/零 tool/落点/元数据真源/locale）
-node scripts/behavior.test.mjs # 行为单测（59 项）
+node scripts/verify.mjs        # 静态门禁：37 条断言（含 client.js Node API 残留反向断言）（产物/技能/零 tool/落点/元数据真源/locale）
+node scripts/behavior.test.mjs # 行为单测（61 项）
 
 # 0 侵入联调
 dsh --profile web --patch ./cordis.patch.yml --dump-config
