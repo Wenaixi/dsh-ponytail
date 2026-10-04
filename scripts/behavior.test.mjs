@@ -718,6 +718,43 @@ test('C4 一致性: resolvePriority patch 非法且 config 缺失时落内置兜
   assert.strictEqual(r.chain[3].shadowed, false)
 })
 
+
+
+// ---------------------------------------------------------------------------
+// C7：默认档命令层分裂（真 bug 回归锁，production 接线级）
+// 背景：apply 的 initialMode 与 UI 面板 defaultMode 走 resolvePriority（含 patch 层），
+// 而 createCommandDispatcher 未注入 getDefaultMode 时走 getDefaultMode()（无 patch 层）。
+// patch 层命中（cordis.patch.yml 显式 defaultMode=LITE）且 config.json 缺失时：
+//   路径 A resolvePriority().effective = 'lite'（apply 启动 + UI 面板）
+//   路径 B getDefaultMode()           = 'full'（命令层兜底切默认）
+// /ponytail foobar（上游 else 兜底切默认档）会把等级从 lite 切到 full —— 静默不一致。
+// ---------------------------------------------------------------------------
+
+test('C7 默认档: patch 层命中时 /ponytail foobar 不偏离 resolvePriority effective', async () => {
+  delete process.env.PONYTAIL_DEFAULT_MODE
+  const handlers = {}
+  const ctx = {
+    on: (ev, h) => { handlers[ev] = h },
+    effect: () => {},
+    logger: { info: () => {}, warn: () => {}, debug: () => {} },
+    skills: { registerProvider: () => () => {} },
+    systemPrompt: { section: () => () => {} },
+  }
+  // 与 C4 同款接线：patch='LITE'（cordis.patch.yml 显式声明）；临时 DSH_HOME 无 config.json
+  apply(ctx, { defaultMode: 'LITE' })
+  assert.equal(readMode(), 'lite', '启动 flag 应为 lite（resolvePriority effective）')
+  // 触发 agent/pre-step，消息含未知参数命令（上游 else 兜底切默认档）
+  const next = async () => 'next'
+  const ret = await handlers['agent/pre-step'](
+    { messages: [{ content: '/ponytail foobar' }] },
+    next,
+  )
+  assert.equal(ret, 'next', 'waterfall 必须 return await next()')
+  // 现状（未注入 getDefaultMode）：dispatchText → parsePonytailCommand else 兜底 → getDefaultMode()='full'
+  // → state.set('full') 写 flag；修复后：实时闭包 resolvePriority effective='lite'，flag 保持 lite
+  assert.equal(readMode(), 'lite', '未知参数兜底切默认应取 resolvePriority effective（lite），不得切到 full')
+})
+
 test('C4 一致性: resolvePriority env 带空白时 trim 后生效', async () => {
   const { resolvePriority } = await import('../lib/ponytail-priority.js')
   const r = resolvePriority({ envRaw: ' lite ', patchMode: undefined, configMode: undefined })

@@ -191,7 +191,18 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
   const dispatcher = createCommandDispatcher({
     state,
     logger: ctx.logger,
-        writeDefaultMode,
+    // 默认档唯一真源（ADR-0007 修订 ADR-0006）：命令层的「兜底切默认档」与 apply 启动判定、
+    // UI 面板 defaultMode 共用 resolvePriority().effective（env > patch > config > full）。
+    // 修复前未注入此闭包 → 落到 ponytail-config.getDefaultMode()（无 patch 层），
+    // 当 cordis.patch.yml 显式声明 defaultMode 时，/ponytail foobar 会把等级从 patch 档切到 config 档（静默不一致）。
+    // 必须传实时闭包而非快照：/ponytail default <档> 写盘后，下一次命令解析要读到新值。
+    getDefaultMode: () =>
+      resolvePriority({
+        envRaw,
+        patchMode,
+        configMode: readRawConfigMode(),
+      }).effective,
+    writeDefaultMode,
   })
 
   // 监听 agent/pre-step waterfall：模型请求前的最后拦截点（对齐上游 UserPromptSubmit）
