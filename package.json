@@ -1,6 +1,6 @@
 {
   "name": "@wenaixi/dsh-ponytail",
-  "version": "4.10.0-dsh.12",
+  "version": "5.0.0",
   "description": "DietrichGebert/ponytail 的 DSH 完整移植：常驻懒人 senior 模式与七阶梯子（YAGNI 到最小实现），6 个中文原生技能（本体、评审、审计、债务、收益、帮助），零 tool 注册",
   "type": "module",
   "main": "lib/ponytail.js",
@@ -22,7 +22,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint src --ext .ts 2>&1 || echo \"(no eslint config — skipped)\"",
     "verify": "node scripts/verify.mjs",
-    "bump:dsh": "node scripts/bump-dsh.mjs",
+    "version:set": "node scripts/version.mjs",
+    "version:bump": "node scripts/version.mjs",
     "prepublishOnly": "npm run build && npm run verify && npm test",
     "test": "node scripts/behavior.test.mjs"
   },
