@@ -42,6 +42,8 @@ export interface CommandDispatcherEnv {
     logger: CommandDispatcherLogger;
     getDefaultMode?: () => RuntimeMode;
     writeDefaultMode?: (mode: string) => RuntimeMode | null;
+    /** 写盘成功后同步外部默认档判定源（如 apply 的 patchMode），使命令层/UI 即时反映用户意图 */
+    updateDefaultMode?: (mode: RuntimeMode) => void;
 }
 export interface CommandDispatchResult {
     handled: boolean;

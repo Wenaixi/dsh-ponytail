@@ -28,7 +28,7 @@ export interface PonytailStorage {
 }
 
 export interface PonytailStateOptions {
-  /** 可选注入的存储适配器；缺省时使用基于 ponytail-runtime 的 DSH 配置目录磁盘实现 */
+  /** 可选注入的存储适配器；缺省时使用内联的 DSH 配置目录磁盘实现（flag 存取已并入本模块） */
   storage?: PonytailStorage
 }
 

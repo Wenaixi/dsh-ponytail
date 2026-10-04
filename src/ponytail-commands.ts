@@ -123,6 +123,8 @@ export interface CommandDispatcherEnv {
   logger: CommandDispatcherLogger
   getDefaultMode?: () => RuntimeMode
   writeDefaultMode?: (mode: string) => RuntimeMode | null
+  /** 写盘成功后同步外部默认档判定源（如 apply 的 patchMode），使命令层/UI 即时反映用户意图 */
+  updateDefaultMode?: (mode: RuntimeMode) => void
 }
 
 export interface CommandDispatchResult {
@@ -160,6 +162,9 @@ export function createCommandDispatcher(env: CommandDispatcherEnv): CommandDispa
       if (targetMode === 'off' || targetMode === 'lite' || targetMode === 'full' || targetMode === 'ultra') {
         const written = writeDef(targetMode)
         env.logger.info(`[ponytail] 默认等级已持久化：${written}`)
+        // 用户最新意图即时生效：同步外部判定源（apply 的 patchMode），
+        // 否则 patch 层继续压住 config.json，写盘「成功」却「无效」（静默失效）
+        env.updateDefaultMode?.(targetMode)
         env.state.set(targetMode)
       }
       return { handled: true, switched: true }

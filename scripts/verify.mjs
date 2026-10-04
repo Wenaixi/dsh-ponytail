@@ -124,6 +124,25 @@ if (!buildScript.includes('t("level." + source.level)')) {
 }
 console.log('[verify] ✓ client i18n via ctx.locale (bilingual panel)')
 
+// locale 键集反向断言（评审 Important #3 加固）：t() 的 fallback 会让缺失键静默显示 key 名，
+// 只断言「构建脚本含 t(...) 表达式」可能恒真。改为扫描产物里所有 t("...") 调用键，
+// 逐一断言 zh/en 两册字典均含该键；并扫描字典 JSON 键，断言产物内嵌字典与 locale/*.json 一致。
+const clientArtifact2 = await readFile(join(rootDir, 'lib', 'client.js'), 'utf8')
+// 只收集纯字面量 t("xxx.yyy")（排除 t("level." + source.level) 这类动态拼接与插槽 key）
+const tKeys = [...clientArtifact2.matchAll(/t\(\"([a-z]+\.[a-z]+)\"\)/g)].map((m) => m[1])
+const localeFiles = ['locale/zh.json', 'locale/en.json']
+const zhDict = JSON.parse(await readFile(join(rootDir, 'locale', 'zh.json'), 'utf8'))
+const enDict = JSON.parse(await readFile(join(rootDir, 'locale', 'en.json'), 'utf8'))
+const resolveKey = (dict, key) => key.split('.').reduce((acc, seg) => (acc && typeof acc === 'object' ? acc[seg] : undefined), dict)
+const missingT = tKeys.filter((k) => resolveKey(zhDict, k) === undefined || resolveKey(enDict, k) === undefined)
+if (missingT.length > 0) {
+  console.error('[verify] FAIL: t() 引用但 locale 字典缺失的键: ' + missingT.join(', '))
+  ok = false
+} else {
+  console.log('[verify] ✓ 产物 t() 键 ' + tKeys.length + ' 个全部在 zh/en 字典中')
+}
+
+
 // 客户端产物不得残留宿侧 Node API（C4 回归断言）：lib/client.js 是浏览器 CJS factory，
 // `import.meta` / `process.` 在 <script src> 上下文是 SyntaxError，会让整个 combo 加载失败
 // （面板静默消失，0.6~0.9 教训同族）。此断言针对产物本身，而非本脚本源码。

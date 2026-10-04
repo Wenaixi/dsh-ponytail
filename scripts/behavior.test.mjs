@@ -775,6 +775,28 @@ test('C7 默认档: patch 层命中时 /ponytail foobar 不偏离 resolvePriorit
   assert.equal(readMode(), 'lite', '未知参数兜底切默认应取 resolvePriority effective（lite），不得切到 full')
 })
 
+test('C7 实时性: /ponytail default <档> 写盘后，下一次未知参数命令读到新默认值', async () => {
+  // 评审 Important #2 回归锁：getDefaultMode 必须是实时闭包（每次重读 config.json），
+  // 不能是启动期快照——否则 /ponytail default ultra 后 /ponytail foobar 仍切旧档
+  delete process.env.PONYTAIL_DEFAULT_MODE
+  const handlers = {}
+  const ctx = {
+    on: (ev, h) => { handlers[ev] = h },
+    effect: () => {},
+    logger: { info: () => {}, warn: () => {}, debug: () => {} },
+    skills: { registerProvider: () => () => {} },
+    systemPrompt: { section: () => () => {} },
+  }
+  apply(ctx, { defaultMode: 'lite' })
+  assert.equal(readMode(), 'lite')
+  // 1) 持久化新默认档 ultra（写 config.json）
+  const next = async () => 'next'
+  await handlers['agent/pre-step']({ messages: [{ content: '/ponytail default ultra' }] }, next)
+  // 2) 下一次未知参数命令应切到新默认 ultra（若 getDefaultMode 是快照则仍切 lite，红）
+  await handlers['agent/pre-step']({ messages: [{ content: '/ponytail foobar' }] }, next)
+  assert.equal(readMode(), 'ultra', '写盘后未知参数兜底应切新默认 ultra（实时闭包），不得切回旧档 lite')
+})
+
 test('C4 一致性: resolvePriority env 带空白时 trim 后生效', async () => {
   const { resolvePriority } = await import('../lib/ponytail-priority.js')
   const r = resolvePriority({ envRaw: ' lite ', patchMode: undefined, configMode: undefined })

@@ -87,7 +87,7 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
     // ponytail: env 非法值静默回退与上游一致，此处 warn 为 DSH 差分（不改变回退语义），便于定位配置错误
     ctx.logger.warn(`[ponytail] PONYTAIL_DEFAULT_MODE 值无效（回退后续来源）：${envRaw}`)
   }
-  const patchMode = rawConfig['defaultMode'] as string | undefined
+  let patchMode = rawConfig['defaultMode'] as string | undefined
   // 读取 config.json 的 defaultMode 原始值：区分「字段缺失」与「文件损坏」交给诊断链统一标注
   // （initialMode 判定与 HTTP 诊断链共用同一份，必须先于 initialMode 定义）
   const readRawConfigMode = (): string | undefined => {
@@ -154,7 +154,14 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
   // SkillProvider 注册：深模块构造函数接收已解析的 providerName 与 skillDir（优先级归 entry）
   const skills = (ctx as unknown as { skills: { registerProvider: (factory: (control: SkillProviderControl) => SkillProvider) => () => void } }).skills
   skills.registerProvider((control) => {
-    providerInstance = new PonytailProvider(ctx, control, { providerName: resolved.providerName ?? 'ponytail', skillDir })
+    providerInstance = new PonytailProvider(ctx, control, {
+      providerName: resolved.providerName ?? 'ponytail',
+      skillDir,
+      // 物理隐藏接线（评审 Important #1 修复）：UI 禁用技能 → state 内存集 → provider.list/get
+      // 同步过滤。此前从未传入，UI 改开关对模型侧目录无效（静默失效，跨会话仍放行）。
+      // 失效闭环：POST 变更点直调 invalidateSkills() → providerInstance.invalidate() → 宿主重扫。
+      isSkillEnabled: (name) => state.isSkillEnabled(name),
+    })
     return providerInstance
   })
 
@@ -203,6 +210,11 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
         patchMode,
         configMode: readRawConfigMode(),
       }).effective,
+    // /ponytail default <档> 写盘后更新 patchMode：用户最新意图覆盖宿主声明，
+    // UI 快照与命令兜底同刻读新值（修复评审发现的静默 ignore）
+    updateDefaultMode: (mode) => {
+      patchMode = mode
+    },
     writeDefaultMode,
   })
 
