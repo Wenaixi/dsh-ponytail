@@ -175,8 +175,7 @@ const content = `window.__ModuleLoader__.load({
     ];
 
 
-    // 技能元数据从 SKILL.md frontmatter 提取（唯一真源，与宿侧 readSkillMeta 同源）
-    const skillRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', 'skills')
+    // 技能元数据从 SKILL.md frontmatter 构建期提取（唯一真源，与宿侧 readSkillMeta 同源）
     const SKILL_META = ${JSON.stringify(SKILL_META_BUILD)};
 
     const EMPTY_CONFIG = {

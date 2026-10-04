@@ -125,6 +125,18 @@ if (!buildScript.includes('t("level." + source.level)')) {
 }
 console.log('[verify] ✓ client i18n via ctx.locale (bilingual panel)')
 
+// 客户端产物不得残留宿侧 Node API（C4 回归断言）：lib/client.js 是浏览器 CJS factory，
+// `import.meta` / `process.` 在 <script src> 上下文是 SyntaxError，会让整个 combo 加载失败
+// （面板静默消失，0.6~0.9 教训同族）。此断言针对产物本身，而非本脚本源码。
+const clientArtifact = await readFile(join(rootDir, 'lib', 'client.js'), 'utf8')
+if (clientArtifact.includes('import.meta') || clientArtifact.includes('process.')) {
+  console.error('[verify] FAIL: lib/client.js 含宿侧 Node API 残留（import.meta/process.），浏览器加载必崩')
+  ok = false
+} else {
+  console.log('[verify] ✓ lib/client.js 无 Node API 残留（import.meta/process.）')
+}
+
+
 // 技能元数据单一真源反向断言：描述只能来自 SKILL.md frontmatter（readSkillMeta/extractSkillMeta），
 // 出现「懒人模式本体」等硬编码短摘要即失败（防三处漂移回潮，C2）。
 // 客户端构建脚本不得出现硬编码技能描述：SKILL_META 必须由 frontmatter 生成
