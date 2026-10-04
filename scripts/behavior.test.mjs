@@ -472,6 +472,26 @@ test('readFullConfig / writeFullConfig / resetFullConfig: 正确读写配置与�
   }
 })
 
+
+test('C1 状态: 外部改 config.json disabledSkills 后 reloadDisabledSkills 收敛内存', async () => {
+  const { createPonytailState, isMainSkillDisabled } = await import('../lib/ponytail-state.js')
+  const { writeFullConfig, readFullConfig } = await import('../lib/ponytail-config.js')
+  const orig = readFullConfig()
+  const state = createPonytailState({ storage: { read: () => null, write: () => {}, clear: () => {} } })
+  assert.strictEqual(state.isSkillEnabled('ponytail-gain'), true)
+  // 模拟外部手改 config.json（不经 state 写方法）
+  writeFullConfig({ disabledSkills: ['ponytail-gain'] })
+  assert.strictEqual(state.isSkillEnabled('ponytail-gain'), true, '写盘前内存态不变（现状）')
+  state.reloadDisabledSkills()
+  assert.strictEqual(state.isSkillEnabled('ponytail-gain'), false, 'reload 后内存态收敛到文件')
+  // 纯函数真值表
+  assert.strictEqual(isMainSkillDisabled(['ponytail']), true)
+  assert.strictEqual(isMainSkillDisabled(['ponytail-gain']), false)
+  assert.strictEqual(isMainSkillDisabled([]), false)
+  // 还原
+  writeFullConfig(orig)
+})
+
 test('createPonytailState: Skill 独立开关、默认等级设置与一键恢复默认流转', async () => {
   const { createPonytailState } = await import('../lib/ponytail-state.js')
   let memFlag = null

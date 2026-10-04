@@ -46,6 +46,14 @@ export interface PonytailState {
     setDefaultMode(mode: string): void;
     /** 恢复所有默认配置（等级切回 full，启用所有技能） */
     resetToDefaults(): void;
+    /** 文件优先：重读 config.json 的 disabledSkills 重建内存 Set（外部手改文件后的收敛入口） */
+    reloadDisabledSkills(): void;
 }
 export declare function createPonytailState(options?: PonytailStateOptions): PonytailState;
+/**
+ * 纯函数守卫：「禁用主技能 ponytail → 关闭运行等级」业务规则的唯一实现。
+ * 此前该规则散落在 ponytail-http.ts POST 两分支（disabledSkills 数组与 toggleSkill），
+ * 现收敛为单一导出，调用方共享一个守卫（根因修复，防两分支不一致）。
+ */
+export declare function isMainSkillDisabled(disabled: readonly string[]): boolean;
 //# sourceMappingURL=ponytail-state.d.ts.map

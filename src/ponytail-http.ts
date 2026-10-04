@@ -14,6 +14,7 @@ import { parse as parseYaml } from 'yaml'
 import type { PonytailState } from './ponytail-state.js'
 import type { RuntimeMode } from './ponytail-config.js'
 import { resolvePriority } from './ponytail-priority.js'
+import { isMainSkillDisabled } from './ponytail-state.js'
 
 export interface ConfigHttpDeps {
   /** 等级与技能开关状态机 */
@@ -159,7 +160,7 @@ export function createConfigHttpEndpoint(deps: ConfigHttpDeps):
         if (Array.isArray(payload.disabledSkills)) {
           const newDisabled = payload.disabledSkills.filter((s): s is string => typeof s === 'string')
           deps.state.setDisabledSkills(newDisabled)
-          if (newDisabled.includes('ponytail')) {
+          if (isMainSkillDisabled(newDisabled)) {
             deps.state.set(null)
           }
           deps.invalidateSkills()
@@ -171,7 +172,7 @@ export function createConfigHttpEndpoint(deps: ConfigHttpDeps):
           const tg = payload.toggleSkill as { name?: string; enabled?: boolean }
           if (typeof tg.name === 'string') {
             deps.state.toggleSkill(tg.name, tg.enabled)
-            if (tg.name === 'ponytail' && tg.enabled === false) {
+            if (isMainSkillDisabled([tg.name]) && tg.enabled === false) {
               deps.state.set(null)
             }
             deps.invalidateSkills()
