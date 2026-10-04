@@ -1,10 +1,10 @@
 /**
- * dsh-ponytail — DSH 完整移植版 ponytail (dietrichgebert/ponytail 4.10.0)
+ * dsh-ponytail — 面向 DSH 的 Ponytail 适配实现（上游参考版本独立记录于 README）
  *
  * 能力全集：
  * - always-on 梯子注入（systemPrompt section，随 mode 动态裁剪）
  * - 6 个 skill：ponytail / ponytail-review / ponytail-audit / ponytail-debt / ponytail-gain / ponytail-help
- * - 完整复刻 hooks 行为：activate / mode-tracker / subagent / config / instructions / runtime
+ * - 对应 DSH 生命周期接线：activate / mode-tracker / subagent / config / instructions / runtime
  * - 不注册任何 tool，全部能力经 Skill 暴露
  */
 import type { Context } from '@deepseek-ai/cordis';

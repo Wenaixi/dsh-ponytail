@@ -138,7 +138,7 @@ async function parseSkillFile(
 }
 
 // ---------------------------------------------------------------------------
-// SkillProvider（完整复刻上游 6 skill 的 discovery）
+// SkillProvider：提供 6 个随包发布的 DSH 原生技能
 // ---------------------------------------------------------------------------
 
 interface SkillBaseFields {

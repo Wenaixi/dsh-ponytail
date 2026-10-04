@@ -71,6 +71,8 @@ jobs:
           body: |
             完整更新内容见 [CHANGELOG.md](https://github.com/Wenaixi/dsh-ponytail/blob/${{ github.ref_name }}/CHANGELOG.md)
 
-            上游对齐：DietrichGebert/ponytail 的 DSH 完整移植（零 tool 注册，常驻梯子七阶 + 6 个中文原生技能）
+            Local version: ${{ github.ref_name }}
+            Upstream reference: DietrichGebert/ponytail 4.10.3 (reference snapshot)
+            DSH 适配：零 tool 注册，常驻梯子七阶 + 6 个中文原生技能
 
             Tag: `${{ github.ref_name }}`

@@ -119,6 +119,6 @@
 
 *Avoid（严禁混用）*: priority order, precedence list, 优先级数组、权重排序
 
-### 3.2 存储切面与提示词出口（4.10.0-dsh.4 演进）
+### 3.2 存储切面与提示词出口（历史演进记录）
 - **PonytailStorage**：状态机持久化存储契约，定义 `read()`、`write(mode)`、`clear()` 最小正交三方法。生产使用内联于 `ponytail-state.ts` 的物理磁盘适配器（C6 已并入 flag 存取）；单元测试使用纯内存存储适配器（双适配器证明 Seam 价值）。
 - **renderPromptSection**：系统提示词生成的唯一高阶深出口，内部原子化自闭环状态同步纠偏（`syncFromFile`）、关闭态空串守卫、按需读取 SKILL.md 与多模式规则裁剪，主入口注册收敛为单行。
