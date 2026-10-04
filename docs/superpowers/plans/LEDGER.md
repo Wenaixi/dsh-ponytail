@@ -1,11 +1,12 @@
-# 执行 Ledger — 2026-10-04 架构深挖（plan 内联推进）
+# 执行 Ledger — 2026-10-04 架构深挖第二轮（plan 内联推进）
 
 ## 裁决记录（Ruling）
-- R1: 执行方式=内联（executing-plans），用户已选 plan 内联推进，任务间不停下确认。
-- R2: **C5 否决（更新）**：官方包 dsh-skill@0.2.0-rc.2 真源（lib/index.js:404, dsh-skill-filesystem/lib/index.js:412-469）证明 skills/change 是给消费方（host UI/agent-loop）的通知缝，不是给提供者的回调；全树零订阅者；本仓 skillDir（包内 ../skills）不在任何观察 roots 内，事件永不触发；监听器内反向调用 control.invalidate() → invalidateCache → notifyChange → 再次 emit → **同步无限递归栈溢出**（invalidate 守卫不抑制重入广播）。正确闭环=C1 修 providerInstance（UI 变更点直调 control.invalidate()，官方模式）。skills/change 空监听保留 debug + 注释说明不可接 invalidate。ADR-0003 不禁止也不要求。
-- R3: getDefaultMode 保留不动（commands 无 patch 层 fallback + 无 env trim 行为不变）；apply/UI 的「当前生效默认档」一律改走 resolvePriority().effective（含 trim/归一），行为以 resolvePriority 为准。
-- R4: C4 行为变更声明：patch 显式 review/大小写/空白变体从「生效」（注入垃圾态）变为「忽略」（落合法档）——这是归一修复，写入 ADR-0006 与 CLAUDE.md。
-- R5: C2 采用 frontmatter 真源方案 A（否 B/manifest）：src 侧 async handler 读 frontmatter（try/catch 守卫），build-client.mjs 构建期提取作 fallback；面板 rowDesc 单行省略；verify 加反向断言。
-- R6: C3 写盘统一为字段级 merge（保留未知键），writeFullConfig/writeDefaultMode 变薄包装（导出签名不变）；删 config 版 isDeactivationCommand + normalizeConfigMode 两个孤儿（全仓零调用方）；兼容分支（getLegacy*）不动。
-- R7: C6 接入 ctx.locale：register('ponytail', {zh,en}) 键全成对（值可同——技能描述保持中文）；诊断链 label/problem 客户端按 level 覆盖；skillDir 由 deps 注入。
-- R8: 每任务全四门禁（typecheck/behavior.test/verify/build）后 commit；不 push 不发版。
+- R1: 执行方式=内联（executing-plans），用户已选「不问、不停、自我最佳决策」。
+- R2: **C5 否决**：宿主 dsh-skill 0.2.0-rc.2 源码（lib/index.js:120-133, 265-296）证明 SkillRegistry 自带 collectCache（revision + invalidateCache + collectCacheKey），list()/snapshot() 命中缓存不调用 provider 的 list()；provider 内再做缓存边际收益≈0。官方 skill-provider.md 第八节的"进程内缓存"建议适用于无宿主缓存的提供者，本场景已被宿主覆盖。
+- R3: **C7 实锤（真 bug）**：探针复现 patch='lite'+config 缺失 → resolvePriority.effective='lite' 而 getDefaultMode()='full'；/ponytail foobar 将等级从 lite 切到 full；裸 /ponytail 报告 full。责任在 apply 构造 dispatcher 时未注入 getDefaultMode（src/ponytail.ts:191-195 只注入 state/logger/writeDefaultMode）。
+- R4: C7 修复=注入实时闭包 `getDefaultMode: () => resolvePriority({envRaw, patchMode, configMode: readRawConfigMode()}).effective`，不 snapshot（防 /ponytail default 后命令层仍用旧值）；ADR-0006 决策 1 与 LEDGER 首轮 R3 需修订（命令模块 fallback 语义并入 resolvePriority 真源）。
+- R5: C1 采用方案 B（补 reloadDisabledSkills + isMainSkillDisabled 纯函数，不拆模块）——YAGNI：技能静态 6 个无动态生命周期，拆两模块复制双写逻辑；补方法 5 行与既有 syncFromFile 同构。
+- R6: C2 采用私有 parseConfigObject 收敛（readFullConfig/getDefaultMode 复用；writeFullConfig 保留原始对象读段与未知键；getDefaultMode 无 patch 层/无 trim 语义不动——R3 沿用）。
+- R7: C3 随 C2 落地 snapshot 合并（读一次 configMode → 一次 resolvePriority）；行为测试补 1 行不变量断言。
+- R8: C6 内联（删 src/ponytail-runtime.ts，fs 三件套并入 state）——净减 1 文件 + ~30 行；verify 清单、behavior import、CONTEXT/README 同步。
+- R9: 每任务先跑失败断言（TDD），后门禁，最后 commit；不 push 不发版。

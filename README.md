@@ -74,7 +74,7 @@ dsh --profile web --dump-config | grep -A2 ponytail
 |---|---|
 | `ponytail-config.js` | `src/ponytail-config.ts`（`env > 文件 > full`，`review` 不可默认） |
 | `ponytail-instructions.js` | `src/ponytail-instructions.ts`（唯一出口 `renderPromptSection(skillDir, state)`：review 短路 + 按档裁剪 + 中文 fallback 全部内聚） |
-| `ponytail-runtime.js` | `src/ponytail-runtime.ts`（`.ponytail-active`，DSH 单一宿主，无外部平台探针） |
+| `ponytail-state.js` | `src/ponytail-state.ts`（`.ponytail-active` 内联于此，DSH 单一宿主，无外部平台探针） |
 | `ponytail-activate.js` | `src/ponytail.ts` 的 `agent/created`（startup/resume 对齐 flag） |
 | `ponytail-mode-tracker.js` | `src/ponytail-commands.ts` 的 `createCommandDispatcher`（指令解析纯函数 + 状态机副作用） |
 | `ponytail-subagent.js` | `src/ponytail.ts` 的 `agent/created`（`PONYTAIL_SUBAGENT_MATCHER`） |

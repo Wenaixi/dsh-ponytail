@@ -6,8 +6,8 @@
  * - 「文件优先」与「内存赢」两种纠偏方向（由调用方选方法表达，不写死一处）
  * - off / review / 非法值的归一
  *
- * 与 ponytail-runtime.ts 的关系：runtime 负责 DSH 配置目录下 flag 的物理存取，
- * 本模块默认委托它作为默认持久化实现，也可由 options.storage 注入内存适配器隔离测试。
+ * 与 config 的关系：flag（.ponytail-active）物理存取内联于此（原 ponytail-runtime.ts 已并入，
+ * C6 收敛：46 行薄壳 + 一层间接委托不如直接内联）；也可由 options.storage 注入内存适配器隔离测试。
  * 与 ponytail-config.ts 的关系：默认值解析仍归 config（默认值源 != 运行时状态）。
  *
  * 实例必须是 apply() 内的闭包变量：DSH 常驻进程下 HMR 重载会重建 apply，
@@ -49,6 +49,9 @@ export interface PonytailState {
     /** 文件优先：重读 config.json 的 disabledSkills 重建内存 Set（外部手改文件后的收敛入口） */
     reloadDisabledSkills(): void;
 }
+export declare function setMode(mode: string): void;
+export declare function clearMode(): void;
+export declare function readMode(): string | null;
 export declare function createPonytailState(options?: PonytailStateOptions): PonytailState;
 /**
  * 纯函数守卫：「禁用主技能 ponytail → 关闭运行等级」业务规则的唯一实现。

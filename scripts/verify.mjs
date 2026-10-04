@@ -67,7 +67,6 @@ const checks = [
   'lib/ponytail-commands.js',
   'lib/ponytail-config.js',
   'lib/ponytail-instructions.js',
-  'lib/ponytail-runtime.js',
   'lib/ponytail-skills.js',
   'lib/ponytail-state.js',
   'lib/client.js',

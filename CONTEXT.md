@@ -84,10 +84,9 @@
 |---|---|---|---|
 | `ponytail-commands.ts` | 指令分发与纯语法解析 | `createCommandDispatcher`, `parsePonytailCommand` | 前缀归一化、全句失活、持久化提取、上下文展开 |
 | `ponytail-instructions.ts` | 提示词裁剪与渲染单一出口 | `render` | Markdown 解析、正则裁剪、review 短路、异常容灾 |
-| `ponytail-state.ts` | 对偶状态机管理 | `PonytailState` 对偶接口 | 内存状态流转、对偶落盘、文件优先纠偏 |
+| `ponytail-state.ts` | 对偶状态机管理（含 flag 物理存取，C6 内联） | `PonytailState` 对偶接口 | 内存状态流转、对偶落盘、文件优先纠偏、`.ponytail-active` 读写、技能禁用 reload 收敛 |
 | `ponytail-skills.ts` | 技能发现与契约提供 | `PonytailProvider` (SkillProvider) | 目录扫描、Frontmatter 解析、assembleSkillBase 流水线 |
 | `ponytail-config.ts` | Schemastery 声明与配置 | `Config`, `getDefaultMode`, `readFullConfig` / `writeFullConfig` / `resetFullConfig` | 四级配置优先级、模式归一、路径字符白名单、DSH 数据根解析、读写 config.json |
-| `ponytail-runtime.ts` | DSH 数据根 flag 物理存取 | flag 读写 | 单一宿主（DSH）数据根内 `.ponytail-active` 读写 |
 | `ponytail-priority.ts` | 优先级诊断纯函数 | `resolvePriority` | 四级诊断链组装、状态语义（hit/shadowed/problem） |
 | `ponytail.ts` | Cordis 插件生命周期编排 | `apply` | Waterfall 中间件流转、agent/created 钩子、section 注入、`/api/plugins/ponytail/config` 路由 |
 
@@ -121,5 +120,5 @@
 *Avoid（严禁混用）*: priority order, precedence list, 优先级数组、权重排序
 
 ### 3.2 存储切面与提示词出口（4.10.0-dsh.4 演进）
-- **PonytailStorage**：状态机持久化存储契约，定义 `read()`、`write(mode)`、`clear()` 最小正交三方法。生产使用基于 `ponytail-runtime.ts` 的物理磁盘适配器；单元测试使用纯内存存储适配器（双适配器证明 Seam 价值）。
+- **PonytailStorage**：状态机持久化存储契约，定义 `read()`、`write(mode)`、`clear()` 最小正交三方法。生产使用内联于 `ponytail-state.ts` 的物理磁盘适配器（C6 已并入 flag 存取）；单元测试使用纯内存存储适配器（双适配器证明 Seam 价值）。
 - **renderPromptSection**：系统提示词生成的唯一高阶深出口，内部原子化自闭环状态同步纠偏（`syncFromFile`）、关闭态空串守卫、按需读取 SKILL.md 与多模式规则裁剪，主入口注册收敛为单行。
