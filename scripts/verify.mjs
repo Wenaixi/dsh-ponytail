@@ -133,8 +133,14 @@ const tKeys = [...clientArtifact2.matchAll(/t\(\"([a-z]+\.[a-z]+)\"\)/g)].map((m
 const localeFiles = ['locale/zh.json', 'locale/en.json']
 const zhDict = JSON.parse(await readFile(join(rootDir, 'locale', 'zh.json'), 'utf8'))
 const enDict = JSON.parse(await readFile(join(rootDir, 'locale', 'en.json'), 'utf8'))
-const resolveKey = (dict, key) => key.split('.').reduce((acc, seg) => (acc && typeof acc === 'object' ? acc[seg] : undefined), dict)
-const missingT = tKeys.filter((k) => resolveKey(zhDict, k) === undefined || resolveKey(enDict, k) === undefined)
+const resolveKey = (dict, key) => dict[key]
+const missingT = tKeys.filter((k) => typeof resolveKey(zhDict, k) !== 'string' || typeof resolveKey(enDict, k) !== 'string')
+const zhKeys = Object.keys(zhDict).sort()
+const enKeys = Object.keys(enDict).sort()
+if (JSON.stringify(zhKeys) !== JSON.stringify(enKeys)) {
+  console.error('[verify] FAIL: zh/en locale 键集不一致')
+  ok = false
+}
 if (missingT.length > 0) {
   console.error('[verify] FAIL: t() 引用但 locale 字典缺失的键: ' + missingT.join(', '))
   ok = false

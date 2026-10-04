@@ -1,64 +1,38 @@
 {
-  "meta": {
-    "title": "Ponytail (lazy senior mode)",
-    "description": "A full DSH port of DietrichGebert/ponytail: the always-on lazy senior developer mode and its seven-rung ladder (YAGNI down to the minimum implementation), with six native Chinese skills (core, review, audit, debt, gain, help) and zero tool registrations."
-  },
-  "panel": {
-    "title": "Ponytail Config"
-  },
-  "mode": {
-    "title": "Intensity Level",
-    "hint": "Controls how strongly the ladder prompt is injected. Changes apply immediately and are written to the config file for all sessions.",
-    "lockedHint": "A higher-priority configuration is in effect; changes here will not affect the actual runtime level.",
-    "off": "Off",
-    "lite": "Lite",
-    "full": "Standard",
-    "ultra": "Ultra"
-  },
-  "skills": {
-    "title": "Native Skills",
-    "hint": "Disabled skills disappear from the slash menu and are not loaded by the model.",
-    "toggleOn": "Enable {name}",
-    "enabledToast": "Skill {name} enabled",
-    "hiddenToast": "Skill {name} hidden"
-  },
-  "chain": {
-    "hit": "In effect",
-    "shadowed": "Shadowed",
-    "unset": "Unset",
-    "valueUnset": "(unset)"
-  },
-  "priority": {
-    "title": "Config Priority",
-    "unavailable": "Diagnostics unavailable. Please confirm the host version ships the priority diagnostics endpoint.",
-    "intro": "The runtime level takes the first valid value in the following order; items shadowed by a higher-priority source cannot be changed from the UI. Current: "
-  },
-  "state": {
-    "loading": "Loading…",
-    "saved": "Config is stored in ponytail/config.json under the DSH data directory"
-  },
-  "error": {
-    "operation": "Operation failed: "
-  },
-  "confirm": {
-    "reset": "Restore default config? Level returns to Standard (full) and all 6 skills are re-enabled."
-  },
-  "button": {
-    "reset": "Restore defaults"
-  },
-  "toast": {
-    "modeChanged": "Level switched to {name}",
-    "resetDone": "Defaults restored"
-  },
-  "level": {
-    "env": "Environment variable",
-    "patch": "Profile patch",
-    "config": "User config file",
-    "fallback": "Built-in fallback"
-  },
-  "problem": {
-    "env": "Invalid value, ignored",
-    "patch": "Invalid value, ignored",
-    "config": "File corrupted or field missing"
-  }
+  "meta.title": "Ponytail (lazy senior mode)",
+  "meta.description": "A full DSH port of DietrichGebert/ponytail: the always-on lazy senior developer mode and its seven-rung ladder (YAGNI down to the minimum implementation), with six native Chinese skills (core, review, audit, debt, gain, help) and zero tool registrations.",
+  "panel.title": "Ponytail Config",
+  "mode.title": "Intensity Level",
+  "mode.hint": "Controls how strongly the ladder prompt is injected. Changes apply immediately and are written to the config file for all sessions.",
+  "mode.lockedHint": "A higher-priority configuration is in effect; changes here will not affect the actual runtime level.",
+  "mode.off": "Off",
+  "mode.lite": "Lite",
+  "mode.full": "Standard",
+  "mode.ultra": "Ultra",
+  "skills.title": "Native Skills",
+  "skills.hint": "Disabled skills disappear from the slash menu and are not loaded by the model.",
+  "skills.toggleOn": "Enable {name}",
+  "skills.enabledToast": "Skill {name} enabled",
+  "skills.hiddenToast": "Skill {name} hidden",
+  "chain.hit": "In effect",
+  "chain.shadowed": "Shadowed",
+  "chain.unset": "Unset",
+  "chain.valueUnset": "(unset)",
+  "priority.title": "Config Priority",
+  "priority.unavailable": "Diagnostics unavailable. Please confirm the host version ships the priority diagnostics endpoint.",
+  "priority.intro": "The runtime level takes the first valid value in the following order; items shadowed by a higher-priority source cannot be changed from the UI. Current: ",
+  "state.loading": "Loading…",
+  "state.saved": "Config is stored in ponytail/config.json under the DSH data directory",
+  "error.operation": "Operation failed: ",
+  "confirm.reset": "Restore default config? Level returns to Standard (full) and all 6 skills are re-enabled.",
+  "button.reset": "Restore defaults",
+  "toast.modeChanged": "Level switched to {name}",
+  "toast.resetDone": "Defaults restored",
+  "level.env": "Environment variable",
+  "level.patch": "Profile patch",
+  "level.config": "User config file",
+  "level.fallback": "Built-in fallback",
+  "problem.env": "Invalid value, ignored",
+  "problem.patch": "Invalid value, ignored",
+  "problem.config": "File corrupted or field missing"
 }

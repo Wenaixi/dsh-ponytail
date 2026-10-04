@@ -1,64 +1,38 @@
 {
-  "meta": {
-    "title": "懒人模式（ponytail）",
-    "description": "DietrichGebert/ponytail 的 DSH 完整移植：常驻懒人 senior 模式与七阶梯子（YAGNI 到最小实现），6 个中文原生技能（本体、评审、审计、债务、收益、帮助），零 tool 注册。"
-  },
-  "panel": {
-    "title": "懒人模式配置"
-  },
-  "mode": {
-    "title": "运行强度等级",
-    "hint": "控制梯子提示词的注入强度，改动即时生效并写入配置文件，对所有会话生效。",
-    "lockedHint": "当前有更高优先级的配置在生效，此处的修改不会改变实际运行等级。",
-    "off": "关闭",
-    "lite": "轻量",
-    "full": "标准",
-    "ultra": "激进"
-  },
-  "skills": {
-    "title": "原生技能开关",
-    "hint": "关闭后该技能不会出现在斜杠菜单，也不会被模型加载。",
-    "toggleOn": "启用 {name}",
-    "enabledToast": "技能 {name} 已启用",
-    "hiddenToast": "技能 {name} 已隐藏"
-  },
-  "chain": {
-    "hit": "生效中",
-    "shadowed": "被覆盖",
-    "unset": "未设置",
-    "valueUnset": "(未设置)"
-  },
-  "priority": {
-    "title": "配置优先级",
-    "unavailable": "诊断信息不可用，请确认宿主版本已包含优先级诊断接口。",
-    "intro": "运行等级按下列顺序取第一个有效值；被更高优先级压制的项，在界面上修改不会生效。当前生效："
-  },
-  "state": {
-    "loading": "读取中…",
-    "saved": "配置保存在 DSH 数据目录的 ponytail/config.json"
-  },
-  "error": {
-    "operation": "操作失败："
-  },
-  "confirm": {
-    "reset": "确定恢复默认配置吗？等级回到标准（full），并重新启用全部 6 个技能。"
-  },
-  "button": {
-    "reset": "恢复默认配置"
-  },
-  "toast": {
-    "modeChanged": "运行等级已切为「{name}」",
-    "resetDone": "已恢复默认配置"
-  },
-  "level": {
-    "env": "环境变量",
-    "patch": "Profile 补丁",
-    "config": "用户配置文件",
-    "fallback": "内置兜底"
-  },
-  "problem": {
-    "env": "值无效，已忽略",
-    "patch": "值无效，已忽略",
-    "config": "文件损坏或字段缺失"
-  }
+  "meta.title": "懒人模式（ponytail）",
+  "meta.description": "DietrichGebert/ponytail 的 DSH 完整移植：常驻懒人 senior 模式与七阶梯子（YAGNI 到最小实现），6 个中文原生技能（本体、评审、审计、债务、收益、帮助），零 tool 注册。",
+  "panel.title": "懒人模式配置",
+  "mode.title": "运行强度等级",
+  "mode.hint": "控制梯子提示词的注入强度，改动即时生效并写入配置文件，对所有会话生效。",
+  "mode.lockedHint": "当前有更高优先级的配置在生效，此处的修改不会改变实际运行等级。",
+  "mode.off": "关闭",
+  "mode.lite": "轻量",
+  "mode.full": "标准",
+  "mode.ultra": "激进",
+  "skills.title": "原生技能开关",
+  "skills.hint": "关闭后该技能不会出现在斜杠菜单，也不会被模型加载。",
+  "skills.toggleOn": "启用 {name}",
+  "skills.enabledToast": "技能 {name} 已启用",
+  "skills.hiddenToast": "技能 {name} 已隐藏",
+  "chain.hit": "生效中",
+  "chain.shadowed": "被覆盖",
+  "chain.unset": "未设置",
+  "chain.valueUnset": "(未设置)",
+  "priority.title": "配置优先级",
+  "priority.unavailable": "诊断信息不可用，请确认宿主版本已包含优先级诊断接口。",
+  "priority.intro": "运行等级按下列顺序取第一个有效值；被更高优先级压制的项，在界面上修改不会生效。当前生效：",
+  "state.loading": "读取中…",
+  "state.saved": "配置保存在 DSH 数据目录的 ponytail/config.json",
+  "error.operation": "操作失败：",
+  "confirm.reset": "确定恢复默认配置吗？等级回到标准（full），并重新启用全部 6 个技能。",
+  "button.reset": "恢复默认配置",
+  "toast.modeChanged": "运行等级已切为「{name}」",
+  "toast.resetDone": "已恢复默认配置",
+  "level.env": "环境变量",
+  "level.patch": "Profile 补丁",
+  "level.config": "用户配置文件",
+  "level.fallback": "内置兜底",
+  "problem.env": "值无效，已忽略",
+  "problem.patch": "值无效，已忽略",
+  "problem.config": "文件损坏或字段缺失"
 }
