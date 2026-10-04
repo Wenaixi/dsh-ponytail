@@ -6,7 +6,41 @@
 
 ## [Unreleased]
 
-（本段暂无待发布内容）
+### Fixed
+- **客户端产物内嵌宿侧死代码 `import.meta`（C4 回归）**：`build-client.mjs` 模板残留一行
+  `const skillRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', 'skills')`
+  （4.10.0-dsh.10 引入），产物 `lib/client.js` 里零引用却携带 `import.meta`——宿主把 bundle
+  原样拼接进 `<script src>` 加载，浏览器解析即 SyntaxError，整个客户端 bundle 加载失败
+  （配置面板静默消失）。删除死行；`verify.mjs` 新增反向断言：`lib/client.js` 不得含
+  `import.meta` / `process.`（先破坏实测再还原）。
+- **默认档命令层分裂（真 bug）**：apply 启动判定与 UI 面板走 `resolvePriority`（含 patch 层），
+  而命令调度器未注入 `getDefaultMode` 时落到 `getDefaultMode()`（无 patch 层）。当
+  cordis.patch.yml 显式声明 `defaultMode` 且 config.json 缺失/不同时，`/ponytail foobar`
+  （上游 else 兜底切默认档）把等级从 patch 档切到 config 档，裸 `/ponytail` 报告档也错误。
+  修复：dispatcher 注入实时 `resolvePriority` 闭包（同 apply/UI 同源同刻），
+  三条消费路径统一真源。
+
+### Changed
+- **config.json 读侧收敛单一解析出口（C2）**：新增私有 `parseConfigObject(raw)` 归一解析
+  唯一真源，`readFullConfig` 退化为薄包装；`getDefaultMode`（无 patch 层、无 trim）与
+  `writeFullConfig`（保留未知键）语义不动。
+- **HTTP 快照合并单求值（C3）**：一次 GET/POST 快照内 `resolvePriority` 双调 + 双读盘
+  （最坏 4 次 readFileSync）合并为读一次 configMode → 单次求值，`defaultMode ===
+  priority.effective` 由结构保证并以行为测试锁定。
+- **技能禁用补文件优先收敛（C1）**：`PonytailState` 新增 `reloadDisabledSkills()`
+  （与等级侧 `syncFromFile` 同构，外部手改 config.json 后注入时收敛）；「禁用 ponytail →
+  关闭等级」规则提为 `isMainSkillDisabled()` 纯函数，HTTP POST 两分支共用同一守卫。
+
+### Removed
+- **`src/ponytail-runtime.ts`（C6）**：46 行薄壳（`resolveStateDir` 只是 `getConfigDir`
+  的无谓转发）内联进 `ponytail-state.ts`，净减 1 文件 + 一层间接委托；测试 import 与
+  verify 产物清单同步；`.gitignore` 排除 `.local/`（桌面版调试备份不入库）。
+- **ADR-0007**：记录命令层默认档并入 resolvePriority 真源（修订 ADR-0006 决策 1）、
+  读侧收敛、快照合并、flag 内联、C5 维持否决（宿主 collectCache 已兜底 list 侧）。
+
+### Migration
+- 命令层兜底切档语义变更：从「独立于 patch 层」变为「并入 patch 层」——这是修复而非回归
+  （分裂本身就是 bug）；无数据丢失，无配置格式变化。
 
 ## [4.10.0-dsh.10] - 2026-10-04
 

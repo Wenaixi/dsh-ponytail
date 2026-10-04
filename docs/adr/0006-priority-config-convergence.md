@@ -25,6 +25,8 @@
 
 1. **优先级唯一真源**：apply 的启动判定与 UI 诊断链一律走 resolvePriority().effective；
    getDefaultMode 保留为无 patch 层的简化封装（命令模块的 fallback 语义不变）。
+   > **ADR-0007 修订**：命令模块 fallback 语义并入 resolvePriority 真源（修复 patch 层下
+   > 命令切档分裂），getDefaultMode 仅保留为无注入场景的兼容兜底。
    **行为变更声明**：patch 显式值的大小写变体/非法值从「生效（注入垃圾态）」变为「忽略（落合法档）」。
 2. **HTTP 端点剥为独立深工厂**：新增 src/ponytail-http.ts 的 createConfigHttpEndpoint(deps)，
    依赖全注入、不碰 ctx，可用假 req/res 单测；apply 只留接线。同时修复 providerInstance 捕获。
