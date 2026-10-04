@@ -22,6 +22,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint src --ext .ts 2>&1 || echo \"(no eslint config — skipped)\"",
     "verify": "node scripts/verify.mjs",
+    "docs:verify": "node scripts/docs-verify.mjs",
     "version:set": "node scripts/version.mjs",
     "version:bump": "node scripts/version.mjs",
     "prepublishOnly": "npm run build && npm run verify && npm test",
