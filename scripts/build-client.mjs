@@ -279,7 +279,7 @@ const content = `window.__ModuleLoader__.load({
       }, []);
 
       const load = React.useCallback(function () {
-        fetch("/api/plugins/ponytail/config")
+        fetch("/api/plugins/ponytail/config", { credentials: "same-origin" })
           .then(function (res) {
             if (!res.ok) throw new Error("HTTP " + res.status);
             return res.json();
@@ -307,6 +307,7 @@ const content = `window.__ModuleLoader__.load({
         });
         fetch("/api/plugins/ponytail/config", {
           method: "POST",
+          credentials: "same-origin",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
         })
