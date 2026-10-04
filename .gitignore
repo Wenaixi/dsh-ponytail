@@ -40,3 +40,6 @@ coverage/
 
 # Superpowers SDD 执行工作区（计划/简报/评审包，不入库）
 .superpowers/
+
+# 本地环境泄漏（桌面版调试备份 / gh 状态），不入库
+.local/
