@@ -150,28 +150,32 @@ export interface FullConfigData {
   disabledSkills: string[]
 }
 
-export function readFullConfig(): FullConfigData {
+/**
+ * 私有解析唯一真源：把 config.json 原文（或 null）解析为 FullConfigData。
+ * defaultMode 经 normalizeMode 归一（非法→DEFAULT_MODE）；disabledSkills 过滤字符串数组。
+ * readFullConfig / getDefaultMode（config 分支）共用；writeFullConfig 的 merge 读段
+ * 仍需原始对象（保留未知键），只复用本函数的字段归一规则。
+ */
+function parseConfigObject(raw: string | null): FullConfigData {
+  if (raw === null) return { defaultMode: DEFAULT_MODE, disabledSkills: [] }
   try {
-    const raw = readConfigFileText()
-    if (raw === null) return { defaultMode: DEFAULT_MODE, disabledSkills: [] }
-    const parsed = JSON.parse(raw)
+    const parsed = JSON.parse(raw) as unknown
     if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-      const dm = typeof parsed.defaultMode === 'string' ? normalizeMode(parsed.defaultMode) : null
-      const ds = Array.isArray(parsed.disabledSkills)
-        ? parsed.disabledSkills.filter((s: unknown) => typeof s === 'string')
+      const obj = parsed as Record<string, unknown>
+      const dm = typeof obj['defaultMode'] === 'string' ? normalizeMode(obj['defaultMode']) : null
+      const ds = Array.isArray(obj['disabledSkills'])
+        ? obj['disabledSkills'].filter((s: unknown): s is string => typeof s === 'string')
         : []
-      return {
-        defaultMode: dm ?? DEFAULT_MODE,
-        disabledSkills: ds,
-      }
+      return { defaultMode: dm ?? DEFAULT_MODE, disabledSkills: ds }
     }
   } catch {
     // 忽略异常，使用默认值
   }
-  return {
-    defaultMode: DEFAULT_MODE,
-    disabledSkills: [],
-  }
+  return { defaultMode: DEFAULT_MODE, disabledSkills: [] }
+}
+
+export function readFullConfig(): FullConfigData {
+  return parseConfigObject(readConfigFileText())
 }
 
 /**

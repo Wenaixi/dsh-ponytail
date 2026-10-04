@@ -821,6 +821,7 @@ test('C1 端点: GET 返回 200 且诊断链恒 4 项、技能 6 项', async () 
   assert.equal(res.json.priority.chain.length, 4)
   assert.equal(res.json.skills.length, 6)
   assert.equal(res.json.skills[0].enabled, true)
+    assert.equal(res.json.defaultMode, res.json.priority.effective, 'C3 不变量：defaultMode 与 priority.effective 必须同源同值')
 })
 
 test('C1 端点: POST mode 切换即时生效且持久化默认档', async () => {

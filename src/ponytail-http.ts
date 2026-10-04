@@ -35,11 +35,13 @@ export interface ConfigHttpDeps {
 /** GET/POST 响应共用的快照：等级、默认档（与 priority 同源）、禁用技能、技能列表、诊断链 */
 function snapshot(state: PonytailState, deps: ConfigHttpDeps) {
   const currentMode = state.get() ?? 'off'
-  const defaultMode = resolvePriority({
+  // C3 合并：同快照内只求值一次（读盘一次、resolvePriority 一次），
+  // defaultMode 与 priority.effective 由同一 report 保证同源同值。
+  const report = resolvePriority({
     envRaw: deps.envRaw,
     patchMode: deps.patchMode,
     configMode: deps.readRawConfigMode(),
-  }).effective
+  })
   const disabledSkills = state.getDisabledSkills()
   const skillsList = readSkillMeta(deps.skillDir).map((s) => ({
     ...s,
@@ -47,14 +49,10 @@ function snapshot(state: PonytailState, deps: ConfigHttpDeps) {
   }))
   return {
     currentMode,
-    defaultMode,
+    defaultMode: report.effective,
     disabledSkills,
     skills: skillsList,
-    priority: resolvePriority({
-      envRaw: deps.envRaw,
-      patchMode: deps.patchMode,
-      configMode: deps.readRawConfigMode(),
-    }),
+    priority: report,
   }
 }
 
