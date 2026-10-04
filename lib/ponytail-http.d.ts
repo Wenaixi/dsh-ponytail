@@ -15,14 +15,14 @@ export interface ConfigHttpDeps {
     readRawConfigMode: () => string | undefined;
     /** 变更后让宿主技能目录失效（UI 改禁用后模型侧即时收敛） */
     invalidateSkills: () => void;
-    /** cordis.patch.yml 显式声明的 defaultMode 原值 */
-    patchMode: string | undefined;
+    /** 每次快照读取 cordis.patch.yml 与运行时用户意图的当前值 */
+    readPatchMode: () => string | undefined;
     /** 日志（沿用 ctx.logger 形状） */
     logger: {
         info: (msg: string) => void;
     };
-    /** PONYTAIL_DEFAULT_MODE 环境变量原值 */
-    envRaw: string | undefined;
+    /** 每次快照读取 PONYTAIL_DEFAULT_MODE 当前值 */
+    readEnvRaw: () => string | undefined;
     /** 技能目录（读取 SKILL.md frontmatter 作为元数据真源） */
     skillDir: string;
 }

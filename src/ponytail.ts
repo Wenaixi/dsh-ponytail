@@ -27,7 +27,7 @@ import {
 import { resolvePriority } from './ponytail-priority.js'
 import { createConfigHttpEndpoint } from './ponytail-http.js'
 import { createCommandDispatcher } from './ponytail-commands.js'
-import { render, renderPromptSection } from './ponytail-instructions.js'
+import { renderPromptSection } from './ponytail-instructions.js'
 import { createPonytailState } from './ponytail-state.js'
 import { PonytailProvider } from './ponytail-skills.js'
 
@@ -184,14 +184,11 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
     text: () => {
       // 文件优先：每次注入前拉齐 flag 与内存（外部改 flag 在此收敛）
       try {
-        state.syncFromFile()
         state.reloadDisabledSkills()
       } catch {
         // ignore
       }
-      const mode = state.get()
-      if (!mode || mode === 'off') return ''  // off = 不注入，属 section 职责，不进 render
-      return render(skillDir, mode)
+      return renderPromptSection(skillDir, state)
     },
   })
 
@@ -302,9 +299,9 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
               }
             }
           },
-          patchMode: rawConfig['defaultMode'] as string | undefined,
+          readPatchMode: () => patchMode,
           logger: ctx.logger,
-          envRaw: process.env['PONYTAIL_DEFAULT_MODE'],
+          readEnvRaw: () => process.env['PONYTAIL_DEFAULT_MODE'],
           skillDir,
         }),
       })

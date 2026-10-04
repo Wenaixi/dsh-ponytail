@@ -750,6 +750,21 @@ test('C4 一致性: resolvePriority patch 非法且 config 缺失时落内置兜
 // /ponytail foobar（上游 else 兜底切默认档）会把等级从 lite 切到 full —— 静默不一致。
 // ---------------------------------------------------------------------------
 
+test('C4 生产接线: section 使用唯一提示词出口并按需同步外部 flag', () => {
+  let sectionText
+  const ctx = {
+    on: () => {},
+    effect: () => {},
+    logger: { info: () => {}, warn: () => {}, debug: () => {} },
+    skills: { registerProvider: () => () => {} },
+    systemPrompt: { section: (section) => { sectionText = section.text } },
+  }
+  apply(ctx, { defaultMode: 'lite' })
+  assert.match(String(sectionText()), /等级：lite/)
+  setMode('ultra')
+  assert.match(String(sectionText()), /等级：ultra/)
+})
+
 test('C7 默认档: patch 层命中时 /ponytail foobar 不偏离 resolvePriority effective', async () => {
   delete process.env.PONYTAIL_DEFAULT_MODE
   const handlers = {}
@@ -842,14 +857,39 @@ function createEndpointDeps(extra = {}) {
     state,
     readRawConfigMode: () => undefined,
     invalidateSkills: () => { invalidated++ },
-    patchMode: undefined,
+    readPatchMode: () => undefined,
     logger: { info: () => {} },
-    envRaw: undefined,
+    readEnvRaw: () => undefined,
     skillDir,
     ...extra,
   }
   return { deps, mockStorage, getInvalidated: () => invalidated }
 }
+
+test('C1 动态接线: /ponytail default 后同一 HTTP handler 读取新 patch 意图', async () => {
+  delete process.env.PONYTAIL_DEFAULT_MODE
+  const handlers = {}
+  let endpoint
+  const ctx = {
+    on: (event, handler) => { handlers[event] = handler },
+    effect: (setup) => setup(),
+    logger: { info: () => {}, warn: () => {}, debug: () => {} },
+    skills: { registerProvider: () => () => {} },
+    systemPrompt: { section: () => () => {} },
+    webServer: { register: (options) => { endpoint = options.handler; return () => {} } },
+  }
+  apply(ctx, { defaultMode: 'lite' })
+  const first = fakeRes()
+  await endpoint({ method: 'GET' }, first)
+  assert.equal(first.json.defaultMode, 'lite')
+  await handlers['agent/pre-step']({ messages: [{ content: '/ponytail default ultra' }] }, async () => 'next')
+  const getAfter = fakeRes()
+  await endpoint({ method: 'GET' }, getAfter)
+  assert.equal(getAfter.json.defaultMode, 'ultra')
+  const postAfter = fakeRes()
+  await endpoint(fakePostReq('{}'), postAfter)
+  assert.equal(postAfter.json.defaultMode, 'ultra')
+})
 
 test('C1 端点: GET 返回 200 且诊断链恒 4 项、技能 6 项', async () => {
   const { createConfigHttpEndpoint } = await import('../lib/ponytail-http.js')
