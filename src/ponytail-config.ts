@@ -231,16 +231,43 @@ export function writeDefaultMode(mode: string): RuntimeMode | null {
 }
 
 /**
+ * volatile 配置引用：宿主在 `.volatile()` 字段上放的活值容器（cosmokit/lib/index.js:102-108）。
+ * 写入经 settings 落到 profile 补丁；进程内由 loader 就地更新，无需重挂载插件。
+ */
+export interface VolatileRef<T> {
+  get(): T
+}
+
+/**
  * 插件配置（entry 与 skill provider 共享，避免 ponytail-skills 反向导入 entry 造成循环依赖）
  * 默认值写 schema（Schemastery），review 不可作默认（#377）
+ *
+ * 迁移到官方配置组合后，两个可持久化字段声明为 volatile：解析结果是 VolatileRef 而非裸值，
+ * 读侧一律经 readVolatile()。未配置时引用内部是 undefined（不是缺字段），让位 resolvePriority。
  */
 export interface PonytailConfig {
-  /** 禁用的技能名称列表 */
-  disabledSkills?: string[]
+  /** 禁用的技能名称列表（volatile 引用） */
+  disabledSkills?: VolatileRef<string[]>
   /** 注册到 ctx.skills 的 provider 名称 */
   providerName?: string
   /** skill 目录绝对路径，默认取包内 skills/ */
   skillDir?: string
-  /** 默认强度，off 则不自动激活 */
-  defaultMode?: 'off' | 'lite' | 'full' | 'ultra'
+  /** 默认强度，off 则不自动激活（volatile 引用） */
+  defaultMode?: VolatileRef<'off' | 'lite' | 'full' | 'ultra'>
+}
+
+/**
+ * 读一个可能是 volatile 引用、可能是裸值、也可能读到 undefined 的字段。
+ *
+ * 为什么必须容这三态：schemastery 对 `.volatile()` 字段无条件造出引用（其值取 schema 默认值，
+ * schemastery/lib/index.mjs:480），没有默认值时也是「引用包着 undefined」；
+ * 而直接构造 config 对象的测试路径拿到的是裸值。两者必须读出同一业务值，
+ * 否则同一字段在不同入口会给出不同结果。
+ */
+export function readVolatile<T>(field: VolatileRef<T> | T | undefined): T | undefined {
+  if (field === undefined || field === null) return undefined
+  if (typeof field === 'object' && typeof (field as VolatileRef<T>).get === 'function') {
+    return (field as VolatileRef<T>).get()
+  }
+  return field as T
 }

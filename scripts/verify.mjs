@@ -178,13 +178,28 @@ if (!httpSrc.includes('readSkillMeta(deps.skillDir)')) {
 }
 console.log('[verify] ✓ skill meta single-source (SKILL.md frontmatter)')
 
-// 宿侧必须注册 settings 命名空间：插件页据此为 ponytail serve 配置表单
+// 官方配置组合的接线契约（替代已失效的 settings.register 断言）：
+// @deepseek-ai/dsh-settings@0.2.0-rc.2 没有 register 方法（全文件 0 次 register）——命名空间由
+// 「唯一 profile 条目 + 含 volatile 字段的 Config」自动产生（dsh-settings/lib/index.js:413-464，
+// volatileForm(schema) === undefined 即跳过该条目）。因此这里断言的是让命名空间出现的三个前提。
 const hostSrc = await readFile(join(rootDir, 'src', 'ponytail.ts'), 'utf8')
-if (hostSrc.includes("service.register('ponytail'")) {
-  console.log('[verify] ✓ host registers settings namespace "ponytail"')
-} else {
-  console.error('[verify] FAIL: host 必须调用 settings.register("ponytail", Config)，否则设置界面不出现本插件')
+const settingsSrc = await readFile(join(rootDir, 'src', 'ponytail-settings.ts'), 'utf8')
+const ponytailPatch = await readFile(resolve(rootDir, 'cordis.patch.yml'), 'utf8')
+const officialConfigChecks = [
+  ['Config 含 volatile 的 defaultMode', /defaultMode: Schema\.union\(\[[^\]]*\]\)\.volatile\(\)/.test(hostSrc)],
+  ['Config 含 volatile 的 disabledSkills', /disabledSkills: Schema\.array\(Schema\.string\(\)\)\.volatile\(\)/.test(hostSrc)],
+  ['defaultMode 仍无 Schema 默认值（否则 shadow config.json 层）', !/defaultMode: Schema\.union\(\[[^\]]*\]\)\.default\(/.test(hostSrc)],
+  ['cordis.patch.yml 声明条目 id: ponytail（命名空间即由此 id 产生）', /- id: ponytail\b/.test(ponytailPatch)],
+  ['配置通道经 settings.mutate 写入（官方路径）', /mutate\(namespace, ops, revision\)/.test(settingsSrc)],
+  ['patchMode 实时读取 volatile 引用（非启动快照）', /readVolatile\(resolved\.defaultMode\)/.test(hostSrc)],
+  ['删除不存在的 settings.register 调用', !/settings\.register\(|service\.register\('ponytail'/.test(hostSrc)],
+]
+const failedOfficial = officialConfigChecks.filter(([, pass]) => !pass).map(([name]) => name)
+if (failedOfficial.length > 0) {
+  console.error('[verify] FAIL: 官方配置组合接线不完整：' + failedOfficial.join('、'))
   ok = false
+} else {
+  console.log('[verify] ✓ official plugin-config wiring (volatile Config + settings channel + profile entry)')
 }
 
 // 检查 cordis.patch.yml 引用包名而非绝对路径

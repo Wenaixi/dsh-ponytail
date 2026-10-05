@@ -11,14 +11,34 @@ import type { Context } from '@deepseek-ai/cordis';
 import Schema from '@deepseek-ai/schemastery';
 import { type PonytailConfig } from './ponytail-config.js';
 export type Config = PonytailConfig;
-export declare const Config: Schema<Config>;
+export declare const Config: Schema<Schemastery.ObjectS<NoInfer<{
+    providerName: Schema<string, string, "defined">;
+    skillDir: Schema<string, string, "plain">;
+    defaultMode: Schema<"full" | "off" | "lite" | "ultra", "full" | "off" | "lite" | "ultra", "volatile">;
+    disabledSkills: Schema<NoInfer<string[]>, NoInfer<string[]>, "volatile">;
+}>>, Schemastery.ObjectT<NoInfer<{
+    providerName: Schema<string, string, "defined">;
+    skillDir: Schema<string, string, "plain">;
+    defaultMode: Schema<"full" | "off" | "lite" | "ultra", "full" | "off" | "lite" | "ultra", "volatile">;
+    disabledSkills: Schema<NoInfer<string[]>, NoInfer<string[]>, "volatile">;
+}>>, "plain">;
 export declare const name = "ponytail";
 export declare const inject: readonly ["skills", "systemPrompt", "webServer"];
 export declare function apply(ctx: Context, config?: Config): void;
 declare const _default: {
     name: string;
     inject: readonly ["skills", "systemPrompt", "webServer"];
-    Config: Schema<PonytailConfig>;
+    Config: Schema<Schemastery.ObjectS<NoInfer<{
+        providerName: Schema<string, string, "defined">;
+        skillDir: Schema<string, string, "plain">;
+        defaultMode: Schema<"full" | "off" | "lite" | "ultra", "full" | "off" | "lite" | "ultra", "volatile">;
+        disabledSkills: Schema<NoInfer<string[]>, NoInfer<string[]>, "volatile">;
+    }>>, Schemastery.ObjectT<NoInfer<{
+        providerName: Schema<string, string, "defined">;
+        skillDir: Schema<string, string, "plain">;
+        defaultMode: Schema<"full" | "off" | "lite" | "ultra", "full" | "off" | "lite" | "ultra", "volatile">;
+        disabledSkills: Schema<NoInfer<string[]>, NoInfer<string[]>, "volatile">;
+    }>>, "plain">;
     apply: typeof apply;
 };
 export default _default;

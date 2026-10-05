@@ -8,6 +8,7 @@
  * - 不注册任何 tool，全部能力经 Skill 暴露
  */
 
+import { rename } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { Context } from '@deepseek-ai/cordis'
@@ -18,12 +19,20 @@ import type {
 import Schema from '@deepseek-ai/schemastery'
 
 import {
+  getLegacyConfigPath,
   isShellSafe,
   normalizeMode,
   readConfigFileText,
-  writeDefaultMode,
+  readFullConfig,
+  readVolatile,
   type PonytailConfig,
 } from './ponytail-config.js'
+import {
+  createFileSink,
+  createSettingsSink,
+  migrateLegacyConfig,
+  type PonytailConfigSink,
+} from './ponytail-settings.js'
 import { resolvePriority } from './ponytail-priority.js'
 import { createConfigHttpEndpoint } from './ponytail-http.js'
 import { createCommandDispatcher } from './ponytail-commands.js'
@@ -37,13 +46,24 @@ import { PonytailProvider } from './ponytail-skills.js'
 
 export type Config = PonytailConfig
 
-export const Config: Schema<Config> = Schema.object({
+// Config 的类型标注交给 schemastery 推断：PonytailConfig 里两个可持久化字段已是
+// VolatileRef 形状，手动标注反而会让 TS 在 meta.default 上做无意义的交叉比对。
+export const Config = Schema.object({
   providerName: Schema.string().default('ponytail'),
   skillDir: Schema.string(),
   // 注意：不给 defaultMode 设 Schema 默认值——Cordis 校验会把缺省 fill 成显式配置，
   // 从而 shadow 掉 config.json 的 defaultMode 档；缺省时由 apply 走
   // resolvePriority()（env > patch > config 文件 > full，见 ponytail-priority.ts）
-  defaultMode: Schema.union(['off', 'lite', 'full', 'ultra']),
+  //
+  // volatile 声明的含义是「改了不必重挂载」：宿主 loader 收到新值后就地提交到本进程的引用
+  // 并派发 loader/volatile-update（cordis-plugin-loader/lib/index.js:393-425），
+  // 写入经 settings 落到 profile 补丁，重启后由 Cordis 解析回同一组 volatile 引用。
+  // union 自身可以 volatile：schemastery 只禁止「volatile 字段嵌在 union 分支 / 数组元素 / dict 内」
+  // （schemastery/lib/index.mjs:241-252），顶层固定对象路径上的 union 是允许的。
+  defaultMode: Schema.union(['off', 'lite', 'full', 'ultra']).volatile(),
+  // 技能禁用列表此前只存在 config.json（HTTP 端点专属）。迁入 Config 后由官方表单承载，
+  // 获得 revision 冲突保护与跨页面同步；旧值由 ponytail-settings 的 migrateLegacyConfig 一次性导入。
+  disabledSkills: Schema.array(Schema.string()).volatile(),
 })
 
 // ---------------------------------------------------------------------------
@@ -66,6 +86,26 @@ function resolveDefaultSkillDir(configSkillDir?: string): string {
   }
 }
 
+/**
+ * 建立可持久化配置的读写通道。
+ *
+ * 有 settings 服务时走官方路径：写入落到 profile 补丁（profiles/<name>/cordis.patch.yml），
+ * 由宿主的 configForms 承载表单与 revision 冲突保护。
+ * 没有时（headless / CLI —— dsh-base 的 settings 行在无 profileContext 时禁用）
+ * 回退 config.json 文件通道，那些组合仍然可以改配置。
+ */
+function createSinkFor(ctx: Context): PonytailConfigSink {
+  try {
+    return createSettingsSink(
+      { settings: (ctx as unknown as { settings?: unknown }).settings as Parameters<typeof createSettingsSink>[0]['settings'] },
+      'ponytail',
+      { logger: { warn: (msg: string) => ctx.logger.warn(msg) } },
+    )
+  } catch {
+    return createFileSink()
+  }
+}
+
 // ---------------------------------------------------------------------------
 // 插件入口
 // ---------------------------------------------------------------------------
@@ -77,7 +117,21 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
   const resolved: Config = {
     providerName: (rawConfig['providerName'] as string | undefined) ?? 'ponytail',
     ...(rawConfig['skillDir'] !== undefined ? { skillDir: rawConfig['skillDir'] as string } : {}),
+    // 两个 volatile 字段原样透传：真实运行时它们是引用，读侧经 readVolatile 取值；
+    // 测试与 mock 宿主可能传裸值，readVolatile 两种都认。
+    ...(rawConfig['defaultMode'] !== undefined
+      ? { defaultMode: rawConfig['defaultMode'] as Config['defaultMode'] }
+      : {}),
+    ...(rawConfig['disabledSkills'] !== undefined
+      ? { disabledSkills: rawConfig['disabledSkills'] as Config['disabledSkills'] }
+      : {}),
   }
+
+  // 配置通道：有 settings 服务走官方路径（写入落 profile 补丁，由官方表单承载）；
+  // 无 settings 服务的组合（headless / CLI —— dsh-base 的 settings 行在无 profileContext 时禁用）
+  // 静默回退 config.json 文件通道，不能因迁移而让这些组合失去配置能力。
+  const settingsService = (ctx as unknown as { settings?: unknown }).settings
+  const configSink = createSinkFor(ctx)
 
   // 优先级唯一真源（ADR-0006）：apply 启动判定与 UI 诊断链共用 resolvePriority，
   // env > patch（cordis 显式声明）> config.json > full，逐级 normalizeMode 归一。
@@ -87,7 +141,14 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
     // ponytail: env 非法值静默回退与上游一致，此处 warn 为 DSH 差分（不改变回退语义），便于定位配置错误
     ctx.logger.warn(`[ponytail] PONYTAIL_DEFAULT_MODE 值无效（回退后续来源）：${envRaw}`)
   }
-  let patchMode = rawConfig['defaultMode'] as string | undefined
+  // profile 补丁里的 defaultMode 是 volatile 引用：启动时读一次，之后每次求值都重读，
+  // 因此官方表单改动后立刻反映到优先级链，无需重启。命令层写入的乐观值暂存 patchOverride，
+  // 收到 loader/volatile-update 的 defaultMode 后清掉。
+  let patchOverride: string | undefined
+  const readPatchMode = (): string | undefined => {
+    const fromConfig = readVolatile(resolved.defaultMode)
+    return patchOverride ?? fromConfig
+  }
   // 读取 config.json 的 defaultMode 原始值：区分「字段缺失」与「文件损坏」交给诊断链统一标注
   // （initialMode 判定与 HTTP 诊断链共用同一份，必须先于 initialMode 定义）
   const readRawConfigMode = (): string | undefined => {
@@ -103,39 +164,40 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
   }
   const initialMode = resolvePriority({
     envRaw,
-    patchMode,
+    patchMode: readPatchMode(),
     configMode: readRawConfigMode(),
   }).effective
 
   const skillDir = resolveDefaultSkillDir(resolved.skillDir)
 
-  // 官方设置通道：注册 ponytail 命名空间（与官方 shell、dsh-context 同款），插件页据此 serve 配置表单。
-  // 用 ctx.inject 动态探测而非写进 inject 数组——桌面版未装配 settings 服务时静默降级，不影响其余能力。
-  // 守卫与 webServer 同款：ctx.inject 缺失（精简宿主或 mock）时整段跳过，不阻断插件其余能力。
-  if (typeof (ctx as unknown as { inject?: unknown }).inject === 'function') {
-    ctx.inject(['settings'], (sctx) => {
-      const service = (sctx as unknown as {
-        settings?: { register?: (ns: string, schema: unknown) => void; get?: (ns: string) => unknown }
-      }).settings
-      if (typeof service?.register !== 'function') return
-      service.register('ponytail', Config)
-      // 真源仍在 config.json（ADR-0005）：设置表单写入的档位在启动时对齐回来，
-      // 否则会出现「界面上改了、运行却不生效」的静默失效。
-      // ponytail: 仅启动时对齐一次，无实时订阅；需要即时生效时改挂 settings 的变更回调
-      if (typeof service.get === 'function') {
-        const stored = service.get('ponytail') as { defaultMode?: string } | null | undefined
-        const mode = stored?.defaultMode ? normalizeMode(stored.defaultMode) : null
-        if (mode && mode !== readRawConfigMode()) {
-          writeDefaultMode(mode)
-          ctx.logger.info(`[ponytail] 设置命名空间的默认档已对齐到 config.json：${mode}`)
+  // 一次性把 config.json 的两个字段导入 profile 补丁，然后改名旧文件使其幂等。
+  // 官方做法同款：dsh-settings 导入退役的 settings.yaml 时先改名再逐 section 写入
+  // （dsh-settings/lib/index.js:346-363）。导入失败只 warn，不阻断启动。
+  if (settingsService !== undefined && settingsService !== null) {
+    void migrateLegacyConfig({
+      settings: settingsService as Parameters<typeof migrateLegacyConfig>[0]['settings'],
+      namespace: 'ponytail',
+      readLegacy: () => readFullConfig(),
+      renameLegacy: async () => {
+        const legacyPath = getLegacyConfigPath()
+        if (legacyPath === null) return
+        try {
+          await rename(legacyPath, `${legacyPath}.imported`)
+        } catch {
+          // 旧文件不存在或改名失败：数据仍在 profile 侧，下个版本移除兼容读取时无需处理
         }
-      }
-      ctx.logger.info('[ponytail] 设置命名空间已注册: ponytail')
+      },
+      logger: {
+        info: (msg: string) => ctx.logger.info(msg),
+        warn: (msg: string) => ctx.logger.warn(msg),
+      },
+    }).catch((err: unknown) => {
+      ctx.logger.warn(`[ponytail] 旧配置迁移失败（不影响启动）：${String(err)}`)
     })
   }
 
   // 等级状态唯一归属：get()/set()/syncFromFile() 三方法，闭包态随 HMR 重建
-  const state = createPonytailState()
+  const state = createPonytailState({ sink: configSink })
   // 会话启动对齐（对齐上游 ponytail-activate.js SessionStart 语义）：
   // 每次会话启动都按 resolvePriority()（env > patch > config 文件 > full）重写 flag，
   // 因此 /ponytail <档> 只在本会话生效，跨会话持久化必须用 /ponytail default <档>。
@@ -204,15 +266,15 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
     getDefaultMode: () =>
       resolvePriority({
         envRaw,
-        patchMode,
+        patchMode: readPatchMode(),
         configMode: readRawConfigMode(),
       }).effective,
     // /ponytail default <档> 写盘后更新 patchMode：用户最新意图覆盖宿主声明，
     // UI 快照与命令兜底同刻读新值（修复评审发现的静默 ignore）
     updateDefaultMode: (mode) => {
-      patchMode = mode
+      patchOverride = mode
     },
-    writeDefaultMode,
+    writeDefaultMode: (mode) => configSink.writeDefaultMode(mode),
   })
 
   // 监听 agent/pre-step waterfall：模型请求前的最后拦截点（对齐上游 UserPromptSubmit）
@@ -299,7 +361,7 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
               }
             }
           },
-          readPatchMode: () => patchMode,
+          readPatchMode,
           logger: ctx.logger,
           readEnvRaw: () => process.env['PONYTAIL_DEFAULT_MODE'],
           skillDir,

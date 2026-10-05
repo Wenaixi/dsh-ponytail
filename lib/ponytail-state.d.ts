@@ -13,6 +13,7 @@
  * 实例必须是 apply() 内的闭包变量：DSH 常驻进程下 HMR 重载会重建 apply，
  * 模块级单例会让旧状态跨实例存活，与 flag 文件双写竞争。
  */
+import { type PonytailConfigSink } from './ponytail-settings.js';
 /**
  * 状态持久化存储适配器契约（两个适配器证明切面价值：生产物理磁盘 + 测试内存隔离）
  */
@@ -24,6 +25,11 @@ export interface PonytailStorage {
 export interface PonytailStateOptions {
     /** 可选注入的存储适配器；缺省时使用内联的 DSH 配置目录磁盘实现（flag 存取已并入本模块） */
     storage?: PonytailStorage;
+    /**
+     * 可持久化配置（默认档 + 技能禁用列表）的读写通道。缺省走 config.json 文件实现；
+     * 有 settings 服务的组合由 apply 注入 settings 实现（写入落 profile 补丁）。
+     */
+    sink?: PonytailConfigSink;
 }
 export interface PonytailState {
     /** 当前等级的内存视图；不触发任何文件读。null 表示关闭（'off' 由 set 归一为 null） */

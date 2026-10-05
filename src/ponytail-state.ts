@@ -16,7 +16,8 @@
 
 import { mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
-import { normalizeMode, readFullConfig, writeFullConfig, resetFullConfig, getConfigDir } from './ponytail-config.js'
+import { normalizeMode, getConfigDir } from './ponytail-config.js'
+import { createFileSink, type PonytailConfigSink } from './ponytail-settings.js'
 
 /**
  * 状态持久化存储适配器契约（两个适配器证明切面价值：生产物理磁盘 + 测试内存隔离）
@@ -30,6 +31,11 @@ export interface PonytailStorage {
 export interface PonytailStateOptions {
   /** 可选注入的存储适配器；缺省时使用内联的 DSH 配置目录磁盘实现（flag 存取已并入本模块） */
   storage?: PonytailStorage
+  /**
+   * 可持久化配置（默认档 + 技能禁用列表）的读写通道。缺省走 config.json 文件实现；
+   * 有 settings 服务的组合由 apply 注入 settings 实现（写入落 profile 补丁）。
+   */
+  sink?: PonytailConfigSink
 }
 
 export interface PonytailState {
@@ -92,7 +98,8 @@ export function createPonytailState(options?: PonytailStateOptions): PonytailSta
   const storage = options?.storage ?? defaultDiskStorage
   let current: string | null = null
 
-  let disabledSkills = new Set<string>(readFullConfig().disabledSkills)
+  const sink = options?.sink ?? createFileSink()
+  let disabledSkills = new Set<string>(sink.readDisabled())
 
   return {
     get: () => current,
@@ -102,7 +109,7 @@ export function createPonytailState(options?: PonytailStateOptions): PonytailSta
 
     setDisabledSkills(skills: string[]): void {
       disabledSkills = new Set(skills)
-      writeFullConfig({ disabledSkills: Array.from(disabledSkills) })
+      sink.writeDisabled(Array.from(disabledSkills))
     },
 
     isSkillEnabled(name: string): boolean {
@@ -116,26 +123,24 @@ export function createPonytailState(options?: PonytailStateOptions): PonytailSta
       } else {
         disabledSkills.add(name)
       }
-      writeFullConfig({ disabledSkills: Array.from(disabledSkills) })
+      sink.writeDisabled(Array.from(disabledSkills))
       return !disabledSkills.has(name)
     },
 
     setDefaultMode(mode: string): void {
       const nm = normalizeMode(mode)
-      if (nm) {
-        writeFullConfig({ defaultMode: nm })
-      }
+      if (nm) sink.writeDefaultMode(nm)
     },
 
     resetToDefaults(): void {
-      resetFullConfig()
+      sink.reset()
       disabledSkills.clear()
       current = 'full'
       storage.write('full')
     },
 
     reloadDisabledSkills(): void {
-      disabledSkills = new Set<string>(readFullConfig().disabledSkills)
+      disabledSkills = new Set<string>(sink.readDisabled())
     },
 
     syncToFile() {

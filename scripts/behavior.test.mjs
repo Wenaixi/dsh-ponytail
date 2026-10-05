@@ -134,9 +134,11 @@ test('list/get: 传入已 abort 的 AbortSignal 立即抛 AbortError（settle pr
 // Config schema 回归：defaultMode 不得带 Schema 默认值——Cordis 校验会把缺省 fill 成显式配置，
 // 从而 shadow 掉 config.json 的 defaultMode 档（上游 env > config 文件 > full 语义）；
 // 4.10.0-dsh.3 修复前 .default('full') 导致 config.json 默认档永远不可达。
-test('Config schema: defaultMode 无 Schema 默认值（config.json 默认档可达）', () => {
+test('Config schema: defaultMode 无 Schema 默认值（config.json 默认档可达）', async () => {
+  const { readVolatile } = await import('../lib/ponytail-config.js')
   const cfg = ConfigSchema({})
-  assert.equal(cfg.defaultMode, undefined, 'defaultMode 应为 undefined（未配置时让位 getDefaultMode()）')
+  assert.equal(readVolatile(cfg.defaultMode), undefined, 'defaultMode 读到 undefined（未配置时让位 resolvePriority）')
+  assert.equal(cfg.defaultMode.get(), undefined, 'volatile 引用的初值也是 undefined——这才是「无 Schema 默认值」的可观察形式')
   assert.equal(cfg.providerName, 'ponytail', 'providerName 默认值保留')
 })
 
@@ -1036,4 +1038,216 @@ test('C3 清理: config 版 isDeactivationCommand 与 normalizeConfigMode 已删
   assert.equal(config.normalizeConfigMode, undefined, 'normalizeConfigMode 孤儿应删除')
   const commands = await import('../lib/ponytail-commands.js')
   assert.equal(typeof commands.isDeactivationCommand, 'function', 'commands 版唯一实现保留')
+})
+
+// ---------------------------------------------------------------------------
+// 官方配置组合（方案 B）：Config volatile 形状与配置通道 sink
+// 背景：迁移到 Settings/configForms 后，可持久化字段改为 Cordis Config 的
+// `.volatile()` 字段（落 profile patch），配置读写统一走 PonytailConfigSink。
+// 探针已验证：union 自身可 volatile；volatileForm 投影出 defaultMode/disabledSkills。
+// ---------------------------------------------------------------------------
+
+// schemastery 3.18 的 toJSON() 是引用表形状：顶层给 uid，字段节点在 refs 里。
+// helper 把 uid 引用还原成字段节点，门禁断言因此不依赖序列化布局。
+function fieldNode(schema, name) {
+  const json = schema.toJSON()
+  const dict = json.refs[json.uid].dict
+  return json.refs[dict[name]]
+}
+
+test('Config schema: defaultMode/disabledSkills 为 volatile 字段且仍无 Schema 默认值', () => {
+  const mode = fieldNode(ConfigSchema, 'defaultMode')
+  const disabled = fieldNode(ConfigSchema, 'disabledSkills')
+  const provider = fieldNode(ConfigSchema, 'providerName')
+  assert.equal(mode.meta.volatile, true, 'defaultMode 必须是 volatile 字段（否则不会出现在官方表单里）')
+  assert.equal(disabled.meta.volatile, true, 'disabledSkills 必须是 volatile 字段')
+  assert.equal(mode.meta.default, undefined, 'defaultMode 仍不得带 Schema 默认值（否则 shadow config.json 层）')
+  assert.equal(provider.meta.volatile, undefined, 'providerName 保持普通配置，不进官方表单')
+})
+
+test('Config schema: volatile 字段解析为引用，未配置时读出 undefined 以让位优先级链', async () => {
+  const Schema = (await import('@deepseek-ai/schemastery')).default
+  const { readVolatile } = await import('../lib/ponytail-config.js')
+  const [empty] = Schema.resolve({}, ConfigSchema)
+  assert.equal(readVolatile(empty.defaultMode), undefined, '未配置时读出 undefined，让位 resolvePriority')
+  // 空数组与「清空全部」语义相同：两者都表示无禁用项，无需区分。
+  // 官方表单侧靠 revision 而非值来区分（unregister 一个从未设置的字段是 no-op）。
+  assert.deepEqual(readVolatile(empty.disabledSkills), [], '未配置的 array volatile 读出空数组（无禁用项）')
+
+  const [parsed] = Schema.resolve({ defaultMode: 'lite', disabledSkills: ['ponytail-help'] }, ConfigSchema)
+  assert.equal(typeof parsed.defaultMode.get, 'function', '配置过则解析为 volatile 引用')
+  assert.equal(readVolatile(parsed.defaultMode), 'lite')
+  assert.deepEqual(readVolatile(parsed.disabledSkills), ['ponytail-help'])
+
+  // 反向：裸值也要能读（测试直接构造 config 对象时出现）
+  assert.equal(readVolatile('ultra'), 'ultra')
+})
+
+test('配置 sink: 无 settings 服务时回退 config.json（文件实现）', async () => {
+  const { createFileSink, writeFullConfig } = await import('../lib/ponytail-settings.js')
+  const sink = createFileSink()
+  sink.reset()
+  assert.equal(sink.readDefaultMode(), 'full', '空配置回落到 DEFAULT_MODE')
+  assert.deepEqual(sink.readDisabled(), [])
+  assert.equal(sink.writeDefaultMode('ultra'), 'ultra')
+  assert.equal(sink.readDefaultMode(), 'ultra', '写盘后立即读回')
+  assert.equal(sink.writeDefaultMode('bogus'), null, '非法档拒绝写盘')
+  assert.equal(sink.readDefaultMode(), 'ultra', '非法写盘不得改变既有值')
+  sink.writeDisabled(['ponytail-help'])
+  assert.deepEqual(sink.readDisabled(), ['ponytail-help'])
+  sink.reset()
+  assert.equal(sink.readDefaultMode(), 'full')
+  assert.deepEqual(sink.readDisabled(), [])
+})
+
+test('配置 sink: settings 实现经 settings.mutate 写入并回读', async () => {
+  const { createSettingsSink } = await import('../lib/ponytail-settings.js')
+  const calls = []
+  const store = { defaultMode: 'full', disabledSkills: [] }
+  const settings = {
+    mutate: async (ns, ops, revision) => {
+      calls.push({ ns, ops, revision })
+      for (const op of ops) {
+        if (op.op === 'set') store[op.path[0]] = op.value
+        else if (op.op === 'unset') delete store[op.path[0]]
+      }
+      // 官方回执形状：dsh-api-settings-controller/lib/index.js:474 返回 namespaceView(descriptor)
+      return { ns: 'ponytail', revision: (revision ?? 0) + 1, value: { ...store }, base: {}, user: { ...store } }
+    },
+    describe: () => ({ namespaces: [{ ns: 'ponytail', revision: 7, value: { ...store } }] }),
+  }
+  const sink = createSettingsSink({ settings }, 'ponytail')
+  assert.equal(sink.writeDefaultMode('lite'), 'lite')
+  assert.equal(calls[0].ns, 'ponytail')
+  assert.deepEqual(calls[0].ops, [{ op: 'set', path: ['defaultMode'], value: 'lite' }])
+  sink.writeDisabled(['ponytail-audit'])
+  assert.deepEqual(calls[1].ops, [{ op: 'set', path: ['disabledSkills'], value: ['ponytail-audit'] }])
+  assert.equal(sink.readDefaultMode(), 'lite', 'mutate 后本地镜像即生效')
+  assert.deepEqual(sink.readDisabled(), ['ponytail-audit'])
+  sink.reset()
+  assert.deepEqual(calls[2].ops, [
+    { op: 'unset', path: ['defaultMode'] },
+    { op: 'unset', path: ['disabledSkills'] },
+  ])
+  assert.equal(sink.readDefaultMode(), 'full', 'unset 后回落到内置兜底')
+})
+
+test('配置 sink: settings 写入被拒时不抛未处理拒绝，而是记 warn 并等下一次读取纠正', async () => {
+  const { createSettingsSink } = await import('../lib/ponytail-settings.js')
+  const warnings = []
+  const settings = {
+    mutate: async () => { throw new Error('Config field "defaultMode" is not volatile') },
+    describe: () => ({ namespaces: [] }),
+  }
+  const sink = createSettingsSink({ settings }, 'ponytail', { logger: { warn: (m) => warnings.push(m) } })
+  assert.equal(sink.writeDefaultMode('lite'), 'lite', '乐观返回：同步调用方仍拿到归一后的档位')
+  await new Promise((r) => setTimeout(r, 5))
+  assert.equal(warnings.length, 1, '拒绝必须被记录，不能静默')
+  assert.match(warnings[0], /被拒/)
+})
+
+test('legacy 迁移: config.json 有值且 profile 未设时导入一次（第二次幂等跳过）', async () => {
+  const { migrateLegacyConfig } = await import('../lib/ponytail-settings.js')
+  const logs = []
+  const stored = { defaultMode: 'ultra', disabledSkills: ['ponytail-help'] }
+  let renamed = 0
+  let updates = 0
+
+  const makeSettings = () => ({
+    update: async (_ns, patch) => { updates++; Object.assign(stored, patch) },
+    // describe 反映 profile 侧的真实状态：第一次为空，导入后才有该命名空间
+    describe: () => ({ namespaces: updates === 0 ? [] : [{ ns: 'ponytail', value: {} }] }),
+  })
+
+  const deps = () => ({
+    settings: makeSettings(),
+    namespace: 'ponytail',
+    readLegacy: () => ({ defaultMode: 'ultra', disabledSkills: ['ponytail-help'] }),
+    renameLegacy: async () => { renamed++ },
+    logger: { info: (m) => logs.push(m), warn: (m) => logs.push(m) },
+  })
+
+  const first = await migrateLegacyConfig(deps())
+  assert.equal(first, true, '应执行一次迁移')
+  assert.equal(stored.defaultMode, 'ultra')
+  assert.deepEqual(stored.disabledSkills, ['ponytail-help'])
+  assert.equal(renamed, 1, '旧文件应被改名一次')
+  assert.equal(updates, 1, '只应写一次')
+
+  const second = await migrateLegacyConfig(deps())
+  assert.equal(second, false, 'profile 已设时不得重复迁移')
+  assert.equal(renamed, 1, '幂等路径不得再次改名')
+  assert.equal(updates, 1, '幂等路径不得再次写入')
+})
+
+test('legacy 迁移: config.json 无内容时不迁移', async () => {
+  const { migrateLegacyConfig } = await import('../lib/ponytail-settings.js')
+  const result = await migrateLegacyConfig({
+    settings: { update: async () => {}, describe: () => ({ namespaces: [] }) },
+    namespace: 'ponytail',
+    readLegacy: () => ({ defaultMode: 'full', disabledSkills: [] }),
+    renameLegacy: async () => {},
+    logger: { info: () => {}, warn: () => {} },
+  })
+  assert.equal(result, false)
+})
+
+test('C8 volatile: profile 补丁的 defaultMode 引用被改后，优先级链读到新值', async () => {
+  const { resolvePriority } = await import('../lib/ponytail-priority.js')
+  const { readVolatile } = await import('../lib/ponytail-config.js')
+  // 模拟宿主在 defaultMode 字段上放的 volatile 引用：官方 loader 就地更新它
+  let current = 'lite'
+  const ref = Object.freeze({ get: () => current })
+  assert.equal(readVolatile(ref), 'lite')
+
+  // 启动时读一次
+  assert.equal(resolvePriority({ patchMode: readVolatile(ref) }).effective, 'lite')
+
+  // 官方表单写入后 loader 就地改引用（不重挂载），下一次求值必须读到新档
+  current = 'ultra'
+  assert.equal(readVolatile(ref), 'ultra')
+  assert.equal(resolvePriority({ patchMode: readVolatile(ref) }).effective, 'ultra',
+    '不得缓存启动期快照——否则 UI 改了档位而运行不生效（静默失效）')
+})
+
+test('C8 apply 接线: 同一个 apply 实例内，引用就地改值后兜底档读到新值', async () => {
+  delete process.env.PONYTAIL_DEFAULT_MODE
+  let current = 'lite'
+  const ref = Object.freeze({ get: () => current })
+  const handlers = {}
+  const ctx = {
+    on: (ev, h) => { handlers[ev] = h },
+    effect: () => {},
+    logger: { info: () => {}, warn: () => {}, debug: () => {} },
+    skills: { registerProvider: () => () => {} },
+    systemPrompt: { section: () => () => {} },
+  }
+  apply(ctx, { defaultMode: ref })
+  assert.equal(readMode(), 'lite', '启动档应取引用内的值')
+
+  // 官方表单写入后 loader 就地改引用（不重挂载插件）。同一个 apply 实例里
+  // 未知参数兜底必须读到新档——若 readPatchMode 是启动期快照，这里会切回 lite 而红。
+  current = 'ultra'
+  await handlers['agent/pre-step']({ messages: [{ content: '/ponytail foobar' }] }, async () => 'next')
+  assert.equal(readMode(), 'ultra', '兜底档必须来自引用当前值（实时），不得是启动快照')
+})
+
+test('C8 apply 接线: 无 settings 服务时配置通道回退 config.json 且不抛错', async () => {
+  const handlers = {}
+  const logs = []
+  const ctx = {
+    on: (ev, h) => { handlers[ev] = h },
+    effect: () => {},
+    logger: { info: (m) => logs.push(m), warn: (m) => logs.push(m), debug: () => {} },
+    skills: { registerProvider: () => () => {} },
+    systemPrompt: { section: () => () => {} },
+    // 故意不给 settings：模拟 headless / 无 profileContext 的组合
+  }
+  assert.doesNotThrow(() => apply(ctx, {}))
+  // 命令层写入必须落到 config.json（回退通道）
+  await handlers['agent/pre-step']({ messages: [{ content: '/ponytail default lite' }] }, async () => 'next')
+  const { readConfigFileText } = await import('../lib/ponytail-config.js')
+  const raw = readConfigFileText()
+  assert.ok(raw !== null, '回退通道必须写 config.json')
+  assert.equal(JSON.parse(raw).defaultMode, 'lite')
 })
