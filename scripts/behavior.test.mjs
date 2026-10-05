@@ -1321,3 +1321,92 @@ test('C9 volatile-update: 与 disabledSkills 无关的路径不触发失效', as
   handlers['loader/volatile-update']([['defaultMode']])
   assert.equal(invalidated, 0, 'defaultMode 变更不应让技能目录失效（列表没变）')
 })
+
+test('C10 命令写入: 有 settings 服务时 /ponytail default 走 settings 通道而非 config.json', async () => {
+  const mutateCalls = []
+  let profile = { defaultMode: 'lite', disabledSkills: [] }
+  // 全部用例共用同一个临时 DSH_HOME：先清掉前序用例可能留下的 config.json，
+  // 否则「未写 config.json」这条断言会被前序残留顶红。
+  // node:test 同级用例默认并发执行：本文件里另一项「无 settings 回退」用例会写
+  // config.json，共享同一个临时 DSH_HOME 时会把「未写」这条断言顶红。
+  // 隔离办法：给本用例单独一个 DSH_HOME 子目录，跑完恢复。
+  const { mkdtemp } = await import('node:fs/promises')
+  const { join: joinPath } = await import('node:path')
+  const isolatedHome = await mkdtemp(joinPath(tmpDsh, 'c10-'))
+  const savedHome = process.env.DSH_HOME
+  process.env.DSH_HOME = isolatedHome
+
+  const settings = {
+    describe: () => ({ namespaces: [{ ns: 'ponytail', revision: 3, value: { ...profile } }] }),
+    mutate: async (ns, ops, revision) => {
+      mutateCalls.push({ ns, ops, revision })
+      for (const op of ops) {
+        if (op.op === 'set') profile[op.path[0]] = op.value
+        else delete profile[op.path[0]]
+      }
+      return { ns, revision: revision + 1, value: { ...profile } }
+    },
+    update: async () => ({}),
+  }
+  const handlers = {}
+  const ctx = {
+    settings,
+    on: (ev, h) => { handlers[ev] = h },
+    effect: () => {},
+    logger: { info: () => {}, warn: () => {}, debug: () => {} },
+    skills: { registerProvider: () => () => {} },
+    systemPrompt: { section: () => () => {} },
+  }
+  delete process.env.PONYTAIL_DEFAULT_MODE
+  apply(ctx, {})
+  await new Promise((r) => setTimeout(r, 10))
+  await handlers['agent/pre-step']({ messages: [{ content: '/ponytail default ultra' }] }, async () => 'next')
+  await new Promise((r) => setTimeout(r, 5))
+
+  assert.equal(mutateCalls.length >= 1, true, '命令写入必须经 settings.mutate（官方路径）')
+  const modeWrite = mutateCalls.find((c) => c.ops.some((op) => op.path[0] === 'defaultMode'))
+  assert.ok(modeWrite, '必须有一次写 defaultMode 的 mutate')
+  assert.equal(modeWrite.ns, 'ponytail')
+  assert.deepEqual(modeWrite.ops, [{ op: 'set', path: ['defaultMode'], value: 'ultra' }])
+
+  // 断言问的是「官方新路径没写盘」，不是「readConfigFileText() 为 null」：
+  // 后者会回退读旧平台路径（%APPDATA%/ponytail/config.json），本机恰好存在该文件，
+  // 于是断言被无关的历史数据顶红。
+  const { existsSync } = await import('node:fs')
+  const { getConfigPath } = await import('../lib/ponytail-config.js')
+  const wroteConfigJson = existsSync(getConfigPath())
+  if (savedHome === undefined) delete process.env.DSH_HOME
+  else process.env.DSH_HOME = savedHome
+  await rm(isolatedHome, { recursive: true, force: true })
+  assert.equal(wroteConfigJson, false, '有 settings 服务时不得再写 config.json（唯一真源），否则两份配置会分叉')
+})
+
+test('C10 命令写入: 无 settings 服务时 /ponytail default 回退写 config.json', async () => {
+  // 同级用例并发执行：单独隔离 DSH_HOME，否则两项 C10 会互相污染
+  const { mkdtemp } = await import('node:fs/promises')
+  const { join: joinPath } = await import('node:path')
+  const isolatedHome = await mkdtemp(joinPath(tmpDsh, 'c10b-'))
+  const savedHome = process.env.DSH_HOME
+  process.env.DSH_HOME = isolatedHome
+
+  const handlers = {}
+  const ctx = {
+    // 不给 settings：模拟 headless / CLI 组合
+    on: (ev, h) => { handlers[ev] = h },
+    effect: () => {},
+    logger: { info: () => {}, warn: () => {}, debug: () => {} },
+    skills: { registerProvider: () => () => {} },
+    systemPrompt: { section: () => () => {} },
+  }
+  delete process.env.PONYTAIL_DEFAULT_MODE
+  apply(ctx, {})
+  await handlers['agent/pre-step']({ messages: [{ content: '/ponytail default lite' }] }, async () => 'next')
+  const { readConfigFileText } = await import('../lib/ponytail-config.js')
+  const raw = readConfigFileText()
+  if (savedHome === undefined) delete process.env.DSH_HOME
+  else process.env.DSH_HOME = savedHome
+  await rm(isolatedHome, { recursive: true, force: true })
+  assert.ok(raw !== null, '无 settings 服务时必须写 config.json（否则这些组合彻底失去配置能力）')
+  assert.equal(JSON.parse(raw).defaultMode, 'lite')
+})
+
