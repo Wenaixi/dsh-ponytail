@@ -238,6 +238,30 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
     ctx.logger.debug('[ponytail] 技能目录已变更')
   })
 
+  // 官方 volatile 提交的通知：宿主 loader 把 profile 补丁里的新值就地写进本进程引用后
+  // 派发本事件（cordis-plugin-loader/lib/index.js:420，事件只在插件自己的 fiber 上广播）。
+  // 两件事必须在这里收敛，否则都是静默失效：
+  // - disabledSkills 变了但技能目录不失效 → 模型侧目录仍列着已禁用的技能；
+  // - 命令层的乐观默认值不清理 → 面板写的新值被陈旧缓存压住，永远不生效。
+  anyCtx.on('loader/volatile-update', (...args: unknown[]) => {
+    const [paths] = args as [(string | number)[][]]
+    if (!Array.isArray(paths)) return
+    const touched = new Set(paths.map((segment) => String(segment)))
+    if (touched.has('disabledSkills')) {
+      state.reloadDisabledSkills()
+      try {
+        providerInstance?.invalidate()
+      } catch {
+        // 失效失败不阻断：宿主会保留旧缓存到下次自然失效，用户看得见 UI 与模型侧不一致
+      }
+      ctx.logger.debug('[ponytail] 技能启用状态已变更，技能目录已失效')
+    }
+    if (touched.has('defaultMode')) {
+      patchOverride = undefined
+      ctx.logger.debug('[ponytail] 默认档已由 profile 补丁提交，乐观缓存已清除')
+    }
+  })
+
   // Always-on 注入：systemPrompt section，order 50 位于 persona(0) 之后
   const systemPrompt = (ctx as unknown as { systemPrompt: { section: (section: { name: string; order: number; text: string | (() => string) }) => () => void } }).systemPrompt
   systemPrompt.section({

@@ -1251,3 +1251,73 @@ test('C8 apply 接线: 无 settings 服务时配置通道回退 config.json 且�
   assert.ok(raw !== null, '回退通道必须写 config.json')
   assert.equal(JSON.parse(raw).defaultMode, 'lite')
 })
+
+test('C9 volatile-update: disabledSkills 变更后技能目录立即失效', async () => {
+  const handlers = {}
+  let invalidated = 0
+  let providerControl = { invalidate: () => { invalidated++ } }
+  const ctx = {
+    on: (ev, h) => { handlers[ev] = h },
+    effect: (setup) => setup(),
+    logger: { info: () => {}, warn: () => {}, debug: () => {} },
+    skills: {
+      registerProvider: (factory) => {
+        // 模拟宿主拿 provider 工厂并创建实例：拿到 control 以便断言 invalidate 被调用
+        const fakeControl = providerControl
+        const instance = factory(fakeControl)
+        // 实例化 provider 会真实读 skills/ 目录，这里只关心失效调用
+        void instance
+        return () => {}
+      },
+    },
+    systemPrompt: { section: () => () => {} },
+  }
+  apply(ctx, {})
+  assert.ok(handlers['loader/volatile-update'], '必须监听 loader/volatile-update，否则 UI 改技能开关后模型侧目录不收敛（静默失效）')
+  handlers['loader/volatile-update']([['disabledSkills']])
+  assert.equal(invalidated, 1, 'disabledSkills 变更必须让 provider 失效一次')
+})
+
+test('C9 volatile-update: defaultMode 变更后清掉乐观缓存（不再压过引用值）', async () => {
+  delete process.env.PONYTAIL_DEFAULT_MODE
+  let current = 'lite'
+  const ref = Object.freeze({ get: () => current })
+  const handlers = {}
+  const ctx = {
+    on: (ev, h) => { handlers[ev] = h },
+    effect: () => {},
+    logger: { info: () => {}, warn: () => {}, debug: () => {} },
+    skills: { registerProvider: () => () => {} },
+    systemPrompt: { section: () => () => {} },
+  }
+  apply(ctx, { defaultMode: ref })
+  // 命令层写入乐观值 ultra（此刻引用还是 lite）
+  await handlers['agent/pre-step']({ messages: [{ content: '/ponytail default ultra' }] }, async () => 'next')
+  assert.equal(readMode(), 'ultra', '命令写入后立即生效')
+
+  // 官方提交后 loader 派发事件：引用已更新为 full，乐观缓存必须让位
+  current = 'full'
+  handlers['loader/volatile-update']([['defaultMode']])
+  await handlers['agent/pre-step']({ messages: [{ content: '/ponytail foobar' }] }, async () => 'next')
+  assert.equal(readMode(), 'full', '收到 volatile 更新后必须读引用值（full），不得继续用陈旧的乐观缓存（ultra）')
+})
+
+test('C9 volatile-update: 与 disabledSkills 无关的路径不触发失效', async () => {
+  const handlers = {}
+  let invalidated = 0
+  const ctx = {
+    on: (ev, h) => { handlers[ev] = h },
+    effect: (setup) => setup(),
+    logger: { info: () => {}, warn: () => {}, debug: () => {} },
+    skills: {
+      registerProvider: (factory) => {
+        factory({ invalidate: () => { invalidated++ } })
+        return () => {}
+      },
+    },
+    systemPrompt: { section: () => () => {} },
+  }
+  apply(ctx, {})
+  handlers['loader/volatile-update']([['defaultMode']])
+  assert.equal(invalidated, 0, 'defaultMode 变更不应让技能目录失效（列表没变）')
+})
