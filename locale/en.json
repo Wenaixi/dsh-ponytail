@@ -23,6 +23,8 @@
   "mode.off": "Off",
   "mode.title": "Intensity Level",
   "mode.ultra": "Ultra",
+  "mode.unset": "Unset",
+  "mode.unsetHint": "The profile patch has no intensity level; the built-in fallback decides it now. Picking any level above writes it to the patch.",
   "panel.title": "Lazy Senior Dev Mode settings",
   "priority.intro": "The runtime level takes the first valid value in the following order; items shadowed by a higher-priority source cannot be changed from the UI. Current: ",
   "priority.title": "Config Priority",

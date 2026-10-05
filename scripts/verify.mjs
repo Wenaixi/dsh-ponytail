@@ -141,8 +141,10 @@ console.log('[verify] ✓ client i18n via ctx.locale (bilingual panel)')
 // 只断言「构建脚本含 t(...) 表达式」可能恒真。改为扫描产物里所有 t("...") 调用键，
 // 逐一断言 zh/en 两册字典均含该键；并扫描字典 JSON 键，断言产物内嵌字典与 locale/*.json 一致。
 const clientArtifact2 = await readFile(join(rootDir, 'lib', 'client.js'), 'utf8')
-// 只收集纯字面量 t("xxx.yyy")（排除 t("level." + source.level) 这类动态拼接与插槽 key）
-const tKeys = [...clientArtifact2.matchAll(/t\(\"([a-z]+\.[a-z]+)\"\)/g)].map((m) => m[1])
+// 只收集纯字面量 t("xxx.yyy")（排除 t("level." + source.level) 这类动态拼接与插槽 key）。
+// 大小写都要纳入：旧正则 [a-z]+ 把 mode.lockedHint / toast.modeChanged / skills.enabledToast
+// 这类含大写的键全漏在检查之外，缺键时界面会静默显示 key 名本身。
+const tKeys = [...clientArtifact2.matchAll(/t\(\"([A-Za-z]+\.[A-Za-z]+)\"\)/g)].map((m) => m[1])
 const localeFiles = ['locale/zh.json', 'locale/en.json']
 const zhDict = JSON.parse(await readFile(join(rootDir, 'locale', 'zh.json'), 'utf8'))
 const enDict = JSON.parse(await readFile(join(rootDir, 'locale', 'en.json'), 'utf8'))

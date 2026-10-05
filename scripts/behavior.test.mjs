@@ -1468,7 +1468,13 @@ async function loadClientWithStubs(options = {}) {
   let registered = null
   const stubs = {
     react: {
-      createElement: () => null,
+      // 元素描述对象而非 null：面板要在测试里被直接调用并检查它交给官方组件的 props。
+      // 变长 children 按 React 语义折进 props.children，否则元素树只剩根节点。
+      // （createElement 桩只在本 helper 内使用，C12 那份独立桩保持原样）
+      createElement: (type, props, ...children) => ({
+        type,
+        props: Object.assign({}, props, children.length > 0 ? { children } : {}),
+      }),
       useState: () => [null, () => {}],
       useEffect: () => {},
       useCallback: (fn) => fn,
@@ -1602,6 +1608,82 @@ test('C13 诊断降级: 部署没有 remote 服务时如实降级，不空转', 
   assert.equal(store.getSnapshot().value, null)
   assert.equal(calls.mount, 1, '挂载失败也算尝试过一次')
   store.dispose?.()
+})
+
+/**
+ * 等级控件只显示配置值，绝不回退到运行时推导档。
+ *
+ * 症状：刚安装（profile 补丁未写 defaultMode）时，等级控件把内置兜底 full 当成用户
+ * 亲手选过的档位高亮成「标准」，界面在说谎——补丁那行明明写着「未设置」。
+ * 判据是面板交给官方 SegmentedControl 的 props：value 必须是配置值，未配置时
+ * 为真实选项 'unset'（不能是空串或不在 options 里的值，否则官方组件求下标 -1、
+ * 全段 tabIndex=-1 且指示器滑出轨道，见 lib/index.js:3410-3492）。
+ */
+async function renderModeControl(value, effective) {
+  const { registered } = await loadClientWithStubs({
+    remoteNamespace: {
+      snapshot: async () => ({
+        ok: true,
+        value: { currentMode: effective, priority: { chain: [], effective } },
+      })
+    },
+  })
+  const face = registered.options.inject()
+  const tree = registered.component({
+    usePonytailConfig: (select) => select({ status: 'ready', value, base: {}, user: {}, revision: 1, writable: true }),
+    usePonytailSnapshot: (select) => select(face.hooks.ponytailSnapshot.getSnapshot()),
+    mutate: face.mutate,
+    reloadRemote: face.reloadRemote,
+  })
+  const find = (node) => {
+    if (node === null || typeof node !== 'object') return null
+    if (node.type === 'SegmentedControl') return node.props
+    for (const child of node.props && node.props.children ? [].concat(node.props.children) : []) {
+      const hit = find(child)
+      if (hit !== null) return hit
+    }
+    return null
+  }
+  const control = find(tree)
+  assert.ok(control !== null, '面板必须渲染出等级控件')
+  return { control, tree }
+}
+
+test('C15 等级控件: 未配置补丁时显示「未设置」段，不把兜底档说成用户已选', async () => {
+  // 刚安装的真实形态：补丁里没有 defaultMode，effective 由内置兜底决定
+  const { control } = await renderModeControl({}, 'full')
+  assert.equal(control.value, 'unset', '未配置时选中「未设置」而不是兜底档 full')
+  assert.equal(control.options.length, 5, '未配置态末尾追加一段「未设置」')
+  assert.deepEqual(control.options.map((o) => o.value), ['off', 'lite', 'full', 'ultra', 'unset'])
+  // 与运行时推导档无关：effective 改成任何值都不能影响控件显示
+  for (const effective of ['lite', 'ultra', 'off']) {
+    const other = await renderModeControl({}, effective)
+    assert.equal(other.control.value, 'unset', 'effective=' + effective + ' 不得改变控件选中值')
+  }
+})
+
+test('C15 等级控件: 补丁已配置时四档、选中配置值，且不受 effective 影响', async () => {
+  const { control } = await renderModeControl({ defaultMode: 'lite' }, 'ultra')
+  assert.equal(control.value, 'lite', '显示的是补丁里配置的档，不是运行时推导档')
+  assert.deepEqual(control.options.map((o) => o.value), ['off', 'lite', 'full', 'ultra'],
+    '已配置时退回四段，位置与未配置态的前四段一致')
+})
+
+test('C15 未配置提示: 面板渲染「补丁未配置」提示行，已配置时不渲染', async () => {
+  // 面板把提示行渲染成 <p>{t(key)}</p>，children 是长度 1 的数组；先把字符串叶子收集出来
+  const collect = (node, out) => {
+    if (typeof node === 'string') { out.push(node); return }
+    if (node === null || typeof node !== 'object') return
+    const children = node.props?.children
+    for (const child of children ? [].concat(children) : []) collect(child, out)
+  }
+  const texts = []
+  await renderModeControl({}, 'full').then(({ tree }) => collect(tree, texts))
+  assert.ok(texts.some((s) => s.includes('mode.unsetHint') || s.includes('补丁未配置')),
+    '未配置时必须提示 Profile 补丁未配置（当前 t() 桩返回 key 名，可据此定位）')
+  const configuredTexts = []
+  await renderModeControl({ defaultMode: 'lite' }, 'lite').then(({ tree }) => collect(tree, configuredTexts))
+  assert.ok(!configuredTexts.includes('mode.unsetHint'), '已配置时不得再显示未配置提示')
 })
 
 test('C14 插件元信息: locale 词典声明 meta.title 与 meta.description（卡片标题的真源）', async () => {

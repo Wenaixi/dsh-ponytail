@@ -173,14 +173,23 @@ const content = `window.__ModuleLoader__.load({
       },
     };
 
-    // 档位标签在 apply 时才绑定 locale（t 是 factory 级可变变量），因此按需取值而不是模块级求值
-    function modeOptions() {
-      return [
+    // 档位标签在 apply 时才绑定 locale（t 是 factory 级可变变量），因此按需取值而不是模块级求值。
+    //
+    // configured=false（补丁未写 defaultMode）时末尾追加一段真实的「未设置」选项，而不是把 value
+    // 置成一个不在 options 里的值：官方 SegmentedControl 用 options.findIndex 求下标，
+    // 下标 -1 会让所有段 tabIndex=-1（键盘不可达）且指示器整颗滑出轨道左缘
+    // （dsh-client-ui-primitives/lib/index.js:3410-3492 与 SegmentedControl.module.css）。
+    // 「未设置」排在末尾而非首位：未配置态下 关闭/轻量/标准/激进 仍占 0-3 段，
+    // 配好之后四档位置不变，用户已有的肌肉记忆不被打断。
+    function modeOptions(configured) {
+      var options = [
         { value: "off", label: t("mode.off") },
         { value: "lite", label: t("mode.lite") },
         { value: "full", label: t("mode.full") },
         { value: "ultra", label: t("mode.ultra") },
       ];
+      if (!configured) options.push({ value: "unset", label: t("mode.unset") });
+      return options;
     }
 
     // 技能元数据从 SKILL.md frontmatter 构建期提取（唯一真源，与宿侧 readSkillMeta 同源）。
@@ -403,6 +412,9 @@ const content = `window.__ModuleLoader__.load({
 
       const config = snapshot.value || {};
       const defaultMode = typeof config.defaultMode === "string" ? config.defaultMode : null;
+      // 配置值的有无，而不是运行时推导值的有无：defaultMode 无 Schema 默认值
+      // （src/ponytail.ts），所以快照里读得到它，就说明用户的 profile 补丁里写了。
+      const modeConfigured = defaultMode !== null;
       // 只有环境变量命中才锁：env 压过一切，此时改 patch 确实无效。
       // fallback 命中必须放行——那是「补丁与 env 都没写」的兜底，不是更高优先级的配置，
       // 用户改 patch 立刻生效（此前把 fallback 也当压制源，提示文案在说谎）。
@@ -424,11 +436,18 @@ const content = `window.__ModuleLoader__.load({
           e(P.SegmentedControl, {
             id: "ponytail-mode",
             label: t("mode.title"),
-            value: defaultMode === null ? remote && remote.priority ? remote.priority.effective : "full" : defaultMode,
-            options: modeOptions(),
+            // 控件只显示配置值，绝不回退到 priority.effective：那是运行时推导档
+            // （env / 补丁 / 兜底合并的结果），回退会让刚安装的用户看到「标准」被高亮，
+            // 像亲手选过一样。未配置就如实显示「未设置」段。
+            // 「当前生效」由上方优先级链表独占呈现，这里不重复。
+            value: modeConfigured ? defaultMode : "unset",
+            options: modeOptions(modeConfigured),
             disabled: busy || !writable || levelLocked,
             onChange: setMode,
           }),
+          !modeConfigured
+            ? e("p", { style: L.hint }, t("mode.unsetHint"))
+            : null,
           levelLocked
             ? e("p", { style: Object.assign({}, L.hint, { color: "var(--dsw-alias-state-warn-primary)" }) }, t("mode.lockedHint"))
             : null,

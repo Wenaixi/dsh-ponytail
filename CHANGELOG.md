@@ -8,6 +8,9 @@
 
 ### Fixed
 
+- 等级控件不再把运行时推导档显示成「用户已配置的档」。此前补丁未写 `defaultMode` 时，`SegmentedControl` 的 `value` 回退到 `priority.effective`（内置兜底 `full`），于是刚安装的用户看到「标准」被高亮成亲手选过的样子，而上方链表同一行却写着「未设置」——界面自相矛盾。控件语义摆正为「配置编辑器」：只显示补丁里真实配置的档，未配置时显示末尾追加的「未设置」段并给出提示，「当前生效」由上方链表的 `priority.intro` 独占呈现。用真实选项而非空选中态，是因为官方 `SegmentedControl` 以 `options.findIndex` 求下标，下标 `-1` 会让全部段 `tabIndex=-1`（键盘不可达）且指示器整颗滑出轨道左缘。
+- `scripts/verify.mjs` 的 `t()` 键收集正则从 `[a-z]+` 放宽为 `[A-Za-z]+`：含大写的键（`mode.lockedHint`、`toast.modeChanged`、`skills.enabledToast` 等）此前全部不在检查范围内，缺键时界面会静默显示键名本身。
+
 - 技能卡与文档同步三级链与 profile 落点。`skills/ponytail-help` 此前教用户改 `$DSH_HOME/ponytail/config.json` 并写着「环境变量 > 配置文件 > full」，而该路径在 1A 下沉后只服务无 Settings 服务的组合、配置文件层也已退出优先级链——模型读到那段会真的去改一个不生效的文件。改为三级链的真实落点并指向界面上现成的诊断面板。
 - `skills/ponytail-gain` 的数据来源原写 `benchmarks/` 与 README，但仓库无该目录，数字只存在于 `assets/benchmark-3model.svg` 与 `assets/benchmark-agentic.svg`。改为指向真实文件。
 - `scripts/verify.mjs` 追加门禁：技能正文不得出现已退役的配置路径或链路数表述。技能卡是模型会真的读到的内容，这类失实描述必须挡住。
