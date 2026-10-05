@@ -8,6 +8,7 @@
 
 ### Fixed
 
+- README 补「安装：条目必须写在补丁顶层」一节。此前插件包 `cordis.patch.yml` 用 `insert` 列表声明条目，而宿主配置编辑器只为**顶层**条目管理 `config` 块：`insert` 条目的写入永远被 `Configuration for "ponytail" is overridden by a home patch or command-line overlay` 拒绝（`dsh-config-editor/lib/index.js:121`），面板显示「本部署没有接受这次修改」。卡片能渲染不代表能写——插件自己的面板不显示只读横幅，这是唯一可观察的判据。
 - 等级控件不再把运行时推导档显示成「用户已配置的档」。此前补丁未写 `defaultMode` 时，`SegmentedControl` 的 `value` 回退到 `priority.effective`（内置兜底 `full`），于是刚安装的用户看到「标准」被高亮成亲手选过的样子，而上方链表同一行却写着「未设置」——界面自相矛盾。控件语义摆正为「配置编辑器」：只显示补丁里真实配置的档，未配置时显示末尾追加的「未设置」段并给出提示，「当前生效」由上方链表的 `priority.intro` 独占呈现。用真实选项而非空选中态，是因为官方 `SegmentedControl` 以 `options.findIndex` 求下标，下标 `-1` 会让全部段 `tabIndex=-1`（键盘不可达）且指示器整颗滑出轨道左缘。
 - `scripts/verify.mjs` 的 `t()` 键收集正则从 `[a-z]+` 放宽为 `[A-Za-z]+`：含大写的键（`mode.lockedHint`、`toast.modeChanged`、`skills.enabledToast` 等）此前全部不在检查范围内，缺键时界面会静默显示键名本身。
 

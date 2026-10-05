@@ -116,9 +116,36 @@ HMR: 全部走 ctx，热重载逆序自动清理
 
 **注意**：`Config.defaultMode` 的 Schema 刻意不带默认值。Cordis 校验会把缺省 fill 成显式配置——补丁里显式写 `full` 与什么都不写会读出同一个值，诊断面板就无法区分"用户配过"与"没配过"，界面因此说谎。
 
+### 安装：条目必须写在补丁顶层
+
+插件包自带的 `cordis.patch.yml` 用的是 `insert` 列表：
+
+```yaml
+- insert:
+    - id: ponytail
+      name: "@wenaixi/dsh-ponytail"
+```
+
+**面板写不进去配置，绝大多数情况是因为补丁条目不是顶层条目。** 宿主的配置编辑器（`dsh-config-editor`）只为顶层条目管理 `config` 块：`edit()` 写入前会把新配置与"继承层"合成结果逐字段比对，不一致就抛 `Configuration for "ponytail" is overridden by a home patch or command-line overlay`（`lib/index.js:121`），面板收到的是「本部署没有接受这次修改」。`insert` 里的条目不参与该比对，条目永远判为被覆盖。
+
+卡片能渲染不代表能写。界面上的判据是 `settings/describe` 的 `writable` 与是否出现那句拒绝提示——本插件自己的卡片不显示只读横幅，所以要看提示文案。
+
+顶层的等价写法（可直接粘进 profile 的 `cordis.patch.yml`）：
+
+```yaml
+- id: ponytail
+  name: "@wenaixi/dsh-ponytail"
+  config:
+    defaultMode: full  # off|lite|full|ultra
+```
+
+注意两种形态不能混用：profile 补丁里若已有顶层 `- id: ponytail`，插件包 `insert` 进来的同 id 条目会被宿主合并；反之亦然。
+
 ### 界面配置
 
-插件在已安装插件卡片详情内嵌配置面板（`plugins.bundle.config` 插槽），支持四档运行等级、6 个技能的独立开关、一键恢复默认，并给出**三级优先级诊断链**——逐行显示环境变量、Profile 补丁、内置兜底各自的值与生效状态，被更高优先级压制的那一级会显式标为"被覆盖"。只有环境变量命中时等级选择器才禁用（env 压过一切，此时改补丁确实无效）；兜底命中属于"补丁与 env 都没写"，不是更高优先级的配置，必须放行。
+插件在已安装插件卡片详情内嵌配置面板（`plugins.bundle.config` 插槽），支持运行等级、6 个技能的独立开关、一键恢复默认，并给出**三级优先级诊断链**——逐行显示环境变量、Profile 补丁、内置兜底各自的值与生效状态，被更高优先级压制的那一级会显式标为"被覆盖"。只有环境变量命中时等级选择器才禁用（env 压过一切，此时改补丁确实无效）；兜底命中属于"补丁与 env 都没写"，不是更高优先级的配置，必须放行。
+
+等级控件只显示**补丁里真实配置的档**，不回退到运行时推导档：没配过时选中末尾追加的「未设置」段并给出提示，「当前生效」由链表的 `priority.intro` 独占呈现。这是刻意的——把兜底档显示成已配置档，界面就在说谎。
 
 面板不使用自制 HTTP 端点，读写分两条官方通道：
 
