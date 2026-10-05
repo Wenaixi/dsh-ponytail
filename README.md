@@ -82,7 +82,7 @@ dsh --profile web --dump-config | grep -A2 ponytail
 | `ponytail-subagent.js` | `src/ponytail.ts` 的 `agent/created`（`PONYTAIL_SUBAGENT_MATCHER`） |
 
 ```
-启动:  env PONYTAIL_DEFAULT_MODE → cordis defaultMode → $DSH_HOME/ponytail/config.json → full
+启动:  env PONYTAIL_DEFAULT_MODE → cordis defaultMode → full
        → setMode(flag 文件)   // 会话启动对齐语义，见下方说明
 
 每轮请求前: agent/pre-step (waterfall, 必须 return next())
@@ -92,14 +92,14 @@ dsh --profile web --dump-config | grep -A2 ponytail
       order 50 在 persona(0) 之后、工具(100) 之前；回调收敛为单行 text: () => renderPromptSection(skillDir, state)
       off → 空，review → 指向技能，读盘失败 → 中文 fallback，assembly 前以 readMode() 对齐
 
-持久化: /ponytail default <mode> → 写入 config.json
+持久化: /ponytail default <mode> → 写入 profile 补丁或 profile 内 config.json
 子智能体: PONYTAIL_SUBAGENT_MATCHER 正则（非法 warn 回退），共享同一 section
 HMR: 全部走 ctx，热重载逆序自动清理
 ```
 
-`systemPrompt` 而非 `agent.inject`：落入日志可重建，`order: 50` 优先级高，每次 `assemble` 动态求值，`off` 零成本。flag（`.ponytail-active`）与配置同源持久化于 DSH 用户数据根目录（`$DSH_HOME/ponytail`，默认 `~/.dsh/ponytail`），`/ponytail` 切换在 DSH 内闭环。
+`systemPrompt` 而非 `agent.inject`：落入日志可重建，`order: 50` 优先级高，每次 `assemble` 动态求值，`off` 零成本。flag（`.ponytail-active`）与配置同源持久化在当前 profile 内（`profiles/<name>/ponytail/`），`/ponytail` 切换在 DSH 内闭环。作用域随 profile 隔离，同机多实例互不干扰。
 
-**会话启动对齐**：每次会话启动都会按默认档（env > patch > 配置文件 > full）重写 flag，这是对齐上游 SessionStart 语义。因此 `/ponytail <档>` **只在本会话生效**；要让某个等级跨会话持久化，必须用 `/ponytail default <档>` 写进配置文件。
+**会话启动对齐**：每次会话启动都会按默认档（env > patch > full）重写 flag，这是对齐上游 SessionStart 语义。因此 `/ponytail <档>` **只在本会话生效**；要让某个等级跨会话持久化，必须用 `/ponytail default <档>` 写进配置文件。
 
 ## ⚙️ 配置
 
@@ -112,24 +112,24 @@ HMR: 全部走 ctx，热重载逆序自动清理
         defaultMode: full  # off|lite|full|ultra
 ```
 
-优先级（四级，取第一个有效值）：`PONYTAIL_DEFAULT_MODE` env > `cordis.defaultMode` > `$DSH_HOME/ponytail/config.json`（默认 `~/.dsh/ponytail/config.json`） > `full`。持久化：`/ponytail default <mode>` 写入文件，`review` 不可作默认。
+优先级（三级，取第一个有效值）：`PONYTAIL_DEFAULT_MODE` env > `cordis.defaultMode` > 内置兜底 `full`。持久化：`/ponytail default <mode>` 写入 profile 补丁，`review` 不可作默认。
 
-**注意**：`Config.defaultMode` 的 Schema 刻意不带默认值。Cordis 校验会把缺省 fill 成显式配置，一旦填上就会永久压过 `config.json` 里用户设置的档位，让 UI 上的改动看起来"不生效"。
+**注意**：`Config.defaultMode` 的 Schema 刻意不带默认值。Cordis 校验会把缺省 fill 成显式配置——补丁里显式写 `full` 与什么都不写会读出同一个值，诊断面板就无法区分"用户配过"与"没配过"，界面因此说谎。
 
 ### 界面配置
 
-插件在已安装插件卡片详情内嵌配置面板（`plugins.bundle.config` 插槽），支持四档运行等级、6 个技能的独立开关、一键恢复默认，并给出**四级优先级诊断链**——逐行显示环境变量、Profile 补丁、配置文件、内置兜底各自的值与生效状态，被更高优先级压制的那一级会显式标为"被覆盖"，等级选择器同时禁用。
+插件在已安装插件卡片详情内嵌配置面板（`plugins.bundle.config` 插槽），支持四档运行等级、6 个技能的独立开关、一键恢复默认，并给出**三级优先级诊断链**——逐行显示环境变量、Profile 补丁、内置兜底各自的值与生效状态，被更高优先级压制的那一级会显式标为"被覆盖"。只有环境变量命中时等级选择器才禁用（env 压过一切，此时改补丁确实无效）；兜底命中属于"补丁与 env 都没写"，不是更高优先级的配置，必须放行。
 
 面板不使用自制 HTTP 端点，读写分两条官方通道：
 
 | 通道 | 内容 | 落点 |
 | --- | --- | --- |
 | `ctx.configForms.get('ponytail')` | 默认档、技能启用列表（写入自带 revision 冲突检测） | Profile 补丁 `profiles/<name>/cordis.patch.yml` |
-| `ctx.remote.ponytail.snapshot()` | 当前生效等级、四级优先级诊断链（只读） | 不落盘，按需拉取 |
+| `ctx.remote.ponytail.snapshot()` | 当前生效等级、三级优先级诊断链（只读） | 不落盘，按需拉取 |
 
-在无 Profile 上下文的组合（headless / CLI）里，宿主没有装配 Settings 服务，此时配置读写回退到 `$DSH_HOME/ponytail/config.json`。从旧版本升级时，`config.json` 里的两个字段会在首次启动时一次性导入 Profile 补丁，随后旧文件被改名为 `config.json.imported`；导入失败不影响启动，可用 `/ponytail default <档>` 重新设置。
+在无 Profile 上下文的组合（headless / CLI）里，宿主没有装配 Settings 服务，此时配置读写回退到 profile 内的 `ponytail/config.json`。从旧版本升级时，全局共享的 `$DSH_HOME/ponytail/config.json` 会在首次启动时一次性导入 Profile 补丁，随后旧文件被改名为 `config.json.imported`；导入失败不影响启动，可用 `/ponytail default <档>` 重新设置。
 
-若从旧位置升级，首次读取会兼容旧配置，但新写入一律落到 DSH 数据根；旧目录不删不改。
+旧的平台位置（`%APPDATA%` / `XDG_CONFIG_HOME` / `~/.config`）兼容读取已随 1A 下沉一并删除；`scripts/verify.mjs` 现在对 `src/` 下任何平台路径字面量直接判失败。
 
 ## 🎮 使用
 

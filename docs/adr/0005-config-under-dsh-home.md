@@ -1,6 +1,6 @@
 # 5. 配置与 flag 统一归入 DSH 用户数据根（跨平台一致）
 
-- **状态 (Status)**: 已采纳 (Accepted)
+- **状态 (Status)**: 已采纳 (Accepted)，作用域由 [ADR-0009](0009-profile-scoped-config-and-flag.md) 修订
 - **日期 (Date)**: 2026-10-02
 - **决策者 (Deciders)**: Ponytail 架构小组
 - **修订对象**: [ADR-0004](0004-dsh-single-host-runtime.md) 的目录落地细节
@@ -60,12 +60,14 @@ ADR-0004 把 flag 收敛到「DSH 配置目录」，但当时把「DSH 配置目
   面板与文档不再出现平台特定路径。
 - **妥协权衡**：升级用户的当前等级会重置为默认（`full`）——因为会话启动对齐语义每次按默认档重写 flag；
   已自定义的 `defaultMode` 与 `disabledSkills` 通过旧位置兼容读取保住，不会静默丢失。
-- **清理时机**：旧位置兼容读取标注 `ponytail:` 债务，计划在 5.x 首发移除，届时可整段删除
-  `getLegacyConfigDir()` / `getLegacyConfigPath()` / `readConfigFileText()` 的回退分支。
+- **清理时机**：已完成。`getLegacyConfigDir()` / `getLegacyConfigPath()` 及其三条平台分支
+  （`%APPDATA%` / `XDG_CONFIG_HOME` / `~/.config`）已随 ADR-0009 的一部下沉删除，
+  `scripts/verify.mjs` 对应豁免同时移除。
 
 ## 验证证据 (Verification)
 
 - `resolveDshHome()` 优先级实测：unset → `~\.dsh`；`DSH_HOME=E:/tmp/x` → `E:\tmp\x`；
   空白 → `~\.dsh`；`DSH_HOME=~/mydsh` → 家目录展开；explicit → 最高优先级。
 - 行为单测 33 → 36 项全绿（新增数据根优先级、配置目录落点、旧位置兼容读取三项）。
+- ADR-0009 落地后为 85 项全绿。
 - 静态门禁 `node scripts/verify.mjs` ALL PASS（8 产物、6 技能、零 Tool 注册）。

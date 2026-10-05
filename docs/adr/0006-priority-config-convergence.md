@@ -1,6 +1,6 @@
 # 6. 优先级与配置收敛，客户端接入官方 locale
 
-- **状态 (Status)**: 已采纳 (Accepted)
+- **状态 (Status)**: 已采纳 (Accepted)，优先级链由 [ADR-0009](0009-profile-scoped-config-and-flag.md) 降为三级
 - **日期 (Date)**: 2026-10-04
 - **决策者 (Deciders)**: Ponytail 架构小组
 

@@ -1,6 +1,6 @@
 # 7. 默认档命令层统一真源，读侧收敛与 flag 内联
 
-- **状态 (Status)**: 已采纳 (Accepted)
+- **状态 (Status)**: 已采纳 (Accepted)，`configMode` 参数与三级链由 [ADR-0009](0009-profile-scoped-config-and-flag.md) 修订
 - **日期 (Date)**: 2026-10-04
 - **决策者 (Deciders)**: Ponytail 架构小组
 - **修订对象**: [ADR-0006](0006-priority-config-convergence.md) 决策 1

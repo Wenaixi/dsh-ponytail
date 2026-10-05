@@ -35,3 +35,10 @@
 本 ADR 中关于持久化目录落于宿主平台传统约定（$XDG_CONFIG_HOME / %APPDATA% / ~/.config）的落地细节已由 **ADR-0005** 修订：
 DSH 官方规范（@deepseek-ai/dsh-home-paths）严格规定所有用户数据均收敛于单一根目录 `$DSH_HOME`（默认 `~/.dsh`），
 故配置与 flag 正式统一归入 `$DSH_HOME/ponytail` 统一数据根，并对旧位置保持平滑兼容读取。
+
+## 修订注记（Amendment Note — 2026-10-05）
+
+「统一数据根」不等于「全局共享」。`$DSH_HOME` 结构上不含 profile 维度，因此该目录下的文件被同机所有实例共用，
+这与 ADR-0004 标题里的「单一宿主」是同一处错误前提。配置与 flag 的作用域已由 **ADR-0009** 进一步收窄到
+`profiles/<name>/ponytail`；`$DSH_HOME/ponytail/config.json` 现在只作为旧版本的一次性迁移来源，
+平台位置的兼容读取（`%APPDATA%` / `XDG_CONFIG_HOME` / `~/.config`）已一并删除。

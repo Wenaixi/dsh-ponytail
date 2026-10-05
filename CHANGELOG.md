@@ -18,11 +18,13 @@
 ## [Unreleased]
 
 ### Added
-- `src/ponytail-settings.ts`：可持久化配置的读写通道。`createSettingsSink` 经 `ctx.settings.mutate('ponytail', ops, revision)` 写入，由宿主落到 profile 补丁并自带 revision 冲突保护；`createFileSink` 在无 profileContext 的组合（headless / CLI，dsh-base 的 settings 行未装配）回退读写 `config.json`；`migrateLegacyConfig` 把旧 `config.json` 的两个字段一次性导入 profile 补丁并改名旧文件使其幂等。
-- `src/ponytail-remote.ts`：`PonytailRemote extends TypertRemoteService`，命名空间 `ponytail`，只暴露只读端点 `snapshot()`（当前生效等级 + 四级优先级诊断链）。宿主网关按服务上的 `typertRemote` 绑定自动发现端点，浏览器侧即 `ctx.remote.ponytail.snapshot()`。
+- 配置与 flag 的 profile 维度：全部配置文件读写函数与 `createDiskStorage` 接受 `profileDir`，目录来自宿主 `profileContext.dir`，落点改为 `profiles/<name>/ponytail/`。同机多实例不再共享 `$DSH_HOME/ponytail`，最后写者赢的串扰消失。`src/ponytail-settings.ts` 提供两条通道——`createSettingsSink` 经 `ctx.settings.mutate('ponytail', ops, revision)` 写入，由宿主落到 profile 补丁并自带 revision 冲突保护；`createFileSink` 在无 settings 服务的组合（headless / CLI）回退读写 profile 内 `config.json`；`migrateLegacyConfig` 把全局共享的旧 `config.json` 一次性导入 profile 补丁并改名使其幂等。
+- `src/ponytail-remote.ts`：`PonytailRemote extends TypertRemoteService`，命名空间 `ponytail`，只暴露只读端点 `snapshot()`（当前生效等级 + 三级优先级诊断链）。宿主网关按服务上的 `typertRemote` 绑定自动发现端点，浏览器侧即 `ctx.remote.ponytail.snapshot()`。
+- 客户端 Remote 贡献声明 `PONYTAIL_REMOTE`：`apply()` 先 `await ctx.remote.$mount(...)` 再建 store。此前客户端只读命名空间却从未挂载，而网关的命名空间不是按需自动开通的（`dsh-api-remotes` 只遍历编译期写死的 25 个官方贡献），`remote.ponytail` 永不出现，面板因此永久显示「诊断信息不可用」——宿主完全正常。`$mount` 返回即命名空间就绪，故 40 次 x 50ms 轮询一并删除，改为挂载失败直接降级。
 
 ### Changed
 - 配置卡改用 DSH 官方插件配置组合：`Config` 的 `defaultMode` 与 `disabledSkills` 声明为 `.volatile()` 字段，宿主 `volatileForm()` 投影成官方表单；客户端经 `ctx.configForms.get('ponytail')` 读写，插槽注册包在 `configForms.whileServed(['ponytail'])` 内。
+- 优先级链从四级降为三级 `env > patch > fallback`：`config.json` 层随 1A 下沉退役。留在链里就是一层永远不生效的空壳，而「看着能改其实不生效」正是这套面板最初要解决的坑。`LEVELS` / `LABELS` / `PROBLEMS` 各删一项，`resolvePriority` 去掉 `configMode` 参数，locale 同步删除 `level.config` 与 `problem.config`。
 - `patchMode` 改为实时读取 volatile 引用，不再缓存启动期快照。
 - `PonytailConfig` 的两个可持久化字段类型为 `VolatileRef<T>`，新增 `readVolatile()` 兼容「引用 / 裸值 / 未配置」三态。
 - 技能启用态的失效触发点从自制 HTTP 端点直调改为监听宿主 `loader/volatile-update`。
@@ -30,10 +32,12 @@
 ### Removed
 - 删除 `src/ponytail-http.ts` 与 `/api/plugins/ponytail/config` 端点，以及 `webServer` 注入。
 - 删除 `apply()` 里对 `settings.register('ponytail', Config)` 的调用——`@deepseek-ai/dsh-settings@0.2.0-rc.2` 没有 `register` 方法（全文件零次出现），该调用此前被 `typeof` 守卫静默跳过，属于从未生效的死代码。命名空间改由「唯一 profile 条目 + 含 volatile 字段的 Config」自动产生。
+- 删除平台位置兼容读取 `getLegacyConfigDir()` / `getLegacyConfigPath()`（`%APPDATA%` / `XDG_CONFIG_HOME` / `~/.config` 三条分支）。1A 下沉后它们不再有任何读取者，`scripts/verify.mjs` 的对应豁免同时移除——现在 `src/` 下出现任何平台路径字面量直接判失败。
 
 ### Fixed
 - 技能禁用状态此前只存在 `config.json` 且只能由 HTTP 端点修改；迁移后 UI 改开关后模型侧目录不收敛（写入链不经过本插件任何函数）。现由 loader 的 volatile 提交事件驱动失效。
 - 客户端配置卡此前自建 `fetch` 状态机（含空配置兜底、加载态、错误态），现完全走官方表单控制器，不发起任何 HTTP 请求。
+- 等级选择器的锁定判定原为「除 patch 与 config 外、只要有层级命中就锁」，而兜底层在没有 env 与 patch 时恒命中，于是按钮永久禁用、提示永远显示「当前有更高优先级的配置在生效」——但兜底不是更高优先级的配置，改补丁立刻生效，文案在说谎。改为只认 env 命中。
 
 ## [4.10.0-dsh.12] - 2026-10-04
 
