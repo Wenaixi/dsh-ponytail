@@ -1494,3 +1494,103 @@ test('C11 生产接线: apply 在具备 ctx.plugin 的宿主上挂载 ponytailRe
   assert.equal(marked[0].method, 'snapshot')
   assert.equal(Reflect.get(service, 'typertRemote').namespace, 'ponytail')
 })
+
+test('C12 客户端产物: apply 只经官方通道接线，不发任何 HTTP 请求', async () => {
+  const { readFile } = await import('node:fs/promises')
+  const { fileURLToPath } = await import('node:url')
+  const artifact = await readFile(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'lib', 'client.js'), 'utf8')
+
+  // 用最小 require 桩执行产物，验证接线而不只是匹配字符串。
+  const calls = { locale: [], slots: [], configForms: [], http: [] }
+  const disposers = []
+  const facade = {
+    snapshot: async () => ({ ok: true, value: { currentMode: 'lite', priority: { chain: [], effective: 'lite' } } }),
+  }
+  const stubs = {
+    react: {
+      createElement: () => null,
+      useState: () => [null, () => {}],
+      useEffect: () => {},
+      useCallback: (fn) => fn,
+      useSyncExternalStore: (subscribe, getSnapshot) => getSnapshot(),
+    },
+    '@deepseek-ai/dsh-client-ui-primitives': {
+      StateDot: 'StateDot', Tag: 'Tag', SegmentedControl: 'SegmentedControl',
+      Switch: 'Switch', Button: 'Button',
+    },
+  }
+  const globalStubs = {
+    window: {
+      __ModuleLoader__: {
+        load(payload) {
+          const mod = payload.factory((name) => {
+            if (name in stubs) return stubs[name]
+            throw new Error('unexpected require: ' + name)
+          })
+          const ctx = {
+            effect: (setup) => { const d = setup(); if (typeof d === 'function') disposers.push(d) },
+            on: () => () => {},
+            logger: { warn() {}, info() {}, debug() {} },
+            locale: {
+              register: (ns, dict) => { calls.locale.push({ ns, keys: Object.keys(dict.zh).length }); return () => {} },
+              bind: () => (k) => k,
+              subscribe: () => () => {},
+            },
+            slots: {
+              inject: (name, register) => {
+                const d = register()
+                calls.slots.push({ name, key: d.options.key })
+                disposers.push(d)
+                return () => {}
+              },
+              register: (options, component) => ({ options, component }),
+            },
+            configForms: {
+              get: (ns) => {
+                calls.configForms.push({ op: 'get', ns })
+                return {
+                  getSnapshot: () => ({ status: 'ready', value: {}, base: {}, user: {}, revision: 1, writable: true }),
+                  subscribe: () => () => {},
+                  mutate: async () => true,
+                  dispose: () => {},
+                }
+              },
+              whileServed: (namespaces, register) => {
+                calls.configForms.push({ op: 'whileServed', namespaces })
+                const d = register(new Set(namespaces))
+                return d
+              },
+            },
+            get: (key) => (key === 'remote.ponytail' ? facade : undefined),
+          }
+          globalThis.fetch = (...args) => { calls.http.push(String(args[0])); throw new Error('HTTP must not be used') }
+          mod.apply(ctx)
+        },
+      },
+    },
+  }
+  const savedWindow = globalThis.window
+  const savedFetch = globalThis.fetch
+  Object.assign(globalThis, globalStubs)
+  try {
+    // 产物是「顶层立即调用 window.__ModuleLoader__.load({...})」的脚本：
+    // 直接在挂了桩的全局上求值它，即可捕获 factory 并触发 apply。
+    const run = new Function(artifact)
+    run.call(globalThis)
+  } finally {
+    if (savedWindow === undefined) delete globalThis.window
+    else globalThis.window = savedWindow
+    if (savedFetch === undefined) delete globalThis.fetch
+    else globalThis.fetch = savedFetch
+    for (const d of disposers.splice(0)) { try { d() } catch {} }
+  }
+
+  assert.deepEqual(calls.http, [], '客户端产物不得发起任何 HTTP 请求（已迁移到官方通道）')
+  assert.deepEqual(calls.configForms.filter((c) => c.op === 'get').map((c) => c.ns), ['ponytail'],
+    '必须经 configForms.get("ponytail") 读官方配置')
+  assert.deepEqual(calls.configForms.filter((c) => c.op === 'whileServed').map((c) => c.namespaces), [['ponytail']],
+    '必须经 whileServed(["ponytail"]) 跟随命名空间')
+  assert.deepEqual(calls.slots.map((s) => s.name), ['plugins.bundle.config'], 'UI 落点唯一')
+  assert.deepEqual(calls.slots.map((s) => s.key), ['@wenaixi/dsh-ponytail'], '插槽 key 为包名')
+  assert.equal(calls.locale.length, 1, '必须注册一次双语字典')
+})

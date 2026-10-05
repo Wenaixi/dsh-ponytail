@@ -114,8 +114,8 @@ if (extra.length > 0) {
 // 客户端 i18n 接入反向断言：面板文案必须经 ctx.locale 双语字典（C6），
 // 产物构建脚本不得回退到硬编码中文文案（t( 调用之外无中文字符串字面量，字典 JSON 除外）。
 const buildScript = await readFile(join(rootDir, 'scripts', 'build-client.mjs'), 'utf8')
-if (!buildScript.includes("ctx.locale.register(NS") || !buildScript.includes('exports.inject = ["slots", "locale"]')) {
-  console.error('[verify] FAIL: 客户端必须接入 ctx.locale（register + bind + inject locale）')
+if (!buildScript.includes('ctx.locale.register(NS') || !/exports\.inject = \[[^\]]*"configForms"/.test(buildScript)) {
+  console.error('[verify] FAIL: 客户端必须接入 ctx.locale（register + bind）并注入 configForms')
   ok = false
 }
 if (!buildScript.includes('t("level." + source.level)')) {
@@ -198,6 +198,11 @@ const officialConfigChecks = [
   ['远程通道只暴露只读端点 snapshot', /@Remote\('snapshot'\)/.test(remoteSrc)],
   ['远程通道不含写端点（写操作归 settings）', !/@Remote\('(set|write|update|reset|toggle)'\)/.test(remoteSrc)],
   ['技能元数据真源随远程通道提供（readSkillMeta）', /export function readSkillMeta/.test(remoteSrc)],
+  ['客户端经 configForms.get 读取官方配置', /ctx\.configForms\.get\('ponytail'\)/.test(clientBuildSrc)],
+  ['客户端经 whileServed 跟随命名空间', /configForms\.whileServed\(\s*\[\s*['"]ponytail['"]/.test(clientBuildSrc)],
+  ['客户端注入 configForms 服务', /"configForms"/.test(clientBuildSrc)],
+  ['客户端经 remote 读取只读推导值', /ctx\.remote\.ponytail/.test(clientBuildSrc)],
+  ['客户端不再请求自制 HTTP 端点', !/\/api\/plugins\/ponytail/.test(clientBuildSrc)],
 ]
 const failedOfficial = officialConfigChecks.filter(([, pass]) => !pass).map(([name]) => name)
 if (failedOfficial.length > 0) {

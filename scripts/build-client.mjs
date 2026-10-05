@@ -11,6 +11,11 @@ import { writeFile } from 'node:fs/promises'
  * 产物必须是 `window.__ModuleLoader__.load({ id, factory })` 形态，
  * 内联在字符串模板里极易被误编辑；此处集中生成，源码只此一份。
  *
+ * 迁移到官方配置组合后（本文件在 5.1.0 起）：
+ * - 可持久化字段（defaultMode、disabledSkills）经 `ctx.configForms.get('ponytail')`
+ *   读写，由宿主的 settings 服务落 profile 补丁，并自带 revision 冲突保护；
+ * - 只读推导值（优先级诊断链、当前生效等级）经 `ctx.remote.ponytail.snapshot()` 读取；
+ * - 一键重置走两条 `op:'unset'`，不再需要自制的 POST 端点。
  * 组件一律取自 @deepseek-ai/dsh-client-ui-primitives（DSH 官方组件族），
  * 与 settings-general / settings-models / plugin-manager 同源，视觉自动对齐宿主；
  * 本文件不自定义任何色值与圆角，只做布局。
@@ -68,7 +73,7 @@ const content = `window.__ModuleLoader__.load({
     let e = React.createElement;
 
     // 官方 locale 接入：注册 ponytail 命名空间双语字典（真源 locale/*.json，构建期内嵌）
-    // 技能描述不翻译（用户边界）：由 server/frontmatter 下发，字典不含技能描述键
+    // 技能描述不翻译（用户边界）：由 configForms 快照与快照通道下发，字典不含技能描述键
     var NS = "ponytail";
     var ZH = ${JSON.stringify(ZH_BUILD)};
     var EN = ${JSON.stringify(EN_BUILD)};
@@ -121,8 +126,8 @@ const content = `window.__ModuleLoader__.load({
         display: "flex",
         flexDirection: "column",
         gap: "2px",
-        minWidth: "0",
-        flex: "1",
+        minWidth: 0,
+        flex: 1,
       },
       chainName: {
         fontSize: "13px",
@@ -145,8 +150,8 @@ const content = `window.__ModuleLoader__.load({
         display: "flex",
         flexDirection: "column",
         gap: "2px",
-        minWidth: "0",
-        flex: "1",
+        minWidth: 0,
+        flex: 1,
       },
       rowName: {
         fontSize: "13px",
@@ -168,26 +173,19 @@ const content = `window.__ModuleLoader__.load({
       },
     };
 
-    const MODE_OPTIONS = [
-      { value: "off", label: t("mode.off") },
-      { value: "lite", label: t("mode.lite") },
-      { value: "full", label: t("mode.full") },
-      { value: "ultra", label: t("mode.ultra") },
-    ];
+    // 档位标签在 apply 时才绑定 locale（t 是 factory 级可变变量），因此按需取值而不是模块级求值
+    function modeOptions() {
+      return [
+        { value: "off", label: t("mode.off") },
+        { value: "lite", label: t("mode.lite") },
+        { value: "full", label: t("mode.full") },
+        { value: "ultra", label: t("mode.ultra") },
+      ];
+    }
 
-
-    // 技能元数据从 SKILL.md frontmatter 构建期提取（唯一真源，与宿侧 readSkillMeta 同源）
+    // 技能元数据从 SKILL.md frontmatter 构建期提取（唯一真源，与宿侧 readSkillMeta 同源）。
+    // 「是否启用」不再随服务端下发：它就是 configForms 快照里的 disabledSkills 取反。
     const SKILL_META = ${JSON.stringify(SKILL_META_BUILD)};
-
-    const EMPTY_CONFIG = {
-      currentMode: "full",
-      defaultMode: "full",
-      disabledSkills: [],
-      skills: SKILL_META.map(function (s) {
-        return { id: s.id, name: s.id, description: s.description, enabled: true };
-      }),
-      priority: null,
-    };
 
     // 诊断链一行的状态语义：生效 / 被覆盖 / 未设置 / 有问题
     function chainRowState(source) {
@@ -250,83 +248,110 @@ const content = `window.__ModuleLoader__.load({
       );
     }
 
-    function PonytailConfigPanel() {
-      const [state, setState] = React.useState({
-        loading: true,
-        saving: false,
-        error: null,
-        toast: null,
-        config: EMPTY_CONFIG,
-      });
-
-      const applyResult = React.useCallback(function (data, message) {
-        setState(function (prev) {
-          return Object.assign({}, prev, {
-            loading: false,
-            saving: false,
-            error: null,
-            config: data && Array.isArray(data.skills) ? data : prev.config,
-            toast: message,
-          });
-        });
-        if (message) {
-          setTimeout(function () {
-            setState(function (prev) {
-              return Object.assign({}, prev, { toast: null });
-            });
-          }, 2600);
-        }
-      }, []);
-
-      const load = React.useCallback(function () {
-        fetch("/api/plugins/ponytail/config")
-          .then(function (res) {
-            if (!res.ok) throw new Error("HTTP " + res.status);
-            return res.json();
-          })
-          .then(function (data) {
-            applyResult(data, null);
-          })
-          .catch(function (err) {
-            setState(function (prev) {
-              return Object.assign({}, prev, { loading: false, error: String(err) });
-            });
-          });
-      }, [applyResult]);
-
-      React.useEffect(function () {
-        load();
-        // 语言切换后重取（官方 LocaleFace subscribe 语义：字典注册 bump revision）
-        var off = localeCtx ? localeCtx.subscribe(function () { load(); }) : null;
-        return function () { if (off) off(); };
-      }, [load]);
-
-      const post = function (body, message) {
-        setState(function (prev) {
-          return Object.assign({}, prev, { saving: true, error: null, toast: null });
-        });
-        fetch("/api/plugins/ponytail/config", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        })
-          .then(function (res) {
-            return res.json();
-          })
-          .then(function (data) {
-            applyResult(data, message);
-          })
-          .catch(function (err) {
-            setState(function (prev) {
-              return Object.assign({}, prev, { saving: false, error: String(err) });
-            });
-          });
+    /**
+     * 只读快照的最小 store：{ status, value }，够 React 的 useSyncExternalStore 订阅。
+     * 不引第三方 store 库——快照就一个对象，一个 Set 监听者 + 一个 getSnapshot 足够。
+     */
+    function createStore(initial) {
+      var listeners = new Set();
+      var current = initial;
+      return {
+        getSnapshot: function () { return current; },
+        subscribe: function (listener) {
+          listeners.add(listener);
+          return function () { listeners.delete(listener); };
+        },
+        set: function (next) {
+          current = next;
+          listeners.forEach(function (listener) { listener(); });
+        },
       };
+    }
 
-      const config = state.config;
+    /**
+     * 读取官方远程命名空间的第一个方法，作为快照源。
+     * 命名空间由网关按宿主服务上的 typertRemote 绑定自动安装（无 Proxy 参与），
+     * 因此这里只做「取到就用、没取到就降级」，不假设它一定存在。
+     */
+    function createRemoteStore(ctx, namespace) {
+      var store = createStore({ status: "loading", value: null });
+      var method = "snapshot";
+      var load = function () {
+        var ns = ctx.get("remote." + namespace);
+        if (ns === undefined || ns === null || typeof ns[method] !== "function") {
+          store.set({ status: "unavailable", value: null });
+          return;
+        }
+        Promise.resolve(ns[method]()).then(function (response) {
+          if (response && response.ok === true) {
+            store.set({ status: "ready", value: response.value });
+          } else {
+            store.set({ status: "unavailable", value: null });
+          }
+        }).catch(function () {
+          store.set({ status: "unavailable", value: null });
+        });
+      };
+      load();
+      // 配置表单写入成功后由面板调用：重新拉一次服务端真值（当前等级可能已变）
+      store.reload = load;
+      return store;
+    }
+
+    function PonytailConfigPanel(props) {
+      // 官方配置表单的快照：status / value / base / user / revision / writable
+      // （dsh-client-ui-settings 的 ConfigFormController，lib/client.js:1117-1131）。
+      const snapshot = props.usePonytailConfig(function (s) { return s; });
+      const [busy, setBusy] = React.useState(false);
+      const [note, setNote] = React.useState(null);
+
+      // 只读推导值来自远程命名空间；服务端不可用时降级为 null（不显示该段）
+      const snapshotRemote = props.usePonytailSnapshot(function (s) { return s; });
+      const remote = snapshotRemote.value;
+
+      const writable = snapshot.writable === true && snapshot.status === "ready";
+
+      // 写入：全部经官方 settings 通道，携带 revision 做冲突检测。
+      // 服务端拒绝时 mutate 返回 false，此时以服务端读回的下一份快照为准，
+      // 不做本地乐观改值——面板显示的必须是真值。
+      const applyOps = React.useCallback(function (ops, message) {
+        setBusy(true);
+        setNote(null);
+        props.scope.mutate(ops, snapshot.revision).then(function (landed) {
+          setBusy(false);
+          setNote(landed ? message : t("error.rejected"));
+          // 档位写入后重新拉一次服务端真值：当前生效等级可能随之改变，
+          // 而它不在 configForms 快照里（那是持久化配置，不是运行时推导值）。
+          if (landed && props.reloadRemote) props.reloadRemote();
+        });
+      }, [props.scope, snapshot.revision]);
+
+      const setMode = React.useCallback(function (mode) {
+        applyOps([{ op: "set", path: ["defaultMode"], value: mode }], t("toast.modeChanged", { name: mode }));
+      }, [applyOps]);
+
+      // 技能开关：disabledSkills 是覆盖式数组，每次写入都带上「目标技能的最终启用态」
+      const disabled = snapshot.value && Array.isArray(snapshot.value.disabledSkills)
+        ? snapshot.value.disabledSkills
+        : [];
+      const toggleSkill = React.useCallback(function (name, enabled) {
+        const next = enabled ? disabled.filter(function (item) { return item !== name; }) : disabled.concat([name]);
+        applyOps([{ op: "set", path: ["disabledSkills"], value: next }],
+          enabled ? t("skills.enabledToast", { name: name }) : t("skills.hiddenToast", { name: name }));
+      }, [applyOps, disabled]);
+
+      const resetAll = React.useCallback(function () {
+        applyOps([
+          { op: "unset", path: ["defaultMode"] },
+          { op: "unset", path: ["disabledSkills"] },
+        ], t("toast.resetDone"));
+      }, [applyOps]);
+
+      const config = snapshot.value || {};
+      const defaultMode = typeof config.defaultMode === "string" ? config.defaultMode : null;
       // 配置被更高优先级压制时，等级选择器整体禁用，避免用户做无效操作
-      const levelLocked = Boolean(config.priority && config.priority.chain && config.priority.chain.some(function (s) {
-        return s.level !== "config" && s.hit && s.level !== "fallback";
+      const levelLocked = Boolean(remote && Array.isArray(remote.priority && remote.priority.chain) && remote.priority.chain.some(function (s) {
+        return s.level !== "config" && s.level !== "patch" && s.hit;
       }));
 
       return e(
@@ -334,57 +359,51 @@ const content = `window.__ModuleLoader__.load({
         { style: { display: "flex", flexDirection: "column", gap: "16px", maxWidth: "720px" } },
         e("h3", { style: { fontSize: "15px", fontWeight: "600", margin: "0", color: "var(--dsw-alias-label-primary)" } },
           t("panel.title")),
-        e(PrioritySection, { priority: config.priority }),
+        e(PrioritySection, { priority: remote ? remote.priority : null }),
         e(
           "div",
           { style: L.section },
           e("h4", { style: L.title }, t("mode.title")),
-          e("p", { style: L.hint },
-            t("mode.hint")),
+          e("p", { style: L.hint }, t("mode.hint")),
           e(P.SegmentedControl, {
             id: "ponytail-mode",
             label: t("mode.title"),
-            value: config.defaultMode,
-            options: MODE_OPTIONS,
-            disabled: state.saving || levelLocked,
-            onChange: function (next) {
-              post({ mode: next }, t("toast.modeChanged", { name: next }));
-            },
+            value: defaultMode === null ? remote && remote.priority ? remote.priority.effective : "full" : defaultMode,
+            options: modeOptions(),
+            disabled: busy || !writable || levelLocked,
+            onChange: setMode,
           }),
           levelLocked
-            ? e("p", { style: Object.assign({}, L.hint, { color: "var(--dsw-alias-state-warn-primary)" }) },
-                t("mode.lockedHint"))
+            ? e("p", { style: Object.assign({}, L.hint, { color: "var(--dsw-alias-state-warn-primary)" }) }, t("mode.lockedHint"))
+            : null,
+          !writable && snapshot.status === "ready"
+            ? e("p", { style: Object.assign({}, L.hint, { color: "var(--dsw-alias-state-warn-primary)" }) }, t("state.readOnly"))
             : null
         ),
         e(
           "div",
           { style: L.section },
           e("h4", { style: L.title }, t("skills.title")),
-          e("p", { style: L.hint },
-            t("skills.hint")),
+          e("p", { style: L.hint }, t("skills.hint")),
           e(
             "div",
             { style: { display: "flex", flexDirection: "column", gap: "6px" } },
-            config.skills.map(function (skill) {
+            SKILL_META.map(function (skill) {
+              const enabled = disabled.indexOf(skill.id) < 0;
               return e(
                 "div",
                 { key: skill.id, style: L.row },
                 e(
                   "div",
                   { style: L.rowText },
-                  e("span", { style: L.rowName }, "/" + skill.name),
+                  e("span", { style: L.rowName }, "/" + skill.id),
                   e("span", { style: L.rowDesc }, skill.description)
                 ),
                 e(P.Switch, {
-                  checked: skill.enabled,
-                  disabled: state.saving,
-                  label: t("skills.toggleOn", { name: skill.name }),
-                  onChange: function (next) {
-                    post(
-                      { toggleSkill: { name: skill.id, enabled: next } },
-                      t(next ? "skills.enabledToast" : "skills.hiddenToast", { name: skill.name })
-                    );
-                  },
+                  checked: enabled,
+                  disabled: busy || !writable,
+                  label: t("skills.toggleOn", { name: skill.id }),
+                  onChange: function (next) { toggleSkill(skill.id, next); },
                 })
               );
             })
@@ -394,20 +413,18 @@ const content = `window.__ModuleLoader__.load({
           "div",
           { style: Object.assign({}, L.footer, L.last) },
           e("span", { style: L.hint },
-            state.error
-              ? t("error.operation") + state.error
-              : state.toast
-                ? state.toast
-                : state.loading
-                  ? t("state.loading")
-                  : t("state.saved")),
+            note !== null
+              ? note
+              : snapshot.status === "loading"
+                ? t("state.loading")
+                : t("state.saved")),
           e(P.Button, {
             variant: "outline",
             size: "sm",
-            disabled: state.saving,
+            disabled: busy || !writable,
             onClick: function () {
               if (!confirm(t("confirm.reset"))) return;
-              post({ action: "reset" }, t("toast.resetDone"));
+              resetAll();
             },
           }, t("button.reset"))
         )
@@ -422,17 +439,50 @@ const content = `window.__ModuleLoader__.load({
       localeCtx = ctx.locale;
       t = ctx.locale.bind(NS);
 
-      // 插件卡片详情页：内联配置面板（keyed by 包名，已核实宿主 listBundles 的 name 即包名）
-      ctx.slots.inject("plugins.bundle.config", function () {
-        return ctx.slots.register(
-          { name: "plugins.bundle.config", key: "@wenaixi/dsh-ponytail" },
-          PonytailConfigPanel
-        );
-      });
+      // 官方配置表单：宿主 settings 服务投影出的 ponytail 命名空间
+      var scope = ctx.configForms.get("ponytail");
+
+      // 只读推导值：官方 Typert 通道（ctx.remote.ponytail.snapshot()）。
+      // 远程方法返回的是 { ok, value } / { ok:false, error } 信封（网关 client 侧 lib/client.js:1795-1802），
+      // 这里自己拆包并折成一个最小快照 store：命名空间不可用或调用失败时停在 unavailable，
+      // 优先级段降级为不显示，不影响其余控件。
+      var remoteStore = createRemoteStore(ctx, "ponytail");
+
+      // 插槽注册沿用 whileServed：命名空间没被宿主服务时卡片整体不出现，
+      // 部署若从未组合 settings 服务，页面上不留本插件的痕迹
+      // （与官方 dsh-client-ui-settings-shell 同一生命周期协议，ui-settings-shell/lib/client.js:182）。
+      //
+      // 数据面经 inject 提供：组件只从 props 消费，不触碰 ctx（渲染器铁律）。
+      // usePonytailConfig 读官方配置表单快照；usePonytailSnapshot 读远程快照；
+      // reloadRemote 在写入后让面板重新拉服务端真值。
+      var formStore = {
+        getSnapshot: function () { return scope.getSnapshot(); },
+        subscribe: function (listener) { return scope.subscribe(listener); },
+      };
+      var face = function () {
+        return {
+          hooks: {
+            ponytailConfig: formStore,
+            ponytailSnapshot: remoteStore,
+          },
+          reloadRemote: function () { remoteStore.reload(); },
+        };
+      };
+
+      ctx.effect(function () {
+        return ctx.configForms.whileServed(["ponytail"], function () {
+          return ctx.slots.inject("plugins.bundle.config", function () {
+            return ctx.slots.register(
+              { name: "plugins.bundle.config", key: "@wenaixi/dsh-ponytail", locale: NS, inject: face },
+              PonytailConfigPanel
+            );
+          });
+        });
+      }, "ponytail: config card");
     }
 
     exports.apply = apply;
-    exports.inject = ["slots", "locale"];
+    exports.inject = ["slots", "locale", "configForms"];
     return module.exports;
   }
 });
