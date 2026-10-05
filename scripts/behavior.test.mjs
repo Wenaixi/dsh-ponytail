@@ -1573,6 +1573,15 @@ test('C13 症状一: 命名空间由 $mount 开通后立即读到数据，不靠
   store.dispose?.()
 })
 
+test('C13 锁定判定: 只有 env 命中才禁用等级，fallback 命中必须放行', async () => {
+  const fs = await import('node:fs')
+  const artifact = fs.readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8')
+  const codeOnly = artifact.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '')
+  assert.ok(/s\.level === "env" && s\.hit/.test(codeOnly),
+    '锁定判定必须只认 env 命中：fallback 是「补丁与 env 都没写」的兜底，不是更高优先级的配置')
+  assert.ok(!/s\.level !== "fallback"/.test(codeOnly), '旧判定把 fallback 当压制源，提示文案在说谎')
+})
+
 test('C13 贡献声明: descriptors 只声明 snapshot 且走 strict codec', async () => {
   const { calls, options } = await loadClientWithStubs({
     remoteNamespace: { snapshot: async () => ({ ok: true, value: { currentMode: 'lite', priority: { chain: [], effective: 'lite' } } }) },
