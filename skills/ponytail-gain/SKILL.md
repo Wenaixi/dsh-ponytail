@@ -8,7 +8,7 @@ description: >
 
 被调用时展示此看板。一次性展示：不要切换模式、写 flag 文件或做任何持久化。
 
-数据为已发布的 benchmark 中位数（5 个日常任务：邮箱校验、防抖、CSV 求和、倒计时、限流器；3 个模型：Haiku、Sonnet、Opus），是实测值而非基于当前仓库计算。来源：`benchmarks/` 与 README。
+数据为已发布的 benchmark 中位数（5 个日常任务：邮箱校验、防抖、CSV 求和、倒计时、限流器；3 个模型：Haiku、Sonnet、Opus），是实测值而非基于当前仓库计算。来源：`assets/benchmark-3model.svg` 与 `assets/benchmark-agentic.svg`（本仓库无 `benchmarks/` 目录，数字只存在于这两张图里）。
 
 ## 看板
 

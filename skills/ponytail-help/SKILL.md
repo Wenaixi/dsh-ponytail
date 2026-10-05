@@ -37,21 +37,17 @@ description: >
 
 ## 配置默认等级
 
-默认等级为 `full`，每会话自动激活。修改方式：
+默认等级为 `full`，每会话自动激活。取值按下列顺序取第一个有效值：
 
-**环境变量**（优先级最高）：
-```bash
-export PONYTAIL_DEFAULT_MODE=ultra
-```
+1. 环境变量（最高）：`PONYTAIL_DEFAULT_MODE=ultra`
+2. Profile 补丁：`profiles/<profile>/cordis.patch.yml` 里 ponytail 条目的 `defaultMode`
+3. 内置兜底：`full`
 
-**配置文件**（`$DSH_HOME/ponytail/config.json`，默认 `~/.dsh/ponytail/config.json`）：
-```json
-{ "defaultMode": "lite" }
-```
+界面上「插件 → 懒人模式 → 配置优先级」直接显示这三行的命中与压制关系，比手改文件可靠。要改默认档用 `/ponytail default <档>`，它写进当前 Profile 的补丁。
 
-设为 `"off"` 可关闭会话启动时的自动激活，需要时再用 `/ponytail` 手动开启。
+`ponytail/config.json` 只在没有 Settings 服务的组合（headless / CLI）里承担写入，已不参与优先级。
 
-优先级：环境变量 > 配置文件 > `full`。
+设为 `off` 可关闭会话启动时的自动激活，需要时再用 `/ponytail` 手动开启。
 
 ## 更多
 

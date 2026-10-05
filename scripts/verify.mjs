@@ -54,6 +54,18 @@ for (const dir of skillDirs) {
   }
 }
 
+// 技能卡是模型会真的读到的内容：退役的配置路径或链路数写在里面会主动误导模型去改不生效的文件
+for (const dir of skillDirs) {
+  const p = join(skillDir, dir, 'SKILL.md')
+  const rawNorm = (await readFile(p, 'utf8')).replace(/^\uFEFF/, '').replace(/\r\n/g, '\n')
+  const body = rawNorm.slice(rawNorm.indexOf('\n---\n') + 5)
+  const retired = body.match(/\$DSH_HOME\/ponytail\/config\.json|环境变量 > 配置文件|四级/)
+  if (retired) {
+    console.error(`[verify] ${dir}: 技能正文含已退役的表述「${retired[0]}」（模型会读到并据此误导用户）`)
+    ok = false
+  }
+}
+
 console.log(`\n[verify] expected 6 skills, found ${skillDirs.length} -> ${skillDirs.length === 6 ? 'PASS' : 'FAIL'}`)
 if (skillDirs.length !== 6) ok = false
 
