@@ -87,6 +87,25 @@ function resolveDefaultSkillDir(configSkillDir?: string): string {
 }
 
 /**
+ * 读一个可能不存在、且未在 inject 里声明的服务。
+ *
+ * 为什么不能用属性读：cordis 的 ctx 是 Proxy，读未 inject 的属性会抛
+ * cannot get property settings without inject（cordis/lib/index.js:676），而不是返回 undefined。
+ * 所以服务在不在只能靠 try/catch 判断——这也正是无 profileContext 的组合
+ * （headless / CLI，dsh-base 的 settings 行被 disabled 表达式关掉）需要文件回退通道的原因。
+ *
+ * 为什么不用 ctx.inject([settings], …)：inject 让 fiber 等这个服务，
+ * 而 headless 组合里它永不出现，插件将永远不挂载（连提示词与技能都没有了）。
+ */
+function readService(ctx: Context, name: string): unknown {
+  try {
+    return (ctx as unknown as Record<string, unknown>)[name]
+  } catch {
+    return undefined
+  }
+}
+
+/**
  * 建立可持久化配置的读写通道。
  *
  * 有 settings 服务时走官方路径：写入落到 profile 补丁（profiles/<name>/cordis.patch.yml），
@@ -97,7 +116,7 @@ function resolveDefaultSkillDir(configSkillDir?: string): string {
 function createSinkFor(ctx: Context): PonytailConfigSink {
   try {
     return createSettingsSink(
-      { settings: (ctx as unknown as { settings?: unknown }).settings as Parameters<typeof createSettingsSink>[0]['settings'] },
+      { settings: readService(ctx, 'settings') as Parameters<typeof createSettingsSink>[0]['settings'] },
       'ponytail',
       { logger: { warn: (msg: string) => ctx.logger.warn(msg) } },
     )
@@ -130,7 +149,7 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
   // 配置通道：有 settings 服务走官方路径（写入落 profile 补丁，由官方表单承载）；
   // 无 settings 服务的组合（headless / CLI —— dsh-base 的 settings 行在无 profileContext 时禁用）
   // 静默回退 config.json 文件通道，不能因迁移而让这些组合失去配置能力。
-  const settingsService = (ctx as unknown as { settings?: unknown }).settings
+  const settingsService = readService(ctx, 'settings')
   const configSink = createSinkFor(ctx)
 
   // 优先级唯一真源（ADR-0006）：apply 启动判定与 UI 诊断链共用 resolvePriority，
