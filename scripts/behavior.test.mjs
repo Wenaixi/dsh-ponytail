@@ -1583,3 +1583,30 @@ test('C13 诊断降级: 命名空间始终不存在时，如实降级而不是�
   assert.equal(store.getSnapshot().value, null)
   store.dispose?.()
 })
+
+test('C14 插件元信息: locale 词典声明 meta.title 与 meta.description（卡片标题的真源）', async () => {
+  const { readFile: rf } = await import('node:fs/promises')
+  const { fileURLToPath } = await import('node:url')
+  const localeDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'locale')
+  for (const lang of ['en', 'zh']) {
+    const dict = JSON.parse(await rf(path.join(localeDir, lang + '.json'), 'utf8'))
+    assert.ok(dict.meta !== undefined && typeof dict.meta === 'object',
+      lang + '.json 缺 meta 段：宿主 readPluginMeta 只读 meta.title / meta.description，缺失时卡片退回包名')
+    assert.equal(typeof dict.meta.title, 'string', lang + '.json 缺 meta.title')
+    assert.equal(typeof dict.meta.description, 'string', lang + '.json 缺 meta.description')
+  }
+})
+
+test('C14 插件元信息: 中英文标题指向同一个产品名，不出现中英不一致', async () => {
+  const { readFile: rf } = await import('node:fs/promises')
+  const { fileURLToPath } = await import('node:url')
+  const localeDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'locale')
+  const en = JSON.parse(await rf(path.join(localeDir, 'en.json'), 'utf8')).meta
+  const zh = JSON.parse(await rf(path.join(localeDir, 'zh.json'), 'utf8')).meta
+  // 中文档题必须真的带中文；英文档题必须真的带英文。二者都是同一个人类产品名的不同语言写法。
+  assert.ok(/[\u4e00-\u9fa5]/.test(zh.title), '中文档题应含中文，当前：' + zh.title)
+  assert.ok(/[A-Za-z]/.test(en.title), '英文档题应含英文，当前：' + en.title)
+  // 英文侧不得直接把包名当标题（那正是主人看到的不一致：中文叫懒人模式、英文叫 dsh-ponytail）
+  assert.ok(!/dsh-ponytail|@wenaixi/.test(en.title), '英文档题不得回落到包名：' + en.title)
+  assert.ok(!/@wenaixi/.test(zh.title), '中文档题不得含包名：' + zh.title)
+})

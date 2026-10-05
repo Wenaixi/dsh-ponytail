@@ -11,6 +11,10 @@
   "level.env": "Environment variable",
   "level.fallback": "Built-in fallback",
   "level.patch": "Profile patch",
+  "meta": {
+    "title": "Lazy Senior Dev Mode",
+    "description": "Persistent lazy senior developer mode with a seven-rung ladder (YAGNI down to the smallest implementation), six native skills, and zero tool registration."
+  },
   "meta.description": "A full DSH port of DietrichGebert/ponytail: the always-on lazy senior developer mode and its seven-rung ladder (YAGNI down to the minimum implementation), with six native Chinese skills (core, review, audit, debt, gain, help) and zero tool registrations.",
   "meta.title": "Ponytail (lazy senior mode)",
   "mode.full": "Standard",
@@ -20,7 +24,7 @@
   "mode.off": "Off",
   "mode.title": "Intensity Level",
   "mode.ultra": "Ultra",
-  "panel.title": "Ponytail Config",
+  "panel.title": "Lazy Senior Dev Mode settings",
   "priority.intro": "The runtime level takes the first valid value in the following order; items shadowed by a higher-priority source cannot be changed from the UI. Current: ",
   "priority.title": "Config Priority",
   "priority.unavailable": "Diagnostics unavailable. Please confirm the host version ships the priority diagnostics endpoint.",
