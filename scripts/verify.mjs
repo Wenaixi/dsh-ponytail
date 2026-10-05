@@ -185,6 +185,7 @@ console.log('[verify] ✓ skill meta single-source (SKILL.md frontmatter)')
 const hostSrc = await readFile(join(rootDir, 'src', 'ponytail.ts'), 'utf8')
 const settingsSrc = await readFile(join(rootDir, 'src', 'ponytail-settings.ts'), 'utf8')
 const ponytailPatch = await readFile(resolve(rootDir, 'cordis.patch.yml'), 'utf8')
+const remoteSrc = await readFile(join(rootDir, 'src', 'ponytail-remote.ts'), 'utf8')
 const officialConfigChecks = [
   ['Config 含 volatile 的 defaultMode', /defaultMode: Schema\.union\(\[[^\]]*\]\)\.volatile\(\)/.test(hostSrc)],
   ['Config 含 volatile 的 disabledSkills', /disabledSkills: Schema\.array\(Schema\.string\(\)\)\.volatile\(\)/.test(hostSrc)],
@@ -193,6 +194,10 @@ const officialConfigChecks = [
   ['配置通道经 settings.mutate 写入（官方路径）', /mutate\(namespace, ops, revision\)/.test(settingsSrc)],
   ['patchMode 实时读取 volatile 引用（非启动快照）', /readVolatile\(resolved\.defaultMode\)/.test(hostSrc)],
   ['删除不存在的 settings.register 调用', !/settings\.register\(|service\.register\('ponytail'/.test(hostSrc)],
+  ['远程服务命名空间为 ponytail（客户端挂成 ctx.remote.ponytail）', /super\(ctx, 'ponytailRemote', \{ namespace: 'ponytail' \}\)/.test(remoteSrc)],
+  ['远程通道只暴露只读端点 snapshot', /@Remote\('snapshot'\)/.test(remoteSrc)],
+  ['远程通道不含写端点（写操作归 settings）', !/@Remote\('(set|write|update|reset|toggle)'\)/.test(remoteSrc)],
+  ['技能元数据真源随远程通道提供（readSkillMeta）', /export function readSkillMeta/.test(remoteSrc)],
 ]
 const failedOfficial = officialConfigChecks.filter(([, pass]) => !pass).map(([name]) => name)
 if (failedOfficial.length > 0) {

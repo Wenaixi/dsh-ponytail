@@ -1410,3 +1410,87 @@ test('C10 命令写入: 无 settings 服务时 /ponytail default 回退写 confi
   assert.equal(JSON.parse(raw).defaultMode, 'lite')
 })
 
+
+test('C11 Remote 通道: 服务注册为 ponytailRemote 且命名空间为 ponytail', async () => {
+  const { PonytailRemote } = await import('../lib/ponytail-remote.js')
+  const { Context } = await import('@deepseek-ai/cordis')
+  const { remoteMethods } = await import('@deepseek-ai/dsh-typert-protocol')
+  const ctx = new Context()
+  // ctx.plugin() 返回 fiber：服务在 fiber commit 时才注册，必须 await 生效后再回读
+  await ctx.plugin(PonytailRemote, {
+    snapshot: () => ({ currentMode: 'lite', priority: { chain: [], effective: 'lite' } }),
+  })
+
+  const service = ctx.get('ponytailRemote')
+  assert.ok(service, '必须提供 ponytailRemote 服务，否则浏览器侧 ctx.remote.ponytail 不存在')
+  const marked = remoteMethods(service)
+  assert.equal(marked.length, 1, '必须恰好暴露一个端点')
+  assert.equal(marked[0].method, 'snapshot', '端点名必须是 snapshot（客户端按此调用）')
+
+  const binding = Reflect.get(service, 'typertRemote')
+  assert.equal(binding.namespace, 'ponytail', '线缆命名空间必须是 ponytail（客户端挂成 ctx.remote.ponytail）')
+})
+
+test('C11 Remote 通道: snapshot 返回当前等级与四级诊断链', async () => {
+  const { PonytailRemote } = await import('../lib/ponytail-remote.js')
+  const { Context } = await import('@deepseek-ai/cordis')
+  const { resolvePriority } = await import('../lib/ponytail-priority.js')
+
+  const report = resolvePriority({ envRaw: undefined, patchMode: 'lite', configMode: 'full' })
+  const ctx = new Context()
+  await ctx.plugin(PonytailRemote, {
+    snapshot: () => ({ currentMode: 'lite', priority: report }),
+  })
+
+  const value = ctx.get('ponytailRemote').snapshot()
+  assert.equal(value.currentMode, 'lite', '当前生效等级必须下发')
+  assert.equal(value.priority.effective, 'lite')
+  assert.equal(value.priority.chain.length, 4, '诊断链恒 4 项')
+  assert.equal(value.priority.chain[1].level, 'patch')
+  assert.equal(value.priority.chain[1].hit, true, 'patch 层命中必须标出来（否则用户不知道为什么改了没用）')
+  // 线缆约束：返回值必须是 lossless JSON（typert-protocol 的 isRemoteJsonValue）
+  const { isRemoteJsonValue } = await import('@deepseek-ai/dsh-typert-protocol')
+  assert.equal(isRemoteJsonValue(value), true, '返回值必须能无损过线缆（否则浏览器收到后类型不符）')
+})
+
+test('C11 技能元数据: readSkillMeta 从 frontmatter 提取 6 项（真源唯一）', async () => {
+  const { readSkillMeta } = await import('../lib/ponytail-remote.js')
+  const { fileURLToPath } = await import('node:url')
+  const skillDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'skills')
+  const metas = readSkillMeta(skillDir)
+  assert.equal(metas.length, 6, '随包发布 6 个技能')
+  assert.ok(metas.every((m) => typeof m.description === 'string' && m.description.length > 0),
+    '描述来自 SKILL.md frontmatter，不得为空')
+  assert.ok(metas.some((m) => m.id === 'ponytail-review'), '目录名即技能 id')
+})
+
+test('C11 技能元数据: 目录不可读时回退兜底列表而非抛错', async () => {
+  const { readSkillMeta } = await import('../lib/ponytail-remote.js')
+  const metas = readSkillMeta(path.join(tmpDsh, 'no-such-skill-dir'))
+  assert.equal(metas.length, 6, '坏目录不得让面板空白')
+  assert.ok(metas.every((m) => typeof m.description === 'string' && m.description.length > 0))
+})
+
+
+test('C11 生产接线: apply 在具备 ctx.plugin 的宿主上挂载 ponytailRemote 命名空间', async () => {
+  const { Context } = await import('@deepseek-ai/cordis')
+  const { remoteMethods } = await import('@deepseek-ai/dsh-typert-protocol')
+  const ctx = new Context()
+  // 补齐 apply 需要的最小服务面
+  ctx.skills = { registerProvider: () => () => {} }
+  ctx.systemPrompt = { section: () => () => {} }
+  ctx.logger = { info: () => {}, warn: () => {}, debug: () => {} }
+  ctx.on = () => {}
+  ctx.effect = (setup) => { const r = setup(); return () => {} }
+
+  apply(ctx, {})
+  // ctx.plugin 返回的 fiber 需要 await：服务在 fiber commit 时才注册。
+  // 真实宿主（loader）在下一次 tick 完成，这里等一个宏任务即可。
+  await new Promise((r) => setTimeout(r, 10))
+  const service = ctx.get('ponytailRemote')
+  assert.ok(service, 'apply 必须挂上远程快照服务（否则浏览器侧优先级面板拿不到数据）')
+  const marked = remoteMethods(service)
+  assert.equal(marked.length, 1)
+  assert.equal(marked[0].method, 'snapshot')
+  assert.equal(Reflect.get(service, 'typertRemote').namespace, 'ponytail')
+})

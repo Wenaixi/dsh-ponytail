@@ -39,6 +39,7 @@ import { createCommandDispatcher } from './ponytail-commands.js'
 import { renderPromptSection } from './ponytail-instructions.js'
 import { createPonytailState } from './ponytail-state.js'
 import { PonytailProvider } from './ponytail-skills.js'
+import { PonytailRemote } from './ponytail-remote.js'
 
 // ---------------------------------------------------------------------------
 // Config — 遵循 references/config.md：Schemastery + 默认值进 schema
@@ -261,6 +262,27 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
       ctx.logger.debug('[ponytail] 默认档已由 profile 补丁提交，乐观缓存已清除')
     }
   })
+
+  // 只读推导值走官方 Typert 通道（命名空间 ponytail）：优先级诊断链与当前生效等级
+  // 不是配置——它们由 env / profile 补丁 / config.json / 兜底四层合并得出，写进配置层
+  // 会让落盘值永久盖住真值。浏览器侧经 ctx.remote.ponytail.snapshot() 读取。
+  // 直接挂载：服务随插件 fiber 失效自动注销，不需要额外 disposer。
+  // 守卫与 webServer / settings 同款：精简宿主或 mock 上 ctx.plugin 可能不存在，
+  // 缺失时快照通道不可用（客户端降级为不显示优先级段），但不得掀翻其余能力。
+  if (typeof (ctx as unknown as { plugin?: unknown }).plugin === 'function') {
+    ctx.plugin(PonytailRemote, {
+      snapshot: () => ({
+        currentMode: state.get() ?? 'off',
+        priority: resolvePriority({
+          envRaw: process.env['PONYTAIL_DEFAULT_MODE'],
+          patchMode: readPatchMode(),
+          configMode: readRawConfigMode(),
+        }),
+      }),
+    })
+  } else {
+    ctx.logger.debug('[ponytail] 宿主无 ctx.plugin，远程快照通道未挂载（优先级面板将降级）')
+  }
 
   // Always-on 注入：systemPrompt section，order 50 位于 persona(0) 之后
   const systemPrompt = (ctx as unknown as { systemPrompt: { section: (section: { name: string; order: number; text: string | (() => string) }) => () => void } }).systemPrompt
