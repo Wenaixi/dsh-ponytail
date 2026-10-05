@@ -1,7 +1,7 @@
 /**
  * ponytail-config — 移植自 hooks/ponytail-config.js
  *
- * 三级默认解析：环境变量 > 配置文件 > full
+ * 三级默认解析：环境变量 > Profile 补丁 > 内置兜底
  * 保留已核对的上游行为边界，并按 DSH 运行时契约适配：
  * - review 不可作默认 (#377)
  * - isDeactivationCommand 全句匹配
@@ -11,7 +11,9 @@
  * 数据根契约（见 docs/adr/0005）：配置与 flag 一律落在 DSH 统一用户数据根
  * $DSH_HOME/ponytail（默认 ~/.dsh/ponytail），与 cordis 内置包
  * （.credentials.yaml / profiles/ / attachments/ 等）保持同一根，
- * 从而跨平台一致、跟随 DSH_HOME 覆盖、天然随 profile 隔离。
+ * 从而跨平台一致、跟随 DSH_HOME 覆盖。
+ * 注意 resolveDshHome() 结构上不含 profile 维度：该目录下的文件被同机所有实例共享，
+ * 配置与 flag 的 profile 隔离由 getConfigDir(profileDir) 单独承担（ADR-0009）。
  * 不再使用 XDG / APPDATA 等宿主平台约定（旧位置仅作一次性兼容读取）。
  */
 export declare const DEFAULT_MODE = "full";

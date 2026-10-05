@@ -74,7 +74,7 @@ dsh --profile web --dump-config | grep -A2 ponytail
 
 | 上游 | DSH 侧 |
 |---|---|
-| `ponytail-config.js` | `src/ponytail-config.ts`（`env > 文件 > full`，`review` 不可默认） |
+| `ponytail-config.js` | `src/ponytail-config.ts`（`env > Profile 补丁 > full`，`review` 不可默认） |
 | `ponytail-instructions.js` | `src/ponytail-instructions.ts`（唯一出口 `renderPromptSection(skillDir, state)`：review 短路 + 按档裁剪 + 中文 fallback 全部内聚） |
 | `ponytail-state.js` | `src/ponytail-state.ts`（`.ponytail-active` 物理存取内联于此——上游 runtime 的 flag 存取已并入 state，DSH 单一宿主无外部探针；技能禁用 reload 收敛同在此） |
 | `ponytail-activate.js` | `src/ponytail.ts` 的 `agent/created`（startup/resume 对齐 flag） |
@@ -128,6 +128,22 @@ HMR: 全部走 ctx，热重载逆序自动清理
 | `ctx.remote.ponytail.snapshot()` | 当前生效等级、三级优先级诊断链（只读） | 不落盘，按需拉取 |
 
 在无 Profile 上下文的组合（headless / CLI）里，宿主没有装配 Settings 服务，此时配置读写回退到 profile 内的 `ponytail/config.json`。从旧版本升级时，全局共享的 `$DSH_HOME/ponytail/config.json` 会在首次启动时一次性导入 Profile 补丁，随后旧文件被改名为 `config.json.imported`；导入失败不影响启动，可用 `/ponytail default <档>` 重新设置。
+
+### 安装、更新与卸载的真实行为
+
+| 动作 | 需要重启宿主？ | 原因 |
+| --- | --- | --- |
+| 新装插件 | 否，刷新浏览器即可 | 宿主检测到新增条目，会投递新的产物指纹 |
+| **更新已装插件** | **是，必须重启宿主** | 条目 `rev` 在进程启动时算好并冻结；运行中替换 `node_modules` 里的文件不会触发重算 |
+| 卸载插件 | 否，但需手工清补丁条目 | `dsh plugin remove` 只清 `package.json` / bundles / 物理包，**不删 `cordis.patch.yml` 的条目**；残留后每次启动打印 `patch: entry "ponytail" not found`（警告，不致命）。删掉该段后 `--dump-config` 恢复 exit 0 |
+
+实测（2026-10-05，隔离 profile，真实 npm registry）：
+
+- 新装：boot 条目 76 → 77，**只刷新浏览器**即出现并可用，宿主无需重启。
+- 更新：磁盘上已是 5.1.0（`lib/client.js` 27625 字节、含新的 remote 贡献），但刷新后拿到的 entry `rev` 与升级前**完全相同**、产物仍是 5.0.0（16643 字节）。页面确实重载了（`boot.rev` 变了），是**条目指纹在进程启动时冻结**。重启宿主后才是新版。
+- 卸载：三处（`package.json` 依赖键、bundles 条目、物理包目录）都清干净，刷新浏览器后卡片消失；但补丁条目残留需手工删。
+
+**因此更新后请重启宿主再验证界面**。这是宿主运行时边界，插件侧不绕开。卸载残留同样属宿主能力缺口：`dsh-plugin-manager` 唯一的补丁写操作是切换 `disabled`，没有删除条目的能力。
 
 旧的平台位置（`%APPDATA%` / `XDG_CONFIG_HOME` / `~/.config`）兼容读取已随 1A 下沉一并删除；`scripts/verify.mjs` 现在对 `src/` 下任何平台路径字面量直接判失败。
 

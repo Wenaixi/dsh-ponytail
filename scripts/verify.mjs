@@ -198,7 +198,7 @@ const remoteSrc = await readFile(join(rootDir, 'src', 'ponytail-remote.ts'), 'ut
 const officialConfigChecks = [
   ['Config 含 volatile 的 defaultMode', /defaultMode: Schema\.union\(\[[^\]]*\]\)\.volatile\(\)/.test(hostSrc)],
   ['Config 含 volatile 的 disabledSkills', /disabledSkills: Schema\.array\(Schema\.string\(\)\)\.volatile\(\)/.test(hostSrc)],
-  ['defaultMode 仍无 Schema 默认值（否则 shadow config.json 层）', !/defaultMode: Schema\.union\(\[[^\]]*\]\)\.default\(/.test(hostSrc)],
+  ['defaultMode 仍无 Schema 默认值（否则补丁的缺省与显式写入不可区分，诊断面板失去判别力）', !/defaultMode: Schema\.union\(\[[^\]]*\]\)\.default\(/.test(hostSrc)],
   ['cordis.patch.yml 声明条目 id: ponytail（命名空间即由此 id 产生）', /- id: ponytail\b/.test(ponytailPatch)],
   ['配置通道经 settings.mutate 写入（官方路径）', /mutate\(namespace, ops, revision\)/.test(settingsSrc)],
   ['patchMode 实时读取 volatile 引用（非启动快照）', /readVolatile\(resolved\.defaultMode\)/.test(hostSrc)],

@@ -33,7 +33,7 @@ export declare function readSkillMeta(skillDirPath: string): SkillMeta[];
 export interface PonytailRemoteSnapshot {
     /** 当前会话生效的等级（null 表示关闭，序列化为字符串 'off'） */
     currentMode: string;
-    /** 四级优先级诊断链 */
+    /** 三级优先级诊断链 */
     priority: PriorityReport;
 }
 export interface PonytailRemoteDeps {

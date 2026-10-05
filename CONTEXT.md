@@ -65,8 +65,8 @@
 - **Official Config Channels（官方配置通道）**:
   可持久化字段（`defaultMode`、`disabledSkills`）声明为 `Config` 的 `.volatile()` 字段，宿主
   `settings` 服务把它们投影成官方表单（`volatileForm`），写入经 `ctx.settings.mutate(ns, ops, revision)`
-  落到 Profile 补丁；只读推导值（当前生效等级、四级优先级诊断链）经 `TypertRemoteService` 命名空间
-  `ponytail` 下发。宿主没有装配 settings 的组合（无 Profile 上下文）回退 `config.json` 文件通道。
+  落到 Profile 补丁；只读推导值（当前生效等级、三级优先级诊断链）经 `TypertRemoteService` 命名空间
+  `ponytail` 下发。宿主没有装配 settings 的组合（无 Profile 上下文）回退 profile 内 `config.json` 文件通道，该文件不参与优先级链。
   插件不再注册任何 HTTP 端点，也不再注入 `webServer`。
   *Avoid (严禁混用)*: Web Route Handler, Config API, 路由回调, 自制 HTTP 端点
 
@@ -91,7 +91,7 @@
 | `ponytail-skills.ts` | 技能发现与契约提供 | `PonytailProvider` (SkillProvider) | 目录扫描、Frontmatter 解析、assembleSkillBase 流水线 |
 | `ponytail-config.ts` | Schemastery 声明与配置 | `Config`, `readVolatile`, `readFullConfig` / `writeFullConfig` / `resetFullConfig` | 模式归一、路径字符白名单、DSH 数据根解析、读写 config.json、volatile 引用的三态读取 |
 | `ponytail-settings.ts` | 可持久化配置的读写通道 | `PonytailConfigSink`, `createSettingsSink` / `createFileSink`, `migrateLegacyConfig` | settings 通道与文件通道的选择、乐观写入语义、旧配置一次性导入 |
-| `ponytail-priority.ts` | 优先级诊断纯函数 | `resolvePriority` | 四级诊断链组装、状态语义（hit/shadowed/problem） |
+| `ponytail-priority.ts` | 优先级诊断纯函数 | `resolvePriority` | 三级诊断链组装、状态语义（hit/shadowed/problem） |
 | `ponytail-remote.ts` | 只读推导值的跨端下发 | `PonytailRemote` (TypertRemoteService), `readSkillMeta` | 命名空间与端点声明、技能 frontmatter 元数据读取 |
 | `ponytail.ts` | Cordis 插件生命周期编排 | `apply` | Waterfall 中间件流转、agent/created 钩子、section 注入、`loader/volatile-update` 收敛 |
 
@@ -102,27 +102,28 @@
 1. **零 Tool 注册**：纯靠 SystemPrompt 梯子引导与 6 个中文 Skill 运作，严禁在 `ctx.tools` 注册任何 Tool（见 `docs/adr/0002`）；
 2. **模型可见可重建**：提示词必须且只能通过 `ctx.systemPrompt.section('ponytail')` 注入；
 3. **无状态直读**：系统提示词坚持按需同步读盘（耗时仅 0.22ms），杜绝过早内存缓存导致的热重载失效（见 `docs/adr/0003`）；
-4. **DSH 单一宿主运行时**：不识别任何外部宿主（Copilot / Codex / Qoder / Claude Code / Cursor），配置与 flag 固定持久化于 DSH 用户数据根 `$DSH_HOME/ponytail`（见 `docs/adr/0001`、`0004`、`0005`）；
-5. **会话启动对齐**：每次会话启动按默认档（env > patch > 配置文件 > full）重写 flag（对齐上游 `ponytail-activate.js` SessionStart 语义），`/ponytail <档>` 只在本会话生效，跨会话持久化必须用 `/ponytail default <档>`；
+4. **DSH 单一宿主运行时**：不识别任何外部宿主（Copilot / Codex / Qoder / Claude Code / Cursor）。配置与 flag 持久化于 **profile 目录** `profiles/<name>/ponytail/`，取不到 profile 目录时退回 DSH 用户数据根 `$DSH_HOME/ponytail`（见 `docs/adr/0001`、`0004`、`0005`、`0009`）；
+5. **会话启动对齐**：每次会话启动按默认档（env > patch > full）重写 flag（对齐上游 `ponytail-activate.js` SessionStart 语义），`/ponytail <档>` 只在本会话生效，跨会话持久化必须用 `/ponytail default <档>`；
 6. **Waterfall 连贯性**：所有 Cordis Waterfall 中间件必须返回 `await next()`，防御性隔离所有异常；
-7. **Schema 不给默认值**：`Config.defaultMode` 刻意不带 `.default()`，否则 Cordis 校验会把缺省 fill 成显式配置，永久 shadow 掉 `config.json` 里用户设置的档位；
+7. **Schema 不给默认值**：`Config.defaultMode` 刻意不带 `.default()`，否则 Cordis 校验会把缺省 fill 成显式配置，补丁里的「配过」与「没配过」将不可区分，诊断面板随之说谎；
 8. **无自制端点**：插件不注册任何 HTTP 路由、不注入 `webServer`。可持久化字段只经官方 settings 通道读写，只读推导值只经 Typert 通道下发（verify 反向断言锁死）；
-9. **只读推导值不入配置**：优先级诊断链与当前生效等级由四层运行时合并得出，落盘会让过期值遮蔽新值（如 `env` 只有进程重启才变）。改配置层的推理必须回到本条重估。
+9. **只读推导值不入配置**：优先级诊断链与当前生效等级由三层运行时合并得出，落盘会让过期值遮蔽新值（如 `env` 只有进程重启才变）。改配置层的推理必须回到本条重估。
 
 ### 3.1 优先级诊断链（Priority Chain）
 
-用户在界面上点了等级却"没反应"，根因永远是某一级更高优先级的配置把界面写入的值盖掉了。`ponytail-priority.ts` 的 `resolvePriority({ envRaw, patchMode, configMode })` 是纯函数、零 I/O，产出**恒 4 项**的诊断链，顺序与 `apply()` 的 initialMode 判定逐行一致：
+用户在界面上点了等级却"没反应"，根因永远是某一级更高优先级的配置把界面写入的值盖掉了。`ponytail-priority.ts` 的 `resolvePriority({ envRaw, patchMode })` 是纯函数、零 I/O，产出**恒 3 项**的诊断链，顺序与 `apply()` 的 initialMode 判定逐行一致：
 
 | 级别 | 来源 | 语义 |
 | --- | --- | --- |
 | `env` | `PONYTAIL_DEFAULT_MODE` 环境变量 | 最高 |
 | `patch` | `cordis.patch.yml` 的 `defaultMode` | 其次 |
-| `config` | `$DSH_HOME/ponytail/config.json` | 再次 |
 | `fallback` | 内置 `full` | 兜底 |
 
 每一项带 `label` / `location` / `value` / `hit` / `shadowed` / `problem`，UI 渲染为四种状态：生效中（success）、被覆盖（warning）、未设置（quiet）、值非法或文件损坏（danger）。
 
-> **唯一真源（ADR-0006）**：`resolvePriority().effective` 同时是 apply 的 initialMode 与远程快照 `snapshot().priority.effective` 的取值来源；`patchMode` 每次求值实时读取 volatile 引用（官方表单改动后立刻反映，不缓存启动快照）；客户端面板的 label/problem 展示按 level 查双语字典覆盖。
+> **唯一真源（ADR-0006，链形由 ADR-0009 降为三级）**：`resolvePriority().effective` 同时是 apply 的 initialMode 与远程快照 `snapshot().priority.effective` 的取值来源；`patchMode` 每次求值实时读取 volatile 引用（官方表单改动后立刻反映，不缓存启动快照）；客户端面板的 label/problem 展示按 level 查双语字典覆盖。
+
+> `config.json` 层已退役：可持久化配置迁入 profile 补丁后，它只在无 settings 服务的组合里承担回退读写，留着不参与链。
 
 *Avoid（严禁混用）*: priority order, precedence list, 优先级数组、权重排序
 
