@@ -1449,3 +1449,137 @@ test('C12 客户端产物: apply 只经官方通道接线，不发任何 HTTP �
   assert.deepEqual(calls.slots.map((s) => s.key), ['@wenaixi/dsh-ponytail'], '插槽 key 为包名')
   assert.equal(calls.locale.length, 1, '必须注册一次双语字典')
 })
+
+
+// ---------------------------------------------------------------------------
+// 客户端产物的真实行为：现场两个症状的直接判据
+// 症状一：诊断区永久显示「诊断信息不可用」
+//   网关按 typertRemote 绑定异步安装命名空间（\$mount → enqueue → installNamespace →
+//   await fiber，dsh-api-gateway/lib/client.js:1636-1748），apply 里同步问一次必然拿不到。
+// 症状二：点等级无效且界面卡住
+//   面板读 props.scope.mutate，而 scope 是 apply 的闭包变量、从未放进 face，
+//   onClick 里 TypeError，后续渲染被拖死。
+// ---------------------------------------------------------------------------
+
+/** 装载 lib/client.js 并跑一次 apply，返回捕获到的 slot 注册 face。 */
+async function loadClientWithStubs(options = {}) {
+  const { readFile } = await import('node:fs/promises')
+  const { fileURLToPath } = await import('node:url')
+  const artifact = await readFile(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'lib', 'client.js'), 'utf8')
+
+  const calls = { http: [], locale: 0, slots: [] }
+  let registered = null
+  const stubs = {
+    react: {
+      createElement: () => null,
+      useState: () => [null, () => {}],
+      useEffect: () => {},
+      useCallback: (fn) => fn,
+      useSyncExternalStore: (subscribe, getSnapshot) => getSnapshot(),
+    },
+    '@deepseek-ai/dsh-client-ui-primitives': {
+      StateDot: 'StateDot', Tag: 'Tag', SegmentedControl: 'SegmentedControl',
+      Switch: 'Switch', Button: 'Button',
+    },
+  }
+  const loader = {
+    load(payload) {
+      const mod = payload.factory((name) => {
+        if (name in stubs) return stubs[name]
+        throw new Error('unexpected require: ' + name)
+      })
+      mod.apply({
+        effect: (setup) => { const d = setup(); if (typeof d === 'function') return d; return undefined },
+        on: () => () => {},
+        logger: { warn() {}, info() {}, debug() {} },
+        locale: {
+          register: () => { calls.locale += 1; return () => {} },
+          bind: () => (k) => k,
+          subscribe: () => () => {},
+        },
+        slots: {
+          inject: (_name, register) => {
+            // 如实执行产物给的那段：它内部调用 ctx.slots.register 并返回注册结果
+            registered = register()
+            calls.slots.push(registered.options.key)
+            return () => {}
+          },
+          register: (opts, component) => ({ options: opts, component }),
+        },
+        configForms: {
+          get: () => ({
+            getSnapshot: () => ({ status: 'ready', value: {}, base: {}, user: {}, revision: 1, writable: true }),
+            subscribe: () => () => {},
+            mutate: async () => true,
+            dispose: () => {},
+          }),
+          whileServed: (_ns, register) => register(new Set(['ponytail'])),
+        },
+        // 每次现读：命名空间是异步挂载的，桩若把 getter 提前求值就永远拿不到它
+        get: (key) => (key === 'remote.ponytail' ? options.remoteNamespace : undefined),
+      })
+    },
+  }
+  const savedWindow = globalThis.window
+  const savedFetch = globalThis.fetch
+  globalThis.window = { __ModuleLoader__: loader }
+  globalThis.fetch = (...args) => { calls.http.push(String(args[0])); throw new Error('HTTP must not be used') }
+  try {
+    new Function(artifact).call(globalThis)
+  } finally {
+    if (savedWindow === undefined) delete globalThis.window
+    else globalThis.window = savedWindow
+    if (savedFetch === undefined) delete globalThis.fetch
+    else globalThis.fetch = savedFetch
+  }
+  return { calls, registered }
+}
+
+test('C13 症状二: face 提供可写能力，面板代码不引用未注入的 props.scope', async () => {
+  const { readFile } = await import('node:fs/promises')
+  const { fileURLToPath } = await import('node:url')
+  const artifact = await readFile(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'lib', 'client.js'), 'utf8')
+  const codeOnly = artifact.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '')
+  assert.ok(!/props\.scope/.test(codeOnly),
+    '面板代码不得引用 props.scope：face 从未提供它，会在 onClick 里抛 TypeError 导致界面卡住')
+
+  const { registered } = await loadClientWithStubs()
+  const face = registered.options.inject()
+  assert.equal(typeof face.mutate, 'function', 'face 必须把官方表单控制器的 mutate 透传给面板')
+  const landed = await face.mutate([{ op: 'set', path: ['defaultMode'], value: 'lite' }], 1)
+  assert.equal(landed, true, '写入必须返回真值（面板据此显示成功或失败）')
+})
+
+test('C13 症状一: 远程命名空间晚到时重试并最终 ready，不永久停在 unavailable', async () => {
+  // 命名空间在 apply 之后 120ms 才挂上（模拟网关的异步 $mount）
+  let mounted = null
+  setTimeout(() => {
+    mounted = { snapshot: async () => ({ ok: true, value: { currentMode: 'lite', priority: { chain: [], effective: 'lite' } } }) }
+  }, 120).unref?.()
+
+  const { registered } = await loadClientWithStubs({ get remoteNamespace() { return mounted } })
+  const face = registered.options.inject()
+  const store = face.hooks.ponytailSnapshot
+
+  assert.equal(store.getSnapshot().status, 'loading', '命名空间未挂载时应停在 loading 而不是 unavailable')
+  const deadline = Date.now() + 3000
+  while (store.getSnapshot().status !== 'ready' && Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 25))
+  }
+  assert.equal(store.getSnapshot().status, 'ready', '命名空间晚到也必须能读到数据，不得永久停在 unavailable')
+  assert.equal(store.getSnapshot().value.priority.effective, 'lite')
+  store.dispose?.()
+})
+
+test('C13 诊断降级: 命名空间始终不存在时，如实降级而不是永远空转', async () => {
+  const { registered } = await loadClientWithStubs({ remoteNamespace: undefined })
+  const face = registered.options.inject()
+  const store = face.hooks.ponytailSnapshot
+  const deadline = Date.now() + 6000
+  while (store.getSnapshot().status !== 'unavailable' && Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 50))
+  }
+  assert.equal(store.getSnapshot().status, 'unavailable', '重试有上限：超出即如实降级，不再空转')
+  assert.equal(store.getSnapshot().value, null)
+  store.dispose?.()
+})

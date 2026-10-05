@@ -269,32 +269,53 @@ const content = `window.__ModuleLoader__.load({
     }
 
     /**
-     * 读取官方远程命名空间的第一个方法，作为快照源。
-     * 命名空间由网关按宿主服务上的 typertRemote 绑定自动安装（无 Proxy 参与），
-     * 因此这里只做「取到就用、没取到就降级」，不假设它一定存在。
+     * 读取官方远程命名空间的 snapshot，作为只读推导值的来源。
+     *
+     * 为什么必须重试：网关按宿主服务上的 typertRemote 绑定安装命名空间，而安装本身
+     * 是异步的（ClientRemoteService.$mount → enqueue → installNamespace → await fiber，
+     * dsh-api-gateway/lib/client.js:1636-1748）。本插件的 apply() 与它同批执行，
+     * 同步问一次必然拿到 undefined，界面会永久停在「诊断信息不可用」——
+     * 而宿主其实完全正常。
+     *
+     * 为什么不用事件：网关客户端侧只暴露 connection/reset，没有「命名空间已挂载」信号，
+     * 为此轮询几拍是最省事也最诚实的做法。上限写死为 RETRY：超出即认定该部署
+     * 没有这个端点（如精简宿主），如实降级为不显示，不再空转。
      */
+    var REMOTE_MOUNT_RETRY = 40;
+    var REMOTE_MOUNT_INTERVAL_MS = 50;
+
     function createRemoteStore(ctx, namespace) {
       var store = createStore({ status: "loading", value: null });
       var method = "snapshot";
+      var attempts = 0;
+      var timer = null;
+
+      var fail = function () {
+        store.set({ status: "unavailable", value: null });
+      };
+
       var load = function () {
         var ns = ctx.get("remote." + namespace);
         if (ns === undefined || ns === null || typeof ns[method] !== "function") {
-          store.set({ status: "unavailable", value: null });
+          attempts += 1;
+          if (attempts >= REMOTE_MOUNT_RETRY) {
+            fail();
+            return;
+          }
+          if (timer !== null) clearTimeout(timer);
+          timer = setTimeout(load, REMOTE_MOUNT_INTERVAL_MS);
           return;
         }
+        attempts = 0;
         Promise.resolve(ns[method]()).then(function (response) {
-          if (response && response.ok === true) {
-            store.set({ status: "ready", value: response.value });
-          } else {
-            store.set({ status: "unavailable", value: null });
-          }
-        }).catch(function () {
-          store.set({ status: "unavailable", value: null });
-        });
+          if (response && response.ok === true) store.set({ status: "ready", value: response.value });
+          else fail();
+        }).catch(fail);
       };
       load();
       // 配置表单写入成功后由面板调用：重新拉一次服务端真值（当前等级可能已变）
       store.reload = load;
+      store.dispose = function () { if (timer !== null) clearTimeout(timer); };
       return store;
     }
 
@@ -317,14 +338,17 @@ const content = `window.__ModuleLoader__.load({
       const applyOps = React.useCallback(function (ops, message) {
         setBusy(true);
         setNote(null);
-        props.scope.mutate(ops, snapshot.revision).then(function (landed) {
+        // 写入经 face 注入的官方表单控制器（renderable 的 inject 面会把 hooks 绑成
+        // use<Name>，其余键原样作为 props）。此前这里读 props.scope，而 scope 是 apply
+        // 闭包里的变量、从未放进 face——点击即 TypeError，界面表现为「改了没反应且卡住」。
+        props.mutate(ops, snapshot.revision).then(function (landed) {
           setBusy(false);
           setNote(landed ? message : t("error.rejected"));
           // 档位写入后重新拉一次服务端真值：当前生效等级可能随之改变，
           // 而它不在 configForms 快照里（那是持久化配置，不是运行时推导值）。
           if (landed && props.reloadRemote) props.reloadRemote();
         });
-      }, [props.scope, snapshot.revision]);
+      }, [props.mutate, snapshot.revision]);
 
       const setMode = React.useCallback(function (mode) {
         applyOps([{ op: "set", path: ["defaultMode"], value: mode }], t("toast.modeChanged", { name: mode }));
@@ -465,6 +489,9 @@ const content = `window.__ModuleLoader__.load({
             ponytailConfig: formStore,
             ponytailSnapshot: remoteStore,
           },
+          // 直接透传官方表单控制器的方法：它自带写队列串行化、revision 冲突恢复
+          // 与镜像折入（dsh-client-ui-settings 的 ConfigFormController.mutate，lib/client.js:1177-1194）
+          mutate: function (ops, revision) { return scope.mutate(ops, revision); },
           reloadRemote: function () { remoteStore.reload(); },
         };
       };
