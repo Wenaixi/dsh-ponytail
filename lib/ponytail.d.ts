@@ -23,11 +23,11 @@ export declare const Config: Schema<Schemastery.ObjectS<NoInfer<{
     disabledSkills: Schema<NoInfer<string[]>, NoInfer<string[]>, "volatile">;
 }>>, "plain">;
 export declare const name = "ponytail";
-export declare const inject: readonly ["skills", "systemPrompt", "webServer"];
+export declare const inject: readonly ["skills", "systemPrompt"];
 export declare function apply(ctx: Context, config?: Config): void;
 declare const _default: {
     name: string;
-    inject: readonly ["skills", "systemPrompt", "webServer"];
+    inject: readonly ["skills", "systemPrompt"];
     Config: Schema<Schemastery.ObjectS<NoInfer<{
         providerName: Schema<string, string, "defined">;
         skillDir: Schema<string, string, "plain">;

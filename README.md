@@ -118,7 +118,16 @@ HMR: 全部走 ctx，热重载逆序自动清理
 
 ### 界面配置
 
-插件在已安装插件卡片详情内嵌配置面板（`plugins.bundle.config` 插槽），支持四档运行等级、6 个技能的独立开关、一键恢复默认，并给出**四级优先级诊断链**——逐行显示环境变量、Profile 补丁、配置文件、内置兜底各自的值与生效状态，被更高优先级压制的那一级会显式标为"被覆盖"，等级选择器同时禁用。面板读写均经 `/api/plugins/ponytail/config`，落盘位置同样是 `$DSH_HOME/ponytail/config.json`。
+插件在已安装插件卡片详情内嵌配置面板（`plugins.bundle.config` 插槽），支持四档运行等级、6 个技能的独立开关、一键恢复默认，并给出**四级优先级诊断链**——逐行显示环境变量、Profile 补丁、配置文件、内置兜底各自的值与生效状态，被更高优先级压制的那一级会显式标为"被覆盖"，等级选择器同时禁用。
+
+面板不使用自制 HTTP 端点，读写分两条官方通道：
+
+| 通道 | 内容 | 落点 |
+| --- | --- | --- |
+| `ctx.configForms.get('ponytail')` | 默认档、技能启用列表（写入自带 revision 冲突检测） | Profile 补丁 `profiles/<name>/cordis.patch.yml` |
+| `ctx.remote.ponytail.snapshot()` | 当前生效等级、四级优先级诊断链（只读） | 不落盘，按需拉取 |
+
+在无 Profile 上下文的组合（headless / CLI）里，宿主没有装配 Settings 服务，此时配置读写回退到 `$DSH_HOME/ponytail/config.json`。从旧版本升级时，`config.json` 里的两个字段会在首次启动时一次性导入 Profile 补丁，随后旧文件被改名为 `config.json.imported`；导入失败不影响启动，可用 `/ponytail default <档>` 重新设置。
 
 若从旧位置升级，首次读取会兼容旧配置，但新写入一律落到 DSH 数据根；旧目录不删不改。
 

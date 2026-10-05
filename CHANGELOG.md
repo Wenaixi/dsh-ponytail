@@ -17,7 +17,23 @@
 
 ## [Unreleased]
 
-（本段暂无待发布内容）
+### Added
+- `src/ponytail-settings.ts`：可持久化配置的读写通道。`createSettingsSink` 经 `ctx.settings.mutate('ponytail', ops, revision)` 写入，由宿主落到 profile 补丁并自带 revision 冲突保护；`createFileSink` 在无 profileContext 的组合（headless / CLI，dsh-base 的 settings 行未装配）回退读写 `config.json`；`migrateLegacyConfig` 把旧 `config.json` 的两个字段一次性导入 profile 补丁并改名旧文件使其幂等。
+- `src/ponytail-remote.ts`：`PonytailRemote extends TypertRemoteService`，命名空间 `ponytail`，只暴露只读端点 `snapshot()`（当前生效等级 + 四级优先级诊断链）。宿主网关按服务上的 `typertRemote` 绑定自动发现端点，浏览器侧即 `ctx.remote.ponytail.snapshot()`。
+
+### Changed
+- 配置卡改用 DSH 官方插件配置组合：`Config` 的 `defaultMode` 与 `disabledSkills` 声明为 `.volatile()` 字段，宿主 `volatileForm()` 投影成官方表单；客户端经 `ctx.configForms.get('ponytail')` 读写，插槽注册包在 `configForms.whileServed(['ponytail'])` 内。
+- `patchMode` 改为实时读取 volatile 引用，不再缓存启动期快照。
+- `PonytailConfig` 的两个可持久化字段类型为 `VolatileRef<T>`，新增 `readVolatile()` 兼容「引用 / 裸值 / 未配置」三态。
+- 技能启用态的失效触发点从自制 HTTP 端点直调改为监听宿主 `loader/volatile-update`。
+
+### Removed
+- 删除 `src/ponytail-http.ts` 与 `/api/plugins/ponytail/config` 端点，以及 `webServer` 注入。
+- 删除 `apply()` 里对 `settings.register('ponytail', Config)` 的调用——`@deepseek-ai/dsh-settings@0.2.0-rc.2` 没有 `register` 方法（全文件零次出现），该调用此前被 `typeof` 守卫静默跳过，属于从未生效的死代码。命名空间改由「唯一 profile 条目 + 含 volatile 字段的 Config」自动产生。
+
+### Fixed
+- 技能禁用状态此前只存在 `config.json` 且只能由 HTTP 端点修改；迁移后 UI 改开关后模型侧目录不收敛（写入链不经过本插件任何函数）。现由 loader 的 volatile 提交事件驱动失效。
+- 客户端配置卡此前自建 `fetch` 状态机（含空配置兜底、加载态、错误态），现完全走官方表单控制器，不发起任何 HTTP 请求。
 
 ## [4.10.0-dsh.12] - 2026-10-04
 

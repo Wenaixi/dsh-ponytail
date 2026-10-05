@@ -62,10 +62,13 @@
   技能的名称与描述一律以 `skills/*/SKILL.md` frontmatter 为唯一真源；宿侧 `readSkillMeta` 实时读取（读不到回退 `FALLBACK_SKILL_META`），客户端构建期提取内嵌。任何模块不得再硬编码技能描述（verify 反向断言锁死）。
   *Avoid (严禁混用)*: Skill Catalog, Meta Copy, 技能清单、描述摘要
 
-- **Config Http Endpoint（配置端点深工厂）**:
-  `src/ponytail-http.ts` 的 `createConfigHttpEndpoint(deps)`：GET/POST/405、请求体解析、快照组装、
-  readSkillMeta 读取全部内聚，依赖全注入、不碰 ctx，可用假 req/res 直接单测。apply() 只保留接线。
-  *Avoid (严禁混用)*: Web Route Handler, Config API, 路由回调
+- **Official Config Channels（官方配置通道）**:
+  可持久化字段（`defaultMode`、`disabledSkills`）声明为 `Config` 的 `.volatile()` 字段，宿主
+  `settings` 服务把它们投影成官方表单（`volatileForm`），写入经 `ctx.settings.mutate(ns, ops, revision)`
+  落到 Profile 补丁；只读推导值（当前生效等级、四级优先级诊断链）经 `TypertRemoteService` 命名空间
+  `ponytail` 下发。宿主没有装配 settings 的组合（无 Profile 上下文）回退 `config.json` 文件通道。
+  插件不再注册任何 HTTP 端点，也不再注入 `webServer`。
+  *Avoid (严禁混用)*: Web Route Handler, Config API, 路由回调, 自制 HTTP 端点
 
 - **Client Locale Dict（客户端双语字典）**:
   面板文案经官方 `ctx.locale.register('ponytail', {zh, en})` + `bind` 提供，字典真源在 `locale/*.json`；
@@ -86,9 +89,11 @@
 | `ponytail-instructions.ts` | 提示词裁剪与渲染单一出口 | `render` | Markdown 解析、正则裁剪、review 短路、异常容灾 |
 | `ponytail-state.ts` | 对偶状态机管理（含 flag 物理存取，C6 内联） | `PonytailState` 对偶接口 | 内存状态流转、对偶落盘、文件优先纠偏、`.ponytail-active` 读写、技能禁用 reload 收敛 |
 | `ponytail-skills.ts` | 技能发现与契约提供 | `PonytailProvider` (SkillProvider) | 目录扫描、Frontmatter 解析、assembleSkillBase 流水线 |
-| `ponytail-config.ts` | Schemastery 声明与配置 | `Config`, `getDefaultMode`, `readFullConfig` / `writeFullConfig` / `resetFullConfig` | 四级配置优先级、模式归一、路径字符白名单、DSH 数据根解析、读写 config.json |
+| `ponytail-config.ts` | Schemastery 声明与配置 | `Config`, `readVolatile`, `readFullConfig` / `writeFullConfig` / `resetFullConfig` | 模式归一、路径字符白名单、DSH 数据根解析、读写 config.json、volatile 引用的三态读取 |
+| `ponytail-settings.ts` | 可持久化配置的读写通道 | `PonytailConfigSink`, `createSettingsSink` / `createFileSink`, `migrateLegacyConfig` | settings 通道与文件通道的选择、乐观写入语义、旧配置一次性导入 |
 | `ponytail-priority.ts` | 优先级诊断纯函数 | `resolvePriority` | 四级诊断链组装、状态语义（hit/shadowed/problem） |
-| `ponytail.ts` | Cordis 插件生命周期编排 | `apply` | Waterfall 中间件流转、agent/created 钩子、section 注入、`/api/plugins/ponytail/config` 路由 |
+| `ponytail-remote.ts` | 只读推导值的跨端下发 | `PonytailRemote` (TypertRemoteService), `readSkillMeta` | 命名空间与端点声明、技能 frontmatter 元数据读取 |
+| `ponytail.ts` | Cordis 插件生命周期编排 | `apply` | Waterfall 中间件流转、agent/created 钩子、section 注入、`loader/volatile-update` 收敛 |
 
 ---
 
@@ -100,7 +105,9 @@
 4. **DSH 单一宿主运行时**：不识别任何外部宿主（Copilot / Codex / Qoder / Claude Code / Cursor），配置与 flag 固定持久化于 DSH 用户数据根 `$DSH_HOME/ponytail`（见 `docs/adr/0001`、`0004`、`0005`）；
 5. **会话启动对齐**：每次会话启动按默认档（env > patch > 配置文件 > full）重写 flag（对齐上游 `ponytail-activate.js` SessionStart 语义），`/ponytail <档>` 只在本会话生效，跨会话持久化必须用 `/ponytail default <档>`；
 6. **Waterfall 连贯性**：所有 Cordis Waterfall 中间件必须返回 `await next()`，防御性隔离所有异常；
-7. **Schema 不给默认值**：`Config.defaultMode` 刻意不带 `.default()`，否则 Cordis 校验会把缺省 fill 成显式配置，永久 shadow 掉 `config.json` 里用户设置的档位。
+7. **Schema 不给默认值**：`Config.defaultMode` 刻意不带 `.default()`，否则 Cordis 校验会把缺省 fill 成显式配置，永久 shadow 掉 `config.json` 里用户设置的档位；
+8. **无自制端点**：插件不注册任何 HTTP 路由、不注入 `webServer`。可持久化字段只经官方 settings 通道读写，只读推导值只经 Typert 通道下发（verify 反向断言锁死）；
+9. **只读推导值不入配置**：优先级诊断链与当前生效等级由四层运行时合并得出，落盘会让过期值遮蔽新值（如 `env` 只有进程重启才变）。改配置层的推理必须回到本条重估。
 
 ### 3.1 优先级诊断链（Priority Chain）
 
@@ -115,7 +122,7 @@
 
 每一项带 `label` / `location` / `value` / `hit` / `shadowed` / `problem`，UI 渲染为四种状态：生效中（success）、被覆盖（warning）、未设置（quiet）、值非法或文件损坏（danger）。
 
-> **唯一真源（ADR-0006）**：`resolvePriority().effective` 同时是 apply 的 initialMode 与 GET/POST 响应 defaultMode 的取值来源；客户端面板的 label/problem 展示按 level 查双语字典覆盖（宿侧契约零改动）。
+> **唯一真源（ADR-0006）**：`resolvePriority().effective` 同时是 apply 的 initialMode 与远程快照 `snapshot().priority.effective` 的取值来源；`patchMode` 每次求值实时读取 volatile 引用（官方表单改动后立刻反映，不缓存启动快照）；客户端面板的 label/problem 展示按 level 查双语字典覆盖。
 
 *Avoid（严禁混用）*: priority order, precedence list, 优先级数组、权重排序
 

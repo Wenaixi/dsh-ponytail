@@ -34,7 +34,6 @@ import {
   type PonytailConfigSink,
 } from './ponytail-settings.js'
 import { resolvePriority } from './ponytail-priority.js'
-import { createConfigHttpEndpoint } from './ponytail-http.js'
 import { createCommandDispatcher } from './ponytail-commands.js'
 import { renderPromptSection } from './ponytail-instructions.js'
 import { createPonytailState } from './ponytail-state.js'
@@ -72,7 +71,7 @@ export const Config = Schema.object({
 // ---------------------------------------------------------------------------
 
 export const name = 'ponytail'
-export const inject = ['skills', 'systemPrompt', 'webServer'] as const
+export const inject = ['skills', 'systemPrompt'] as const
 
 // ---------------------------------------------------------------------------
 // 工具函数（与 superpowers 同款健壮版）
@@ -267,7 +266,7 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
   // 不是配置——它们由 env / profile 补丁 / config.json / 兜底四层合并得出，写进配置层
   // 会让落盘值永久盖住真值。浏览器侧经 ctx.remote.ponytail.snapshot() 读取。
   // 直接挂载：服务随插件 fiber 失效自动注销，不需要额外 disposer。
-  // 守卫与 webServer / settings 同款：精简宿主或 mock 上 ctx.plugin 可能不存在，
+  // 守卫与 settings 同款：精简宿主或 mock 上 ctx.plugin 可能不存在，
   // 缺失时快照通道不可用（客户端降级为不显示优先级段），但不得掀翻其余能力。
   if (typeof (ctx as unknown as { plugin?: unknown }).plugin === 'function') {
     ctx.plugin(PonytailRemote, {
@@ -385,36 +384,6 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
   })
 
 
-  // ---------------------------------------------------------------------------
-  // ---------------------------------------------------------------------------
-  // Web 配置端点：独立深工厂（src/ponytail-http.ts），apply 只保留接线
-  // invalidateSkills 依赖 providerInstance（上方注册时已捕获实例，C1 修复）
-  if ((ctx as any).webServer) {
-    ctx.effect(() => {
-      ctx.logger.info('[ponytail] Web 配置端点已就绪: /api/plugins/ponytail/config')
-      return (ctx as any).webServer.register({
-        kind: 'exact',
-        path: '/api/plugins/ponytail/config',
-        handler: createConfigHttpEndpoint({
-          state,
-          readRawConfigMode,
-          invalidateSkills: () => {
-            if (providerInstance) {
-              try {
-                providerInstance.invalidate()
-              } catch {
-                // 忽略异常
-              }
-            }
-          },
-          readPatchMode,
-          logger: ctx.logger,
-          readEnvRaw: () => process.env['PONYTAIL_DEFAULT_MODE'],
-          skillDir,
-        }),
-      })
-    }, 'ponytail: web route')
-  }
 
   // 清理：HMR 卸载时自动通过 ctx 逆序清理所有注册；额外标记
   ctx.effect(() => {

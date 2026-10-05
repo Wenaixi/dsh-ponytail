@@ -741,7 +741,6 @@ test('C4 一致性: resolvePriority patch 非法且 config 缺失时落内置兜
 })
 
 
-
 // ---------------------------------------------------------------------------
 // C7：默认档命令层分裂（真 bug 回归锁，production 接线级）
 // 背景：apply 的 initialMode 与 UI 面板 defaultMode 走 resolvePriority（含 patch 层），
@@ -821,183 +820,39 @@ test('C4 一致性: resolvePriority env 带空白时 trim 后生效', async () =
   assert.strictEqual(r.chain[0].hit, true)
 })
 
-// ---------------------------------------------------------------------------
-// C1：HTTP 配置端点深工厂（独立可测，不经 apply）
-// ---------------------------------------------------------------------------
 
-function fakeRes() {
-  let status = 0
-  let body = ''
-  return {
-    setHeader() {},
-    writeHead(code) { status = code },
-    end(data) { body = data ?? '' },
-    get status() { return status },
-    get json() { try { return JSON.parse(body) } catch { return null } },
-  }
-}
-
-function fakePostReq(bodyStr) {
-  return {
-    method: 'POST',
-    [Symbol.asyncIterator]: async function* () {
-      yield bodyStr
-    },
-  }
-}
-
-function createEndpointDeps(extra = {}) {
-  let storageVal = null
-  const mockStorage = {
-    read: () => storageVal,
-    write: (m) => { storageVal = m },
-    clear: () => { storageVal = null },
-  }
-  const state = createPonytailState({ storage: mockStorage })
-  let invalidated = 0
-  const deps = {
-    state,
-    readRawConfigMode: () => undefined,
-    invalidateSkills: () => { invalidated++ },
-    readPatchMode: () => undefined,
-    logger: { info: () => {} },
-    readEnvRaw: () => undefined,
-    skillDir,
-    ...extra,
-  }
-  return { deps, mockStorage, getInvalidated: () => invalidated }
-}
-
-test('C1 动态接线: /ponytail default 后同一 HTTP handler 读取新 patch 意图', async () => {
-  delete process.env.PONYTAIL_DEFAULT_MODE
-  const handlers = {}
-  let endpoint
-  const ctx = {
-    on: (event, handler) => { handlers[event] = handler },
-    effect: (setup) => setup(),
-    logger: { info: () => {}, warn: () => {}, debug: () => {} },
-    skills: { registerProvider: () => () => {} },
-    systemPrompt: { section: () => () => {} },
-    webServer: { register: (options) => { endpoint = options.handler; return () => {} } },
-  }
-  apply(ctx, { defaultMode: 'lite' })
-  const first = fakeRes()
-  await endpoint({ method: 'GET' }, first)
-  assert.equal(first.json.defaultMode, 'lite')
-  await handlers['agent/pre-step']({ messages: [{ content: '/ponytail default ultra' }] }, async () => 'next')
-  const getAfter = fakeRes()
-  await endpoint({ method: 'GET' }, getAfter)
-  assert.equal(getAfter.json.defaultMode, 'ultra')
-  const postAfter = fakeRes()
-  await endpoint(fakePostReq('{}'), postAfter)
-  assert.equal(postAfter.json.defaultMode, 'ultra')
-})
-
-test('C1 端点: GET 返回 200 且诊断链恒 4 项、技能 6 项', async () => {
-  const { createConfigHttpEndpoint } = await import('../lib/ponytail-http.js')
-  const { deps } = createEndpointDeps()
-  const handler = createConfigHttpEndpoint(deps)
-  const res = fakeRes()
-  await handler({ method: 'GET' }, res)
-  assert.equal(res.status, 200)
-  assert.equal(res.json.currentMode, 'off')
-  assert.equal(res.json.defaultMode, 'full')
-  assert.equal(res.json.priority.chain.length, 4)
-  assert.equal(res.json.skills.length, 6)
-  assert.equal(res.json.skills[0].enabled, true)
-    assert.equal(res.json.defaultMode, res.json.priority.effective, 'C3 不变量：defaultMode 与 priority.effective 必须同源同值')
-})
-
-test('C1 端点: POST mode 切换即时生效且持久化默认档', async () => {
-  const { createConfigHttpEndpoint } = await import('../lib/ponytail-http.js')
-  const { deps } = createEndpointDeps()
-  // 让 config.json 的 defaultMode 可读：临时 DSH_HOME 下写入
-  const handler = createConfigHttpEndpoint(deps)
-  const res = fakeRes()
-  await handler(fakePostReq(JSON.stringify({ mode: 'lite' })), res)
-  assert.equal(res.status, 200)
-  assert.equal(res.json.success, true)
-  // mode 切换即时生效：内存态立即变为 lite
-  assert.equal(res.json.currentMode, 'lite')
-  // 持久化后的默认档：由真实 config.json 提供（测试 DSH_HOME 隔离，写盘后 readRawConfigMode 可读到）
-  const { readFullConfig } = await import('../lib/ponytail-config.js')
-  assert.equal(readFullConfig().defaultMode, 'lite')
-})
-
-test('C1 端点: POST 非法 JSON 返回 400', async () => {
-  const { createConfigHttpEndpoint } = await import('../lib/ponytail-http.js')
-  const { deps } = createEndpointDeps()
-  const handler = createConfigHttpEndpoint(deps)
-  const res = fakeRes()
-  await handler(fakePostReq('{bad json'), res)
-  assert.equal(res.status, 400)
-})
-
-test('C1 端点: POST reset 触发 invalidateSkills 且状态复位', async () => {
-  const { createConfigHttpEndpoint } = await import('../lib/ponytail-http.js')
-  const { deps, getInvalidated } = createEndpointDeps()
-  deps.state.set('ultra')
-  const handler = createConfigHttpEndpoint(deps)
-  const res = fakeRes()
-  await handler(fakePostReq(JSON.stringify({ action: 'reset' })), res)
-  assert.equal(res.status, 200)
-  assert.equal(res.json.currentMode, 'full')
-  assert.ok(getInvalidated() >= 1, 'reset 必须触发 invalidateSkills')
-})
-
-test('C1 端点: PATCH 返回 405', async () => {
-  const { createConfigHttpEndpoint } = await import('../lib/ponytail-http.js')
-  const { deps } = createEndpointDeps()
-  const handler = createConfigHttpEndpoint(deps)
-  const res = fakeRes()
-  await handler({ method: 'PATCH' }, res)
-  assert.equal(res.status, 405)
-})
-
-// ---------------------------------------------------------------------------
-// C2：技能元数据单一真源（SKILL.md frontmatter）
-// ---------------------------------------------------------------------------
-
-test('C2 技能元数据: readSkillMeta 从 frontmatter 提取 6 项且含禁用技能', async () => {
-  const { readSkillMeta } = await import('../lib/ponytail-http.js')
+// 迁移到官方通道后，「列表 + 每项 enabled」不再由服务端组装：列表是构建期从
+// frontmatter 提取的常量（lib/client.js 的 SKILL_META），enabled 就是配置快照里
+// disabledSkills 的取反。因此这两项契约的落点从 HTTP 响应改为读侧函数与状态机。
+test('C2 技能元数据: readSkillMeta 的描述与 frontmatter 逐字同源', async () => {
+  const { readSkillMeta } = await import('../lib/ponytail-remote.js')
   const metas = readSkillMeta(skillDir)
   assert.equal(metas.length, 6)
-  const names = metas.map(m => m.id).sort()
-  assert.deepStrictEqual(names, ['ponytail', 'ponytail-audit', 'ponytail-debt', 'ponytail-gain', 'ponytail-help', 'ponytail-review'])
-  // frontmatter 原文特征（触发词），而非手写短摘要
-  const main = metas.find(m => m.id === 'ponytail')
-  assert.ok(main.description.includes('触发词'), '描述应来自 frontmatter 原文（含触发词）')
-  assert.ok(main.description.length > 60, 'frontmatter 描述是长文，不是一行摘要')
-})
-
-test('C2 技能元数据: GET 响应 skills 描述与 frontmatter 同源', async () => {
-  const { createConfigHttpEndpoint, readSkillMeta } = await import('../lib/ponytail-http.js')
-  const { deps } = createEndpointDeps()
-  const handler = createConfigHttpEndpoint(deps)
-  const res = fakeRes()
-  await handler({ method: 'GET' }, res)
-  const fromFm = readSkillMeta(skillDir)
-  for (const s of res.json.skills) {
-    const fm = fromFm.find(m => m.id === s.id)
-    assert.ok(fm, '每个下发技能都应在 frontmatter 真源中')
-    assert.equal(s.description, fm.description, s.id + ' 描述必须与 frontmatter 一致')
+  for (const meta of metas) {
+    const raw = (await readFileFsp(join(skillDir, meta.id, 'SKILL.md'), 'utf8'))
+    const end = raw.indexOf('\n---\n')
+    const fm = (await import('yaml')).parse(raw.slice(4, end))
+    assert.equal(meta.description, fm.description, meta.id + ' 描述必须与 frontmatter 一致')
   }
 })
 
-test('C2 技能元数据: 禁用技能仍在下发列表（面板需展示开关）', async () => {
-  const { createConfigHttpEndpoint } = await import('../lib/ponytail-http.js')
-  const { deps } = createEndpointDeps()
-  deps.state.setDisabledSkills(['ponytail-gain'])
-  const handler = createConfigHttpEndpoint(deps)
-  const res = fakeRes()
-  await handler({ method: 'GET' }, res)
-  const gain = res.json.skills.find(s => s.id === 'ponytail-gain')
-  assert.ok(gain, '禁用技能必须在列表中（否则面板无法重新启用）')
-  assert.equal(gain.enabled, false)
+test('C2 技能启用态: 禁用后仍在技能目录内（可被重新启用），且不丢其他项', async () => {
+  const { createPonytailState } = await import('../lib/ponytail-state.js')
+  const state = createPonytailState({
+    storage: { read: () => null, write: () => {}, clear: () => {} },
+  })
+  assert.equal(state.isSkillEnabled('ponytail-gain'), true)
+  state.toggleSkill('ponytail-gain', false)
+  assert.equal(state.isSkillEnabled('ponytail-gain'), false, '禁用后 enabled=false')
+  state.toggleSkill('ponytail-debt', false)
+  assert.deepEqual(state.getDisabledSkills().sort(), ['ponytail-debt', 'ponytail-gain'],
+    '禁用列表是覆盖式累加：关一个不能影响另一个')
+  state.toggleSkill('ponytail-gain', true)
+  assert.deepEqual(state.getDisabledSkills(), ['ponytail-debt'], '重新启用只移除自己')
 })
 
 test('C2 技能元数据: frontmatter 不可读时回退内置兜底而非抛错', async () => {
-  const { readSkillMeta } = await import('../lib/ponytail-http.js')
+  const { readSkillMeta } = await import('../lib/ponytail-remote.js')
   const metas = readSkillMeta(skillDir + '__missing__')
   assert.equal(metas.length, 6, '读不到目录时应回退内置元数据')
   assert.equal(metas[0].id, 'ponytail')

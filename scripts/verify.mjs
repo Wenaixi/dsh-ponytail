@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs'
 import { readdir, readFile, stat } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -170,12 +171,8 @@ if (clientDrift) {
   console.error(`[verify] FAIL: build-client.mjs 出现硬编码技能描述（必须由 SKILL.md frontmatter 生成）：${clientDrift[0]}`)
   ok = false
 }
-// 宿侧必须经 readSkillMeta 取真源（FALLBACK_SKILL_META 仅作不可读兜底）
-const httpSrc = await readFile(join(rootDir, 'src', 'ponytail-http.ts'), 'utf8')
-if (!httpSrc.includes('readSkillMeta(deps.skillDir)')) {
-  console.error('[verify] FAIL: src/ponytail-http.ts 的 snapshot 必须经 readSkillMeta 取 frontmatter 真源')
-  ok = false
-}
+// 宿侧必须经 readSkillMeta 取真源（FALLBACK_SKILL_META 仅作不可读兜底）。
+// 该函数在 HTTP 删除后已迁至 src/ponytail-remote.ts（见下方 officialConfigChecks）。
 console.log('[verify] ✓ skill meta single-source (SKILL.md frontmatter)')
 
 // 官方配置组合的接线契约（替代已失效的 settings.register 断言）：
@@ -198,6 +195,9 @@ const officialConfigChecks = [
   ['远程通道只暴露只读端点 snapshot', /@Remote\('snapshot'\)/.test(remoteSrc)],
   ['远程通道不含写端点（写操作归 settings）', !/@Remote\('(set|write|update|reset|toggle)'\)/.test(remoteSrc)],
   ['技能元数据真源随远程通道提供（readSkillMeta）', /export function readSkillMeta/.test(remoteSrc)],
+  ['src/ponytail-http.ts 已删除（不再有自制端点）', !existsSync(join(rootDir, 'src', 'ponytail-http.ts'))],
+  ['宿主不再注入 webServer', !/webServer/.test(hostSrc)],
+  ['宿主不注册 HTTP 路由', !/api\/plugins\/ponytail/.test(hostSrc)],
   ['客户端经 configForms.get 读取官方配置', /ctx\.configForms\.get\('ponytail'\)/.test(clientBuildSrc)],
   ['客户端经 whileServed 跟随命名空间', /configForms\.whileServed\(\s*\[\s*['"]ponytail['"]/.test(clientBuildSrc)],
   ['客户端注入 configForms 服务', /"configForms"/.test(clientBuildSrc)],
