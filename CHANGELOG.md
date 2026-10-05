@@ -2,7 +2,7 @@
 
 所有重要变更记录于此，格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)。本地版本与上游参考版本独立维护。
 
-> 当前本地版本：`5.0.0`。上游参考：`DietrichGebert/ponytail 4.10.3`（2026-10-04 核验）。历史 `-dsh.N` 记录仅用于追溯，不再作为现行版本规则。
+> 当前本地版本：`5.1.0`。上游参考：`DietrichGebert/ponytail 4.10.3`（2026-10-04 核验）。历史 `-dsh.N` 记录仅用于追溯，不再作为现行版本规则。
 
 ## [5.0.0] - 2026-10-04
 
@@ -15,7 +15,12 @@
 - 客户端 locale 字典改为 DSH 要求的扁平键，避免界面显示 `panel.title`、`priority.title` 等裸 key。
 - 客户端产物继续禁止 `import.meta` 和 `process.`，避免浏览器导入失败。
 
-## [Unreleased]
+## [5.1.0] - 2026-10-05
+
+### Breaking
+
+- **配置与 flag 的落点从全局数据根改为 profile 目录**（`profiles/<name>/ponytail/`）。升级用户的当前档位会重置为 `full`：迁移读取的是 profile 内的新位置，全局共享的旧 `config.json` 只需一次性导入。
+- **优先级链从四级降为三级**（`env > patch > fallback`），`config.json` 层退役。界面上的「用户配置文件」一行已移除。
 
 ### Added
 - 配置与 flag 的 profile 维度：全部配置文件读写函数与 `createDiskStorage` 接受 `profileDir`，目录来自宿主 `profileContext.dir`，落点改为 `profiles/<name>/ponytail/`。同机多实例不再共享 `$DSH_HOME/ponytail`，最后写者赢的串扰消失。`src/ponytail-settings.ts` 提供两条通道——`createSettingsSink` 经 `ctx.settings.mutate('ponytail', ops, revision)` 写入，由宿主落到 profile 补丁并自带 revision 冲突保护；`createFileSink` 在无 settings 服务的组合（headless / CLI）回退读写 profile 内 `config.json`；`migrateLegacyConfig` 把全局共享的旧 `config.json` 一次性导入 profile 补丁并改名使其幂等。

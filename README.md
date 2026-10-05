@@ -24,7 +24,7 @@
 
 > 这是面向 DeepSeek Harness 的 Ponytail 适配插件：提供常驻懒人 senior 模式、七阶梯子、6 个中文原生技能和零 tool 注册。实现参考 [DietrichGebert/ponytail](https://github.com/DietrichGebert/ponytail)，但本地版本、发布节奏和 DSH 兼容边界独立维护。
 >
-> **版本对照（2026-10-04 核验）**：本地发行版本为 `5.0.0`；上游参考版本为 `4.10.3`。上游参考版本不会自动决定本地版本号。
+> **版本对照（2026-10-05 核验）**：本地发行版本为 `5.1.0`；上游参考版本为 `4.10.3`。上游参考版本不会自动决定本地版本号。
 
 ## 🚀 安装（默认装到 `web`）
 
@@ -152,7 +152,7 @@ dsh --profile web --patch ./cordis.patch.yml --dump-config  # 仅验证补丁解
 pnpm dsh web --patch ./cordis.patch.yml   # 热重载
 ```
 
-- **版本策略**：本地发行版本使用独立的标准 SemVer，例如当前 `5.0.0`；使用 `pnpm version:bump` 递增 patch，或 `pnpm version:set -- 5.1.0` 设置明确版本。旧的 `-dsh.N` 仅属于历史版本策略，不再生成。
+- **版本策略**：本地发行版本使用独立的标准 SemVer，例如当前 `5.1.0`；使用 `pnpm version:bump` 递增 patch，或 `pnpm version:set -- 5.1.1` 设置明确版本。旧的 `-dsh.N` 仅属于历史版本策略，不再生成。
 - **上游参考**：README 记录上游参考版本和核验日期，但上游发布不会自动改变本地版本；是否升级参考实现由本地兼容性评估决定。
 - **发布铁律**：严禁本地 `npm publish` 和未经授权的 `git push`。本地完成门禁后，由授权的 CI tag 流程发布 npm 与 GitHub Release。
 - **客户端产物单一来源**：`lib/client.js` 只由 `scripts/build-client.mjs` 生成。`tsconfig.build.json` 不得把它列入编译输入，否则会出现同名双产物并静默漂移。
