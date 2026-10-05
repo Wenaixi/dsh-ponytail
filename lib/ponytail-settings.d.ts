@@ -8,12 +8,12 @@
  *
  * - `createSettingsSink`：官方路径，经 `ctx.settings.mutate(ns, ops, revision)` 写入。
  *   宿主负责 schema 校验、revision 冲突检测与 loader 的 volatile 热提交。
- * - `createFileSink`：回退路径，直读直写 `$DSH_HOME/ponytail/config.json`。
+ * - `createFileSink`：回退路径，直读直写 profile 内的 `ponytail/config.json`（无 profileContext 时退回 DSH 数据根）。
  *   存在于无 profileContext 的组合（headless、CLI）——dsh-base 的 settings 行
  *   `disabled: !!js "!ctx.get('profileContext')"`，那些组合装配不上 settings 服务，
  *   此时必须仍能改配置，不能因迁移而静默失效。
  *
- * 优先级链不在本模块：resolvePriority 仍是 env > profile 补丁 > config.json > full 的唯一真源。
+ * 优先级链不在本模块：resolvePriority 仍是 env > profile 补丁 > full 的唯一真源。
  */
 import type { RuntimeMode } from './ponytail-config.js';
 /** 写入操作：与官方 settings.mutate 的 ops 形状一致（dsh-api-settings-controller:432）。 */
@@ -56,10 +56,10 @@ export declare function createSettingsSink(ctx: {
     settings?: SettingsLike | null;
 }, namespace?: string, options?: SettingsSinkOptions): PonytailConfigSink;
 /**
- * 文件回退通道：无 profileContext 的组合（headless / CLI）直接读写 config.json。
+ * 文件回退通道：无 settings 服务的组合（headless / CLI）直接读写 profile 内 config.json。
  * 与 settings 通道共享同一组语义：非法档不写、reset 清空两项。
  */
-export declare function createFileSink(): PonytailConfigSink;
+export declare function createFileSink(profileDir?: string): PonytailConfigSink;
 export interface LegacyMigrationDeps {
     /** 官方 settings 服务：用 describe 判断是否已设，用 update 写入 */
     settings: {

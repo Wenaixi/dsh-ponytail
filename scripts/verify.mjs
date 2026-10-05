@@ -219,20 +219,13 @@ else { console.error('[verify] cordis.patch.yml not referencing dsh-ponytail by 
 
 // 跨平台路径门禁（见 docs/adr/0005）：
 // 存储路径必须由 DSH 数据根解析得出，不得出现平台判断或平台特定路径字面量。
-// 唯一豁免是 getLegacyConfigDir() 的旧位置兼容读取分支——它必须保留旧平台约定，
-// 因此扫描时排除该函数体，其余位置出现即判失败。
-const legacyCompatSrc = await readFile(join(srcDir, 'ponytail-config.ts'), 'utf8')
-const legacyFnStart = legacyCompatSrc.indexOf('export function getLegacyConfigDir')
-const legacyFnEnd = legacyCompatSrc.indexOf('export function getLegacyConfigPath')
-const legacyCompatSource =
-  legacyFnStart >= 0 && legacyFnEnd > legacyFnStart
-    ? legacyCompatSrc.slice(legacyFnStart, legacyFnEnd)
-    : legacyCompatSrc
-
+// 1A 下沉后已无豁免：旧平台位置（APPDATA / XDG_CONFIG_HOME / ~/.config）的兼容读取
+// 随 getLegacyConfigDir 一并删除，src/ 下任何位置出现平台约定即判失败。
+// 已移除：1A 迁移后 src/ 下无平台位置兼容分支
 const platformPathPattern = /%APPDATA%|XDG_CONFIG_HOME|process\.platform|\.config[\\/]ponytail|AppData[\\/]Roaming/
 const offenders = []
 for (const f of (await readdir(srcDir)).filter(f => f.endsWith('.ts'))) {
-  const code = (await readFile(join(srcDir, f), 'utf8')).replace(legacyCompatSource, '')
+  const code = await readFile(join(srcDir, f), 'utf8')
   const m = code.match(platformPathPattern)
   if (m) offenders.push(`src/${f}: ${m[0]}`)
 }

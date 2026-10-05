@@ -77,45 +77,33 @@ export function resolveDshHome(configured?: string, env: Record<string, string |
  * 配置目录：DSH 数据根下的 ponytail 子目录。
  * 平台无关——路径分隔符一律由 node:path 生成，不含任何平台判断。
  */
-export function getConfigDir(): string {
-  return join(resolveDshHome(), 'ponytail')
+export function getConfigDir(profileDir?: string): string {
+  return profileDir === undefined || profileDir === '' ? join(resolveDshHome(), 'ponytail') : join(profileDir, 'ponytail')
 }
 
-export function getConfigPath(): string {
-  return join(getConfigDir(), 'config.json')
+export function getConfigPath(profileDir?: string): string {
+  return join(getConfigDir(profileDir), 'config.json')
 }
 
 /**
- * 迁移前的旧配置路径（4.10.0-dsh.4 及以前使用的宿主平台约定位置）。
+ * 全局共享的旧配置路径（ADR-0005 时代的位置，被所有实例共享）。
  *
- * 仅用于一次性兼容读取：老用户升级后，新位置尚未生成时回退读取旧配置，
- * 避免已自定义的等级/技能开关静默丢失。写入永远只写新位置，
- * 旧目录不删除也不改写，数据所有权保持清晰。
- * ponytail: 兼容读取保留至下一个大版本（5.x 首发）后移除，届时可整段删除。
+ * 只在迁移窗口内被读：实例在「全局文件存在且 profile 内尚未生成」时导入，
+ * 导入后把全局文件改名标记为已迁，使后续实例从干净状态启动。
+ * 正常读写一律经 getConfigDir()，此路径不参与优先级链。
  */
-export function getLegacyConfigDir(): string | null {
-  const legacyDir =
-    process.env['XDG_CONFIG_HOME'] !== undefined
-      ? join(process.env['XDG_CONFIG_HOME'], 'ponytail')
-      : process.platform === 'win32'
-        ? join(process.env['APPDATA'] ?? join(homedir(), 'AppData', 'Roaming'), 'ponytail')
-        : join(homedir(), '.config', 'ponytail')
-  return legacyDir === getConfigDir() ? null : legacyDir
-}
-
-export function getLegacyConfigPath(): string | null {
-  const dir = getLegacyConfigDir()
-  return dir ? join(dir, 'config.json') : null
+export function getSharedConfigPath(): string {
+  return join(resolveDshHome(), 'ponytail', 'config.json')
 }
 
 /**
  * 读取配置文件原文：新位置优先，缺失时一次性回退旧位置。
  * 返回 null 表示两处都不存在或均不可读。
  */
-export function readConfigFileText(): string | null {
-  const candidates = [getConfigPath(), getLegacyConfigPath()]
+export function readConfigFileText(profileDir?: string): string | null {
+  const candidates = [getConfigPath(profileDir), getSharedConfigPath()]
   for (const p of candidates) {
-    if (!p) continue
+
     try {
       return readFileSync(p, 'utf8').replace(/^\uFEFF/, '')
     } catch {
@@ -125,13 +113,13 @@ export function readConfigFileText(): string | null {
   return null
 }
 
-export function getDefaultMode(): RuntimeMode {
+export function getDefaultMode(profileDir?: string): RuntimeMode {
   const envMode = process.env['PONYTAIL_DEFAULT_MODE']
   if (envMode && (RUNTIME_MODES as readonly string[]).includes(envMode.toLowerCase())) {
     return envMode.toLowerCase() as RuntimeMode
   }
   try {
-    const raw = readConfigFileText()
+    const raw = readConfigFileText(profileDir)
     if (raw === null) return DEFAULT_MODE as RuntimeMode
     const config = JSON.parse(raw) as Record<string, unknown>
     const dm = config['defaultMode']
@@ -174,8 +162,8 @@ function parseConfigObject(raw: string | null): FullConfigData {
   return { defaultMode: DEFAULT_MODE, disabledSkills: [] }
 }
 
-export function readFullConfig(): FullConfigData {
-  return parseConfigObject(readConfigFileText())
+export function readFullConfig(profileDir?: string): FullConfigData {
+  return parseConfigObject(readConfigFileText(profileDir))
 }
 
 /**
@@ -183,13 +171,13 @@ export function readFullConfig(): FullConfigData {
  * defaultMode 经 normalizeMode 校验——非法值拒绝返回 null 不写盘（writeDefaultMode 语义统一）。
  * 失败契约：写盘异常返回 null（与 resetFullConfig/writeDefaultMode 一致）。
  */
-export function writeFullConfig(patch: Partial<FullConfigData>): FullConfigData | null {
+export function writeFullConfig(patch: Partial<FullConfigData>, profileDir?: string): FullConfigData | null {
   try {
-    const configPath = getConfigPath()
+    const configPath = getConfigPath(profileDir)
     mkdirSync(dirname(configPath), { recursive: true })
     let config: Record<string, unknown> = {}
     try {
-      const raw = readConfigFileText()
+      const raw = readConfigFileText(profileDir)
       const parsed = raw === null ? null : (JSON.parse(raw) as unknown)
       if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) config = parsed as Record<string, unknown>
     } catch {
@@ -215,17 +203,17 @@ export function writeFullConfig(patch: Partial<FullConfigData>): FullConfigData 
   }
 }
 
-export function resetFullConfig(): FullConfigData | null {
+export function resetFullConfig(profileDir?: string): FullConfigData | null {
   return writeFullConfig({
     defaultMode: DEFAULT_MODE,
     disabledSkills: [],
   })
 }
 
-export function writeDefaultMode(mode: string): RuntimeMode | null {
+export function writeDefaultMode(mode: string, profileDir?: string): RuntimeMode | null {
   const normalized = normalizeMode(mode)
   if (!normalized) return null
-  const written = writeFullConfig({ defaultMode: normalized })
+  const written = writeFullConfig({ defaultMode: normalized }, profileDir)
   if (written === null) return null
   return normalized
 }

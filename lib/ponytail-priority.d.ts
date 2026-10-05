@@ -10,12 +10,16 @@
  * 所有外部事实由调用方读好后传入，因此单测无需触碰磁盘与环境变量，
  * 诊断链的正确性完全由这里的分支覆盖。
  *
- * 优先级链（高到低）：环境变量 > Profile 补丁 > 用户配置文件 > 内置兜底。
+ * 优先级链（高到低）：环境变量 > Profile 补丁 > 内置兜底。
+ *
+ * config.json 层已随 1A 迁移退役：可持久化配置迁入 profile 补丁后，config.json 只在
+ * 无 settings 服务的组合里作为回退读写目标，不再参与优先级链——留在链里就是一层永远不生效的
+ * 空壳，而「看着能改其实不生效」正是这套面板最初要解决的坑。
  * 与 apply() 的 initialMode 判定顺序逐行一致，两处不得漂移。
  */
 import { type RuntimeMode } from './ponytail-config.js';
 /** 优先级级别标识，与 UI 渲染的四种状态一一对应 */
-export type PriorityLevel = 'env' | 'patch' | 'config' | 'fallback';
+export type PriorityLevel = 'env' | 'patch' | 'fallback';
 export interface PrioritySource {
     /** 级别标识 */
     level: PriorityLevel;
@@ -33,7 +37,7 @@ export interface PrioritySource {
     problem: string | null;
 }
 export interface PriorityReport {
-    /** 恒为 4 项，按优先级从高到低 */
+    /** 恒为 3 项，按优先级从高到低 */
     chain: PrioritySource[];
     /** 最终生效档 */
     effective: RuntimeMode;
@@ -43,12 +47,10 @@ export interface PriorityReport {
  *
  * @param input.envRaw - 环境变量 PONYTAIL_DEFAULT_MODE 的原始值；undefined 表示未设置
  * @param input.patchMode - cordis.patch.yml 显式声明的 defaultMode；undefined 表示未声明
- * @param input.configMode - config.json 中的 defaultMode 原始值；undefined 表示缺失或不可读
- * @returns 诊断链（恒 4 项）与最终生效档
+ * @returns 诊断链（恒 3 项）与最终生效档
  */
 export declare function resolvePriority(input: {
     envRaw?: string;
     patchMode?: string;
-    configMode?: string;
 }): PriorityReport;
 //# sourceMappingURL=ponytail-priority.d.ts.map

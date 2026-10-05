@@ -2,7 +2,14 @@ import { before, after, test } from 'node:test'
 import os from 'node:os'
 import path from 'node:path'
 import { createPonytailState } from '../lib/ponytail-state.js'
-import { setMode, readMode, clearMode } from '../lib/ponytail-state.js'
+import { createDiskStorage } from '../lib/ponytail-state.js'
+
+// flag 存取现按 profile 维度（1A 下沉）；测试里的「默认存储」即无 profile 目录那份，
+// 落点仍是测试隔离出来的临时 DSH_HOME/ponytail/.ponytail-active。
+const flagStore = createDiskStorage()
+const setMode = (mode) => flagStore.write(mode)
+const readMode = () => flagStore.read()
+const clearMode = () => flagStore.clear()
 import assert from 'node:assert/strict'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -13,7 +20,7 @@ import {
   resolveDshHome,
   getConfigDir,
   getConfigPath,
-  getLegacyConfigPath,
+  getSharedConfigPath,
   readConfigFileText,
 } from '../lib/ponytail-config.js'
 
@@ -595,31 +602,29 @@ test('getConfigDir & getConfigPath: 均准确落于 DSH 数据目录下的 ponyt
   assert.equal(getConfigPath(), join(currentDsh, 'ponytail', 'config.json'))
 })
 
-test('readConfigFileText: 新配置缺失时平滑回退读取旧平台路径', async () => {
-  const legacyDir = await mkdtemp(join(os.tmpdir(), 'ponytail-legacy-cfg-'))
-  const legacySubdir = join(legacyDir, 'ponytail')
-  await mkdir(legacySubdir, { recursive: true })
-  const legacyFile = join(legacySubdir, 'config.json')
-  await writeFileFsp(legacyFile, JSON.stringify({ defaultMode: 'lite', disabledSkills: ['ponytail-gain'] }), 'utf8')
+test('1A 下沉: 配置落在 profile 内，两个 profile 互不可见', async () => {
+  const profileA = await mkdtemp(join(os.tmpdir(), 'ponytail-profile-a-'));
+  const profileB = await mkdtemp(join(os.tmpdir(), 'ponytail-profile-b-')); // 保持空：证明它看不到 A 的配置
+  await mkdir(join(profileA, 'ponytail'), { recursive: true });
+  await writeFileFsp(
+    join(profileA, 'ponytail', 'config.json'),
+    JSON.stringify({ defaultMode: 'lite', disabledSkills: ['ponytail-gain'] }),
+    'utf8',
+  );
 
-  const originalXdg = process.env.XDG_CONFIG_HOME
-  const originalDsh = process.env.DSH_HOME
-  const freshDsh = await mkdtemp(join(os.tmpdir(), 'ponytail-fresh-dsh-'))
   try {
-    process.env.XDG_CONFIG_HOME = legacyDir
-    process.env.DSH_HOME = freshDsh // 新 DSH_HOME 下尚未生成 config.json
+    const inA = readConfigFileText(profileA);
+    assert.ok(inA !== null, 'profile A 内应读到自己的配置');
+    assert.equal(JSON.parse(inA).defaultMode, 'lite');
+    assert.equal(getConfigDir(profileB), join(profileB, 'ponytail'), 'profile B 有自己的目录');
 
-    const legacyText = readConfigFileText()
-    assert.ok(legacyText !== null, '新位置缺失时应成功从旧路径回退读取')
-    const parsed = JSON.parse(legacyText)
-    assert.equal(parsed.defaultMode, 'lite')
-    assert.deepEqual(parsed.disabledSkills, ['ponytail-gain'])
+    // 无 profile 目录（mock / 裁剪宿主）时退回 DSH 数据根，与旧版行为一致
+    assert.equal(getConfigDir(), join(resolveDshHome(), 'ponytail'));
+    assert.equal(getConfigDir(profileA), join(profileA, 'ponytail'));
+    assert.equal(getConfigPath(profileA), join(profileA, 'ponytail', 'config.json'));
   } finally {
-    if (originalXdg === undefined) delete process.env.XDG_CONFIG_HOME
-    else process.env.XDG_CONFIG_HOME = originalXdg
-    process.env.DSH_HOME = originalDsh
-    await rm(legacyDir, { recursive: true, force: true })
-    await rm(freshDsh, { recursive: true, force: true })
+    await rm(profileA, { recursive: true, force: true });
+    await rm(profileB, { recursive: true, force: true });
   }
 })
 
@@ -628,20 +633,20 @@ test('readConfigFileText: 新配置缺失时平滑回退读取旧平台路径', 
 // 运行等级优先级诊断（纯函数，零 I/O）
 // ---------------------------------------------------------------------------
 
-test('resolvePriority: 四级全空时落到内置兜底 full', async () => {
+test('resolvePriority: 全空时落到内置兜底 full', async () => {
   const { resolvePriority } = await import('../lib/ponytail-priority.js')
-  const r = resolvePriority({ envRaw: undefined, patchMode: undefined, configMode: undefined })
-  assert.strictEqual(r.chain.length, 4)
+  const r = resolvePriority({ envRaw: undefined, patchMode: undefined })
+  assert.strictEqual(r.chain.length, 3)
   assert.strictEqual(r.effective, 'full')
-  assert.strictEqual(r.chain[3].level, 'fallback')
-  assert.strictEqual(r.chain[3].hit, true)
-  assert.ok(r.chain.slice(0, 3).every(s => s.hit === false))
-  assert.ok(r.chain.slice(0, 3).every(s => s.shadowed === false))
+  assert.strictEqual(r.chain[2].level, 'fallback')
+  assert.strictEqual(r.chain[2].hit, true)
+  assert.ok(r.chain.slice(0, 2).every(s => s.hit === false))
+  assert.ok(r.chain.slice(0, 2).every(s => s.shadowed === false))
 })
 
-test('resolvePriority: env 命中时其余三级全部标记被覆盖', async () => {
+test('resolvePriority: env 命中时其余两级全部标记被覆盖', async () => {
   const { resolvePriority } = await import('../lib/ponytail-priority.js')
-  const r = resolvePriority({ envRaw: 'ultra', patchMode: 'lite', configMode: 'lite' })
+  const r = resolvePriority({ envRaw: 'ultra', patchMode: 'lite' })
   assert.strictEqual(r.effective, 'ultra')
   assert.strictEqual(r.chain[0].level, 'env')
   assert.strictEqual(r.chain[0].hit, true)
@@ -650,65 +655,58 @@ test('resolvePriority: env 命中时其余三级全部标记被覆盖', async ()
   assert.ok(r.chain.slice(1).every(s => s.hit === false))
 })
 
-test('resolvePriority: patch 命中时压制 config 与 fallback', async () => {
+test('resolvePriority: patch 命中时压制 fallback', async () => {
   const { resolvePriority } = await import('../lib/ponytail-priority.js')
-  const r = resolvePriority({ envRaw: undefined, patchMode: 'lite', configMode: 'ultra' })
+  const r = resolvePriority({ envRaw: undefined, patchMode: 'lite' })
   assert.strictEqual(r.effective, 'lite')
   assert.strictEqual(r.chain[1].level, 'patch')
   assert.strictEqual(r.chain[1].hit, true)
   assert.strictEqual(r.chain[2].shadowed, true)
-  assert.strictEqual(r.chain[3].shadowed, true)
 })
 
-test('resolvePriority: config 命中时仅压制 fallback', async () => {
+test('resolvePriority: 3 级链中 patch 缺失时直接落到内置兜底', async () => {
   const { resolvePriority } = await import('../lib/ponytail-priority.js')
-  const r = resolvePriority({ envRaw: undefined, patchMode: undefined, configMode: 'off' })
-  assert.strictEqual(r.effective, 'off')
-  assert.strictEqual(r.chain[2].level, 'config')
+  const r = resolvePriority({ envRaw: undefined, patchMode: undefined })
+  assert.strictEqual(r.effective, 'full')
+  assert.strictEqual(r.chain[1].hit, false)
   assert.strictEqual(r.chain[2].hit, true)
-  assert.strictEqual(r.chain[3].shadowed, true)
 })
+
 
 test('resolvePriority: env 值非法时降级并标注问题，不崩溃', async () => {
   const { resolvePriority } = await import('../lib/ponytail-priority.js')
-  const r = resolvePriority({ envRaw: 'ultra2', patchMode: undefined, configMode: 'lite' })
+  const r = resolvePriority({ envRaw: 'ultra2', patchMode: 'lite' })
   assert.strictEqual(r.effective, 'lite')
   assert.strictEqual(r.chain[0].hit, false)
   assert.strictEqual(r.chain[0].shadowed, false)
   assert.strictEqual(r.chain[0].value, 'ultra2')
   assert.strictEqual(r.chain[0].problem, '值无效，已忽略')
+  assert.strictEqual(r.chain[1].hit, true)
+})
+test('resolvePriority: 无效来源全部缺席时只有兜底有效', async () => {
+  const { resolvePriority } = await import('../lib/ponytail-priority.js')
+  const r = resolvePriority({ envRaw: undefined, patchMode: undefined })
+  assert.strictEqual(r.effective, 'full')
   assert.strictEqual(r.chain[2].hit, true)
 })
-
-test('resolvePriority: config 值非法时标注文件损坏并落到兜底', async () => {
+test('resolvePriority: patch 值非法时标注问题且落到内置兜底', async () => {
   const { resolvePriority } = await import('../lib/ponytail-priority.js')
-  const r = resolvePriority({ envRaw: undefined, patchMode: undefined, configMode: '{bad' })
+  const r = resolvePriority({ envRaw: undefined, patchMode: 'REVIEW' })
   assert.strictEqual(r.effective, 'full')
-  assert.strictEqual(r.chain[2].problem, '文件损坏或字段缺失')
-  assert.strictEqual(r.chain[3].hit, true)
-})
-
-test('resolvePriority: patch 值非法时标注问题且继续向下寻找', async () => {
-  const { resolvePriority } = await import('../lib/ponytail-priority.js')
-  const r = resolvePriority({ envRaw: undefined, patchMode: 'REVIEW', configMode: 'ultra' })
-  assert.strictEqual(r.effective, 'ultra')
   assert.strictEqual(r.chain[1].value, 'REVIEW')
   assert.strictEqual(r.chain[1].problem, '值无效，已忽略')
-  assert.strictEqual(r.chain[2].hit, true)
 })
 
 test('resolvePriority: 链的顺序与中文标签固定不变', async () => {
   const { resolvePriority } = await import('../lib/ponytail-priority.js')
-  const r = resolvePriority({ envRaw: undefined, patchMode: undefined, configMode: undefined })
-  assert.deepStrictEqual(r.chain.map(s => s.level), ['env', 'patch', 'config', 'fallback'])
-  assert.deepStrictEqual(r.chain.map(s => s.label), ['环境变量', 'Profile 补丁', '用户配置文件', '内置兜底'])
+  const r = resolvePriority({ envRaw: undefined, patchMode: undefined })
+  assert.deepStrictEqual(r.chain.map(s => s.level), ['env', 'patch', 'fallback'])
   assert.deepStrictEqual(r.chain.map(s => s.location), [
     'PONYTAIL_DEFAULT_MODE',
     'cordis.patch.yml',
-    'config.json',
     '代码常量',
   ])
-})
+});
 // ---------------------------------------------------------------------------
 // C4：apply initialMode 与 resolvePriority 一致性锁定（优先级唯一真源）
 // 背景：apply 旧判定把 patch 显式值（未归一）直接 state.set()，大小写/非法值会
@@ -732,12 +730,11 @@ test('C4 一致性: apply patch 大写变体归一为小写且 flag 落合法档
   assert.match(String(sectionText()), /等级：lite/)
 })
 
-test('C4 一致性: resolvePriority patch 非法且 config 缺失时落内置兜底', async () => {
+test('C4 一致性: resolvePriority patch 非法时落内置兜底', async () => {
   const { resolvePriority } = await import('../lib/ponytail-priority.js')
-  const r = resolvePriority({ envRaw: undefined, patchMode: 'REVIEW', configMode: undefined })
+  const r = resolvePriority({ envRaw: undefined, patchMode: 'REVIEW' })
   assert.strictEqual(r.effective, 'full')
-  assert.strictEqual(r.chain[3].hit, true)
-  assert.strictEqual(r.chain[3].shadowed, false)
+  assert.strictEqual(r.chain[2].hit, true)
 })
 
 
@@ -815,7 +812,7 @@ test('C7 实时性: /ponytail default <档> 写盘后，下一次未知参数命
 
 test('C4 一致性: resolvePriority env 带空白时 trim 后生效', async () => {
   const { resolvePriority } = await import('../lib/ponytail-priority.js')
-  const r = resolvePriority({ envRaw: ' lite ', patchMode: undefined, configMode: undefined })
+  const r = resolvePriority({ envRaw: ' lite ', patchMode: undefined })
   assert.strictEqual(r.effective, 'lite')
   assert.strictEqual(r.chain[0].hit, true)
 })
@@ -1286,12 +1283,12 @@ test('C11 Remote 通道: 服务注册为 ponytailRemote 且命名空间为 ponyt
   assert.equal(binding.namespace, 'ponytail', '线缆命名空间必须是 ponytail（客户端挂成 ctx.remote.ponytail）')
 })
 
-test('C11 Remote 通道: snapshot 返回当前等级与四级诊断链', async () => {
+test('C11 Remote 通道: snapshot 返回当前等级与三级诊断链', async () => {
   const { PonytailRemote } = await import('../lib/ponytail-remote.js')
   const { Context } = await import('@deepseek-ai/cordis')
   const { resolvePriority } = await import('../lib/ponytail-priority.js')
 
-  const report = resolvePriority({ envRaw: undefined, patchMode: 'lite', configMode: 'full' })
+  const report = resolvePriority({ envRaw: undefined, patchMode: 'lite' })
   const ctx = new Context()
   await ctx.plugin(PonytailRemote, {
     snapshot: () => ({ currentMode: 'lite', priority: report }),
@@ -1300,7 +1297,7 @@ test('C11 Remote 通道: snapshot 返回当前等级与四级诊断链', async (
   const value = ctx.get('ponytailRemote').snapshot()
   assert.equal(value.currentMode, 'lite', '当前生效等级必须下发')
   assert.equal(value.priority.effective, 'lite')
-  assert.equal(value.priority.chain.length, 4, '诊断链恒 4 项')
+  assert.equal(value.priority.chain.length, 3, '诊断链恒 3 项')
   assert.equal(value.priority.chain[1].level, 'patch')
   assert.equal(value.priority.chain[1].hit, true, 'patch 层命中必须标出来（否则用户不知道为什么改了没用）')
   // 线缆约束：返回值必须是 lossless JSON（typert-protocol 的 isRemoteJsonValue）
@@ -1419,7 +1416,7 @@ test('C12 客户端产物: apply 只经官方通道接线，不发任何 HTTP �
             get: (key) => (key === 'remote.ponytail' ? facade : undefined),
           }
           globalThis.fetch = (...args) => { calls.http.push(String(args[0])); throw new Error('HTTP must not be used') }
-          mod.apply(ctx)
+          void mod.apply(ctx)
         },
       },
     },
@@ -1467,7 +1464,7 @@ async function loadClientWithStubs(options = {}) {
   const { fileURLToPath } = await import('node:url')
   const artifact = await readFile(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'lib', 'client.js'), 'utf8')
 
-  const calls = { http: [], locale: 0, slots: [] }
+  const calls = { http: [], locale: 0, slots: [], mount: 0 }
   let registered = null
   const stubs = {
     react: {
@@ -1482,13 +1479,14 @@ async function loadClientWithStubs(options = {}) {
       Switch: 'Switch', Button: 'Button',
     },
   }
+  const pending = []
   const loader = {
     load(payload) {
       const mod = payload.factory((name) => {
         if (name in stubs) return stubs[name]
         throw new Error('unexpected require: ' + name)
       })
-      mod.apply({
+      pending.push(mod.apply({
         effect: (setup) => { const d = setup(); if (typeof d === 'function') return d; return undefined },
         on: () => () => {},
         logger: { warn() {}, info() {}, debug() {} },
@@ -1516,8 +1514,16 @@ async function loadClientWithStubs(options = {}) {
           whileServed: (_ns, register) => register(new Set(['ponytail'])),
         },
         // 每次现读：命名空间是异步挂载的，桩若把 getter 提前求值就永远拿不到它
+        remote: {
+          $mount: async (contribution) => {
+            calls.mount += 1
+            options.lastContribution = contribution
+            if (options.mountFails) throw new Error('no remote service in this deployment')
+            return async () => {}
+          },
+        },
         get: (key) => (key === 'remote.ponytail' ? options.remoteNamespace : undefined),
-      })
+      }))
     },
   }
   const savedWindow = globalThis.window
@@ -1525,14 +1531,18 @@ async function loadClientWithStubs(options = {}) {
   globalThis.window = { __ModuleLoader__: loader }
   globalThis.fetch = (...args) => { calls.http.push(String(args[0])); throw new Error('HTTP must not be used') }
   try {
+    // 产物是「顶层立即调用 window.__ModuleLoader__.load({...})」的脚本：
+    // 直接在挂了桩的全局上求值它即可触发 async apply，再等它落地。
+    const pending = []
     new Function(artifact).call(globalThis)
+    await Promise.all(pending)
   } finally {
     if (savedWindow === undefined) delete globalThis.window
     else globalThis.window = savedWindow
     if (savedFetch === undefined) delete globalThis.fetch
     else globalThis.fetch = savedFetch
   }
-  return { calls, registered }
+  return { calls, registered, options }
 }
 
 test('C13 症状二: face 提供可写能力，面板代码不引用未注入的 props.scope', async () => {
@@ -1550,37 +1560,38 @@ test('C13 症状二: face 提供可写能力，面板代码不引用未注入的
   assert.equal(landed, true, '写入必须返回真值（面板据此显示成功或失败）')
 })
 
-test('C13 症状一: 远程命名空间晚到时重试并最终 ready，不永久停在 unavailable', async () => {
-  // 命名空间在 apply 之后 120ms 才挂上（模拟网关的异步 $mount）
-  let mounted = null
-  setTimeout(() => {
-    mounted = { snapshot: async () => ({ ok: true, value: { currentMode: 'lite', priority: { chain: [], effective: 'lite' } } }) }
-  }, 120).unref?.()
-
-  const { registered } = await loadClientWithStubs({ get remoteNamespace() { return mounted } })
+test('C13 症状一: 命名空间由 $mount 开通后立即读到数据，不靠轮询', async () => {
+  // 桩在 $mount 回调里挂上命名空间：真实时序是 $mount 内部 await fiber 完成后才返回
+  const { registered, calls } = await loadClientWithStubs({
+    remoteNamespace: { snapshot: async () => ({ ok: true, value: { currentMode: 'lite', priority: { chain: [], effective: 'lite' } } }) },
+  })
   const face = registered.options.inject()
   const store = face.hooks.ponytailSnapshot
-
-  assert.equal(store.getSnapshot().status, 'loading', '命名空间未挂载时应停在 loading 而不是 unavailable')
-  const deadline = Date.now() + 3000
-  while (store.getSnapshot().status !== 'ready' && Date.now() < deadline) {
-    await new Promise((r) => setTimeout(r, 25))
-  }
-  assert.equal(store.getSnapshot().status, 'ready', '命名空间晚到也必须能读到数据，不得永久停在 unavailable')
+  assert.equal(calls.mount, 1, '必须显式 $mount 一次：命名空间不会自动出现，这是症状一的根因')
+  assert.equal(store.getSnapshot().status, 'ready')
   assert.equal(store.getSnapshot().value.priority.effective, 'lite')
   store.dispose?.()
 })
 
-test('C13 诊断降级: 命名空间始终不存在时，如实降级而不是永远空转', async () => {
-  const { registered } = await loadClientWithStubs({ remoteNamespace: undefined })
+test('C13 贡献声明: descriptors 只声明 snapshot 且走 strict codec', async () => {
+  const { calls, options } = await loadClientWithStubs({
+    remoteNamespace: { snapshot: async () => ({ ok: true, value: { currentMode: 'lite', priority: { chain: [], effective: 'lite' } } }) },
+  })
+  const d = options.lastContribution.descriptors
+  assert.equal(d.length, 1, '只声明 snapshot 一个方法')
+  assert.equal(d[0].namespace, 'ponytail')
+  assert.equal(d[0].method, 'snapshot')
+  assert.equal(d[0].result.mode, 'strict', '网关 requireStrictCodec 只接受 strict（dsh-api-gateway/lib/client.js:2073）')
+  assert.deepEqual(d[0].parameters, [], 'snapshot 无参')
+  assert.equal(calls.mount, 1)
+})
+test('C13 诊断降级: 部署没有 remote 服务时如实降级，不空转', async () => {
+  const { registered, calls } = await loadClientWithStubs({ mountFails: true })
   const face = registered.options.inject()
   const store = face.hooks.ponytailSnapshot
-  const deadline = Date.now() + 6000
-  while (store.getSnapshot().status !== 'unavailable' && Date.now() < deadline) {
-    await new Promise((r) => setTimeout(r, 50))
-  }
-  assert.equal(store.getSnapshot().status, 'unavailable', '重试有上限：超出即如实降级，不再空转')
+  assert.equal(store.getSnapshot().status, 'unavailable', '挂载失败即如实降级，不再空转')
   assert.equal(store.getSnapshot().value, null)
+  assert.equal(calls.mount, 1, '挂载失败也算尝试过一次')
   store.dispose?.()
 })
 

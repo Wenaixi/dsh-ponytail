@@ -7,7 +7,6 @@
   "confirm.reset": "Restore default config? Level returns to Standard (full) and all 6 skills are re-enabled.",
   "error.operation": "Operation failed: ",
   "error.rejected": "This deployment did not accept the change; your value was kept for you to review.",
-  "level.config": "User config file",
   "level.env": "Environment variable",
   "level.fallback": "Built-in fallback",
   "level.patch": "Profile patch",
@@ -28,7 +27,6 @@
   "priority.intro": "The runtime level takes the first valid value in the following order; items shadowed by a higher-priority source cannot be changed from the UI. Current: ",
   "priority.title": "Config Priority",
   "priority.unavailable": "Diagnostics unavailable. Please confirm the host version ships the priority diagnostics endpoint.",
-  "problem.config": "File corrupted or field missing",
   "problem.env": "Invalid value, ignored",
   "problem.patch": "Invalid value, ignored",
   "skills.enabledToast": "Skill {name} enabled",
@@ -38,7 +36,7 @@
   "skills.toggleOn": "Enable {name}",
   "state.loading": "Loading…",
   "state.readOnly": "This deployment stores settings read-only.",
-  "state.saved": "Config is stored in ponytail/config.json under the DSH data directory",
+  "state.saved": "Config is stored in the ponytail directory of the current profile",
   "toast.modeChanged": "Level switched to {name}",
   "toast.resetDone": "Defaults restored"
 }

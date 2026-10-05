@@ -26,7 +26,7 @@ export interface PonytailStateOptions {
     /** 可选注入的存储适配器；缺省时使用内联的 DSH 配置目录磁盘实现（flag 存取已并入本模块） */
     storage?: PonytailStorage;
     /**
-     * 可持久化配置（默认档 + 技能禁用列表）的读写通道。缺省走 config.json 文件实现；
+     * 可持久化配置（默认档 + 技能禁用列表）的读写通道。缺省走 profile 内 config.json 文件实现；
      * 有 settings 服务的组合由 apply 注入 settings 实现（写入落 profile 补丁）。
      */
     sink?: PonytailConfigSink;
@@ -52,12 +52,10 @@ export interface PonytailState {
     setDefaultMode(mode: string): void;
     /** 恢复所有默认配置（等级切回 full，启用所有技能） */
     resetToDefaults(): void;
-    /** 文件优先：重读 config.json 的 disabledSkills 重建内存 Set（外部手改文件后的收敛入口） */
+    /** 文件优先：重读 profile 内 config.json 的 disabledSkills 重建内存 Set（外部手改文件后的收敛入口） */
     reloadDisabledSkills(): void;
 }
-export declare function setMode(mode: string): void;
-export declare function clearMode(): void;
-export declare function readMode(): string | null;
+export declare function createDiskStorage(profileDir?: string): PonytailStorage;
 export declare function createPonytailState(options?: PonytailStateOptions): PonytailState;
 /**
  * 纯函数守卫：「禁用主技能 ponytail → 关闭运行等级」业务规则的唯一实现。

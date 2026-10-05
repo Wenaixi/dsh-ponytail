@@ -269,26 +269,63 @@ const content = `window.__ModuleLoader__.load({
     }
 
     /**
-     * 读取官方远程命名空间的 snapshot，作为只读推导值的来源。
+     * 本插件在浏览器侧向官方网关声明的 Remote 贡献。
      *
-     * 为什么必须重试：网关按宿主服务上的 typertRemote 绑定安装命名空间，而安装本身
-     * 是异步的（ClientRemoteService.$mount → enqueue → installNamespace → await fiber，
-     * dsh-api-gateway/lib/client.js:1636-1748）。本插件的 apply() 与它同批执行，
-     * 同步问一次必然拿到 undefined，界面会永久停在「诊断信息不可用」——
-     * 而宿主其实完全正常。
+     * 为什么必须显式声明：网关的命名空间不是按需自动开通的。浏览器侧装配时
+     * dsh-api-remotes 只遍历一份编译期写死的官方贡献清单并逐个 ctx.remote.$mount()
+     *（dsh-api-remotes/lib/client.js:13512-13538，25 项，不含本插件）。
+     * 宿主侧 TypertRemoteService 只负责把端点暴露出去；客户端不 $mount，
+     * remote.ponytail 就永远不会出现——面板因此永久停在「诊断信息不可用」，
+     * 而宿主完全正常。写法参照官方第三方插件 dsh-experimental-client-ui-voice-input。
      *
-     * 为什么不用事件：网关客户端侧只暴露 connection/reset，没有「命名空间已挂载」信号，
-     * 为此轮询几拍是最省事也最诚实的做法。上限写死为 RETRY：超出即认定该部署
-     * 没有这个端点（如精简宿主），如实降级为不显示，不再空转。
+     * result.create 是网关不校验的钩子（requireStrictCodec 只看 mode === "strict"，
+     * 见 dsh-api-gateway/lib/client.js:2073），解码走 result.decode，缺省即原样透传
+     * （同文件 1801 行）。因此返回恒等函数即可把服务端 JSON 原样送进面板，
+     * 不必为此引入 zod。
      */
-    var REMOTE_MOUNT_RETRY = 40;
-    var REMOTE_MOUNT_INTERVAL_MS = 50;
+    var PONYTAIL_REMOTE = {
+      package: "@wenaixi/dsh-ponytail",
+      descriptors: [
+        {
+          id: "@wenaixi/dsh-ponytail#ponytailRemote/snapshot",
+          service: "ponytailRemote",
+          namespace: "ponytail",
+          method: "snapshot",
+          invocation: { kind: "direct" },
+          parameters: [],
+          result: {
+            mode: "strict",
+            typeSymbol: "@wenaixi/dsh-ponytail/types#PonytailSnapshot",
+            create: function (value) { return value; },
+          },
+          sourceLocation: {
+            file: "src/ponytail-remote.ts",
+            line: 1,
+            column: 1,
+          },
+        },
+      ],
+    };
+    /** 挂载失败时的快照 store：面板按 status 降级为不显示该段。 */
+    function createUnavailableStore() {
+      var store = createStore({ status: "unavailable", value: null });
+      store.reload = function () {};
+      store.dispose = function () {};
+      return store;
+    }
 
+    /**
+     * 读取本插件已 $mount 的命名空间 snapshot，作为只读推导值的来源。
+     *
+     * 不再有轮询：命名空间由本文件下方的 PONYTAIL_REMOTE 经 ctx.remote.$mount() 挂载，
+     * $mount 返回的 disposer 之前挂载一定已经完成（它内部 await fiber，
+     * dsh-api-gateway/lib/client.js:1636-1646），因此同步问一次即可。
+     * 挂载失败（精简宿主没有 remote 服务）时立即降级为不显示，不再空转——
+     * 上一版的 40×50ms 轮询掩盖的是「压根没挂载」这个事实，而不只是时序。
+     */
     function createRemoteStore(ctx, namespace) {
       var store = createStore({ status: "loading", value: null });
       var method = "snapshot";
-      var attempts = 0;
-      var timer = null;
 
       var fail = function () {
         store.set({ status: "unavailable", value: null });
@@ -297,16 +334,9 @@ const content = `window.__ModuleLoader__.load({
       var load = function () {
         var ns = ctx.get("remote." + namespace);
         if (ns === undefined || ns === null || typeof ns[method] !== "function") {
-          attempts += 1;
-          if (attempts >= REMOTE_MOUNT_RETRY) {
-            fail();
-            return;
-          }
-          if (timer !== null) clearTimeout(timer);
-          timer = setTimeout(load, REMOTE_MOUNT_INTERVAL_MS);
+          fail();
           return;
         }
-        attempts = 0;
         Promise.resolve(ns[method]()).then(function (response) {
           if (response && response.ok === true) store.set({ status: "ready", value: response.value });
           else fail();
@@ -315,7 +345,7 @@ const content = `window.__ModuleLoader__.load({
       load();
       // 配置表单写入成功后由面板调用：重新拉一次服务端真值（当前等级可能已变）
       store.reload = load;
-      store.dispose = function () { if (timer !== null) clearTimeout(timer); };
+      store.dispose = function () {};
       return store;
     }
 
@@ -455,7 +485,22 @@ const content = `window.__ModuleLoader__.load({
       );
     }
 
-    function apply(ctx) {
+    async function apply(ctx) {
+      // 先把只读推导值的端点挂到官方网关上：命名空间不会自动出现，
+      // 必须由客户端显式声明并 $mount。$mount 返回的 disposer 即 effect 的清理函数。
+      // 挂载失败（部署没有 remote 服务）不阻断其余能力，卡片照常出现，只是优先级段不显示。
+      var mounted = null;
+      try {
+        mounted = await ctx.remote.$mount(PONYTAIL_REMOTE);
+      } catch (error) {
+        if (ctx.logger) ctx.logger.warn("[ponytail] remote 贡献挂载失败（优先级诊断段将不显示）: " + String(error));
+      }
+      ctx.effect(function () {
+        return function () {
+          if (mounted) void mounted();
+        };
+      }, "ponytail: remote contribution");
+
       // 官方 locale：注册 ponytail 命名空间双语字典并绑定 t（真源 locale/*.json 构建期内嵌）
       ctx.effect(function () {
         return ctx.locale.register(NS, { zh: ZH, en: EN });
@@ -469,8 +514,10 @@ const content = `window.__ModuleLoader__.load({
       // 只读推导值：官方 Typert 通道（ctx.remote.ponytail.snapshot()）。
       // 远程方法返回的是 { ok, value } / { ok:false, error } 信封（网关 client 侧 lib/client.js:1795-1802），
       // 这里自己拆包并折成一个最小快照 store：命名空间不可用或调用失败时停在 unavailable，
-      // 优先级段降级为不显示，不影响其余控件。
-      var remoteStore = createRemoteStore(ctx, "ponytail");
+      // 优先级段降级为不显示，不影响其余控件。此处已在上面的 $mount 完成后才读，无需重试。
+      var remoteStore = mounted === null
+      ? createUnavailableStore()
+      : createRemoteStore(ctx, "ponytail");
 
       // 插槽注册沿用 whileServed：命名空间没被宿主服务时卡片整体不出现，
       // 部署若从未组合 settings 服务，页面上不留本插件的痕迹
@@ -509,7 +556,7 @@ const content = `window.__ModuleLoader__.load({
     }
 
     exports.apply = apply;
-    exports.inject = ["slots", "locale", "configForms"];
+    exports.inject = ["slots", "locale", "configForms", "remote"];
     return module.exports;
   }
 });

@@ -32,7 +32,7 @@ export interface PonytailStateOptions {
   /** 可选注入的存储适配器；缺省时使用内联的 DSH 配置目录磁盘实现（flag 存取已并入本模块） */
   storage?: PonytailStorage
   /**
-   * 可持久化配置（默认档 + 技能禁用列表）的读写通道。缺省走 config.json 文件实现；
+   * 可持久化配置（默认档 + 技能禁用列表）的读写通道。缺省走 profile 内 config.json 文件实现；
    * 有 settings 服务的组合由 apply 注入 settings 实现（写入落 profile 补丁）。
    */
   sink?: PonytailConfigSink
@@ -59,43 +59,43 @@ export interface PonytailState {
   setDefaultMode(mode: string): void
   /** 恢复所有默认配置（等级切回 full，启用所有技能） */
   resetToDefaults(): void
-  /** 文件优先：重读 config.json 的 disabledSkills 重建内存 Set（外部手改文件后的收敛入口） */
+  /** 文件优先：重读 profile 内 config.json 的 disabledSkills 重建内存 Set（外部手改文件后的收敛入口） */
   reloadDisabledSkills(): void
 }
 
-// flag 物理存取（原 src/ponytail-runtime.ts，C6 内联）：DSH 数据根下 .ponytail-active
+// flag 物理存取（原 src/ponytail-runtime.ts，C6 内联）：profile 内 .ponytail-active
+//
+// profileDir 与 config.json 同维度：不带它时 flag 落在 $DSH_HOME/ponytail 下，被所有实例共享，
+// 多实例并存时 renderPromptSection 的 syncFromFile（文件优先）会把另一个实例写的档位当成本实例的
+// 生效档。createDiskStorage(profileDir) 由 apply() 传入 profileContext.dir。
 const STATE_FILE = '.ponytail-active'
-function statePath(): string {
-  return join(getConfigDir(), STATE_FILE)
-}
-export function setMode(mode: string): void {
-  mkdirSync(dirname(statePath()), { recursive: true })
-  writeFileSync(statePath(), mode, 'utf8')
-}
-export function clearMode(): void {
-  try {
-    unlinkSync(statePath())
-  } catch {
-    // ignore
-  }
-}
-export function readMode(): string | null {
-  try {
-    const v = readFileSync(statePath(), 'utf8').trim()
-    return v || null
-  } catch {
-    return null
-  }
-}
 
-const defaultDiskStorage: PonytailStorage = {
-  read: () => readMode(),
-  write: (mode) => setMode(mode),
-  clear: () => clearMode(),
+export function createDiskStorage(profileDir?: string): PonytailStorage {
+  const statePath = (): string => join(getConfigDir(profileDir), STATE_FILE);
+  return {
+    read: () => {
+      try {
+        return readFileSync(statePath(), 'utf8').trim() || null;
+      } catch {
+        return null;
+      }
+    },
+    write: (mode) => {
+      mkdirSync(dirname(statePath()), { recursive: true });
+      writeFileSync(statePath(), mode, 'utf8');
+    },
+    clear: () => {
+      try {
+        unlinkSync(statePath());
+      } catch {
+        // ignore
+      }
+    },
+  };
 }
 
 export function createPonytailState(options?: PonytailStateOptions): PonytailState {
-  const storage = options?.storage ?? defaultDiskStorage
+  const storage = options?.storage ?? createDiskStorage()
   let current: string | null = null
 
   const sink = options?.sink ?? createFileSink()

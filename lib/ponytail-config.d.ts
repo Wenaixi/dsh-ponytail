@@ -36,37 +36,35 @@ export declare function resolveDshHome(configured?: string, env?: Record<string,
  * 配置目录：DSH 数据根下的 ponytail 子目录。
  * 平台无关——路径分隔符一律由 node:path 生成，不含任何平台判断。
  */
-export declare function getConfigDir(): string;
-export declare function getConfigPath(): string;
+export declare function getConfigDir(profileDir?: string): string;
+export declare function getConfigPath(profileDir?: string): string;
 /**
- * 迁移前的旧配置路径（4.10.0-dsh.4 及以前使用的宿主平台约定位置）。
+ * 全局共享的旧配置路径（ADR-0005 时代的位置，被所有实例共享）。
  *
- * 仅用于一次性兼容读取：老用户升级后，新位置尚未生成时回退读取旧配置，
- * 避免已自定义的等级/技能开关静默丢失。写入永远只写新位置，
- * 旧目录不删除也不改写，数据所有权保持清晰。
- * ponytail: 兼容读取保留至下一个大版本（5.x 首发）后移除，届时可整段删除。
+ * 只在迁移窗口内被读：实例在「全局文件存在且 profile 内尚未生成」时导入，
+ * 导入后把全局文件改名标记为已迁，使后续实例从干净状态启动。
+ * 正常读写一律经 getConfigDir()，此路径不参与优先级链。
  */
-export declare function getLegacyConfigDir(): string | null;
-export declare function getLegacyConfigPath(): string | null;
+export declare function getSharedConfigPath(): string;
 /**
  * 读取配置文件原文：新位置优先，缺失时一次性回退旧位置。
  * 返回 null 表示两处都不存在或均不可读。
  */
-export declare function readConfigFileText(): string | null;
-export declare function getDefaultMode(): RuntimeMode;
+export declare function readConfigFileText(profileDir?: string): string | null;
+export declare function getDefaultMode(profileDir?: string): RuntimeMode;
 export interface FullConfigData {
     defaultMode: RuntimeMode;
     disabledSkills: string[];
 }
-export declare function readFullConfig(): FullConfigData;
+export declare function readFullConfig(profileDir?: string): FullConfigData;
 /**
  * 字段级 merge 写盘：保留 config.json 中用户手写的未知字段（不再重建为两键对象），
  * defaultMode 经 normalizeMode 校验——非法值拒绝返回 null 不写盘（writeDefaultMode 语义统一）。
  * 失败契约：写盘异常返回 null（与 resetFullConfig/writeDefaultMode 一致）。
  */
-export declare function writeFullConfig(patch: Partial<FullConfigData>): FullConfigData | null;
-export declare function resetFullConfig(): FullConfigData | null;
-export declare function writeDefaultMode(mode: string): RuntimeMode | null;
+export declare function writeFullConfig(patch: Partial<FullConfigData>, profileDir?: string): FullConfigData | null;
+export declare function resetFullConfig(profileDir?: string): FullConfigData | null;
+export declare function writeDefaultMode(mode: string, profileDir?: string): RuntimeMode | null;
 /**
  * volatile 配置引用：宿主在 `.volatile()` 字段上放的活值容器（cosmokit/lib/index.js:102-108）。
  * 写入经 settings 落到 profile 补丁；进程内由 loader 就地更新，无需重挂载插件。

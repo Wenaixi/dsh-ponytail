@@ -10,14 +10,18 @@
  * 所有外部事实由调用方读好后传入，因此单测无需触碰磁盘与环境变量，
  * 诊断链的正确性完全由这里的分支覆盖。
  *
- * 优先级链（高到低）：环境变量 > Profile 补丁 > 用户配置文件 > 内置兜底。
+ * 优先级链（高到低）：环境变量 > Profile 补丁 > 内置兜底。
+ *
+ * config.json 层已随 1A 迁移退役：可持久化配置迁入 profile 补丁后，config.json 只在
+ * 无 settings 服务的组合里作为回退读写目标，不再参与优先级链——留在链里就是一层永远不生效的
+ * 空壳，而「看着能改其实不生效」正是这套面板最初要解决的坑。
  * 与 apply() 的 initialMode 判定顺序逐行一致，两处不得漂移。
  */
 
 import { normalizeMode, DEFAULT_MODE, type RuntimeMode } from './ponytail-config.js'
 
 /** 优先级级别标识，与 UI 渲染的四种状态一一对应 */
-export type PriorityLevel = 'env' | 'patch' | 'config' | 'fallback'
+export type PriorityLevel = 'env' | 'patch' | 'fallback'
 
 export interface PrioritySource {
   /** 级别标识 */
@@ -37,26 +41,24 @@ export interface PrioritySource {
 }
 
 export interface PriorityReport {
-  /** 恒为 4 项，按优先级从高到低 */
+  /** 恒为 3 项，按优先级从高到低 */
   chain: PrioritySource[]
   /** 最终生效档 */
   effective: RuntimeMode
 }
 
-const LEVELS: readonly PriorityLevel[] = ['env', 'patch', 'config', 'fallback']
+const LEVELS: readonly PriorityLevel[] = ['env', 'patch', 'fallback']
 
 const LABELS: Record<PriorityLevel, { label: string; location: string }> = {
   env: { label: '环境变量', location: 'PONYTAIL_DEFAULT_MODE' },
   patch: { label: 'Profile 补丁', location: 'cordis.patch.yml' },
-  config: { label: '用户配置文件', location: 'config.json' },
   fallback: { label: '内置兜底', location: '代码常量' },
 }
 
-/** 各级的非法值文案：env 与 patch 是人工输入，config 是文件损坏 */
+/** 各级的非法值文案：env 与 patch 都是人工输入，值无效即忽略 */
 const PROBLEMS: Record<PriorityLevel, string> = {
   env: '值无效，已忽略',
   patch: '值无效，已忽略',
-  config: '文件损坏或字段缺失',
   fallback: '',
 }
 
@@ -65,15 +67,13 @@ const PROBLEMS: Record<PriorityLevel, string> = {
  *
  * @param input.envRaw - 环境变量 PONYTAIL_DEFAULT_MODE 的原始值；undefined 表示未设置
  * @param input.patchMode - cordis.patch.yml 显式声明的 defaultMode；undefined 表示未声明
- * @param input.configMode - config.json 中的 defaultMode 原始值；undefined 表示缺失或不可读
- * @returns 诊断链（恒 4 项）与最终生效档
+ * @returns 诊断链（恒 3 项）与最终生效档
  */
 export function resolvePriority(input: {
   envRaw?: string
   patchMode?: string
-  configMode?: string
 }): PriorityReport {
-  const raws: (string | undefined)[] = [input.envRaw, input.patchMode, input.configMode, DEFAULT_MODE]
+  const raws: (string | undefined)[] = [input.envRaw, input.patchMode, DEFAULT_MODE]
 
   const chain: PrioritySource[] = []
   let winner = -1
@@ -100,6 +100,6 @@ export function resolvePriority(input: {
   }
 
   // 兜底级恒有效，winner 不会停留在 -1；此处兜底分支仅防御未来增级
-  const effective = normalizeMode(String(chain[winner === -1 ? 3 : winner].value)) ?? DEFAULT_MODE
+  const effective = normalizeMode(String(chain[winner === -1 ? LEVELS.length - 1 : winner].value)) ?? DEFAULT_MODE
   return { chain, effective }
 }

@@ -19,10 +19,9 @@ import type {
 import Schema from '@deepseek-ai/schemastery'
 
 import {
-  getLegacyConfigPath,
+  getSharedConfigPath,
   isShellSafe,
   normalizeMode,
-  readConfigFileText,
   readFullConfig,
   readVolatile,
   type PonytailConfig,
@@ -36,7 +35,7 @@ import {
 import { resolvePriority } from './ponytail-priority.js'
 import { createCommandDispatcher } from './ponytail-commands.js'
 import { renderPromptSection } from './ponytail-instructions.js'
-import { createPonytailState } from './ponytail-state.js'
+import { createDiskStorage, createPonytailState } from './ponytail-state.js'
 import { PonytailProvider } from './ponytail-skills.js'
 import { PonytailRemote } from './ponytail-remote.js'
 
@@ -113,7 +112,7 @@ function readService(ctx: Context, name: string): unknown {
  * 没有时（headless / CLI —— dsh-base 的 settings 行在无 profileContext 时禁用）
  * 回退 config.json 文件通道，那些组合仍然可以改配置。
  */
-function createSinkFor(ctx: Context): PonytailConfigSink {
+function createSinkFor(ctx: Context, profileDir?: string): PonytailConfigSink {
   try {
     return createSettingsSink(
       { settings: readService(ctx, 'settings') as Parameters<typeof createSettingsSink>[0]['settings'] },
@@ -121,7 +120,7 @@ function createSinkFor(ctx: Context): PonytailConfigSink {
       { logger: { warn: (msg: string) => ctx.logger.warn(msg) } },
     )
   } catch {
-    return createFileSink()
+    return createFileSink(profileDir)
   }
 }
 
@@ -150,10 +149,18 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
   // 无 settings 服务的组合（headless / CLI —— dsh-base 的 settings 行在无 profileContext 时禁用）
   // 静默回退 config.json 文件通道，不能因迁移而让这些组合失去配置能力。
   const settingsService = readService(ctx, 'settings')
-  const configSink = createSinkFor(ctx)
+
+  // profile 目录来自宿主的 profileContext 服务（runProfile 在整棵插件树挂载前 provide，
+  // 见 dsh/lib/profile-boot 的 hostCtx.provide('profileContext', ...)）。
+  // 它把配置与 flag 的作用域收回单个实例：resolveDshHome() 结构上不含 profile 维度，
+  // 落在 $DSH_HOME/ponytail 下的文件被所有实例共享，多实例并存时互相覆盖。
+  // 读不到时（mock 宿主 / 裁剪宿主）退回全局路径，行为与旧版一致。
+  const profileContext = readService(ctx, 'profileContext') as { dir?: unknown } | undefined
+  const profileDir = typeof profileContext?.dir === 'string' ? profileContext.dir : undefined
+  const configSink = createSinkFor(ctx, profileDir)
 
   // 优先级唯一真源（ADR-0006）：apply 启动判定与 UI 诊断链共用 resolvePriority，
-  // env > patch（cordis 显式声明）> config.json > full，逐级 normalizeMode 归一。
+  // env > patch（cordis 显式声明）> full，逐级 normalizeMode 归一。
   // 旧判定把未归一的 patch 值直接 state.set()（大小写/非法值注入垃圾态），此处一并修复。
   const envRaw = process.env['PONYTAIL_DEFAULT_MODE']
   if (envRaw && !normalizeMode(envRaw)) {
@@ -168,23 +175,9 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
     const fromConfig = readVolatile(resolved.defaultMode)
     return patchOverride ?? fromConfig
   }
-  // 读取 config.json 的 defaultMode 原始值：区分「字段缺失」与「文件损坏」交给诊断链统一标注
-  // （initialMode 判定与 HTTP 诊断链共用同一份，必须先于 initialMode 定义）
-  const readRawConfigMode = (): string | undefined => {
-    try {
-      const raw = readConfigFileText()
-      if (raw === null) return undefined
-      const parsed = JSON.parse(raw) as Record<string, unknown>
-      const dm = parsed['defaultMode']
-      return typeof dm === 'string' ? dm : undefined
-    } catch {
-      return undefined
-    }
-  }
   const initialMode = resolvePriority({
     envRaw,
     patchMode: readPatchMode(),
-    configMode: readRawConfigMode(),
   }).effective
 
   const skillDir = resolveDefaultSkillDir(resolved.skillDir)
@@ -196,12 +189,10 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
     void migrateLegacyConfig({
       settings: settingsService as Parameters<typeof migrateLegacyConfig>[0]['settings'],
       namespace: 'ponytail',
-      readLegacy: () => readFullConfig(),
+      readLegacy: () => readFullConfig(profileDir),
       renameLegacy: async () => {
-        const legacyPath = getLegacyConfigPath()
-        if (legacyPath === null) return
         try {
-          await rename(legacyPath, `${legacyPath}.imported`)
+          await rename(getSharedConfigPath(), `${getSharedConfigPath()}.imported`)
         } catch {
           // 旧文件不存在或改名失败：数据仍在 profile 侧，下个版本移除兼容读取时无需处理
         }
@@ -216,7 +207,7 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
   }
 
   // 等级状态唯一归属：get()/set()/syncFromFile() 三方法，闭包态随 HMR 重建
-  const state = createPonytailState({ sink: configSink })
+  const state = createPonytailState({ sink: configSink, storage: createDiskStorage(profileDir) })
   // 会话启动对齐（对齐上游 ponytail-activate.js SessionStart 语义）：
   // 每次会话启动都按 resolvePriority()（env > patch > config 文件 > full）重写 flag，
   // 因此 /ponytail <档> 只在本会话生效，跨会话持久化必须用 /ponytail default <档>。
@@ -282,7 +273,7 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
   })
 
   // 只读推导值走官方 Typert 通道（命名空间 ponytail）：优先级诊断链与当前生效等级
-  // 不是配置——它们由 env / profile 补丁 / config.json / 兜底四层合并得出，写进配置层
+  // 不是配置——它们由 env / profile 补丁 / 兜底三层合并得出，写进配置层
   // 会让落盘值永久盖住真值。浏览器侧经 ctx.remote.ponytail.snapshot() 读取。
   // 直接挂载：服务随插件 fiber 失效自动注销，不需要额外 disposer。
   // 守卫与 settings 同款：精简宿主或 mock 上 ctx.plugin 可能不存在，
@@ -294,8 +285,7 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
         priority: resolvePriority({
           envRaw: process.env['PONYTAIL_DEFAULT_MODE'],
           patchMode: readPatchMode(),
-          configMode: readRawConfigMode(),
-        }),
+              }),
       }),
     })
   } else {
@@ -331,8 +321,7 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
       resolvePriority({
         envRaw,
         patchMode: readPatchMode(),
-        configMode: readRawConfigMode(),
-      }).effective,
+          }).effective,
     // /ponytail default <档> 写盘后更新 patchMode：用户最新意图覆盖宿主声明，
     // UI 快照与命令兜底同刻读新值（修复评审发现的静默 ignore）
     updateDefaultMode: (mode) => {
