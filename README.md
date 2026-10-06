@@ -36,26 +36,22 @@ dsh --profile web --dump-config | grep -A2 ponytail
 
 若插件卡片只有包名、没有标题描述图标，说明包的 `exports` 没放行 `./package.json` 与 `./locale/*.json`。这是 DSH 读取展示元信息的硬约束，与安装本身无关。
 
-### 补丁条目要写在顶层
+### 安装后：把补丁条目写到顶层
 
-插件包自带的 `cordis.patch.yml` 用 `insert` 列表声明条目：
+`dsh plugin add` 只把插件装进 `package.json`，**不写** profile 的 `cordis.patch.yml`。插件包自带的补丁是 `insert:` 列表（bundle 惯例），会被宿主当作 overlay 层合进启动树——因此**热装后 boot 有条目、技能与命令可用，但配置卡片不会渲染**。
 
-```yaml
-- insert:
-    - id: ponytail
-      name: "@wenaixi/dsh-ponytail"
-```
-
-**卡片能渲染不等于能写配置。** 宿主的配置编辑器只管理顶层条目的 `config` 块，`insert` 里的条目永远判为被覆盖，面板显示「本部署没有接受这次修改」。要能写，条目得是顶层：
+要让配置卡片出现（并让面板的写入真正落盘），手动在 profile 的 `cordis.patch.yml` 里补一条顶层条目：
 
 ```yaml
 - id: ponytail
   name: "@wenaixi/dsh-ponytail"
-  config:
-    defaultMode: full  # off|lite|full|ultra
 ```
 
-本插件的面板不显示只读横幅，所以那句拒绝提示是唯一判据。宿主的判定在 `dsh-config-editor` 的 `edit()`：写入前把新配置与继承层合成结果逐字段比对，不一致就报 `Configuration for "ponytail" is overridden by a home patch or command-line overlay`。
+然后重启宿主（补丁条目在启动时合成，运行中改不热生效）。卡片出现后如需默认档，再在 `config` 下补字段，或直接在面板里点。
+
+**判据**：装完刷浏览器，插件列表里懒人模式卡片是「不包含任何组件」或干脆不出现、点不开配置面板——先查这里。`dsh --profile <name> --dump-config | grep -A2 ponytail` 若报 `patch: entry "ponytail" not found`，同样是这条顶层条目缺失的信号。
+
+宿主的判定在 `dsh-config-editor` 的 `edit()`：它只为 profile 顶层条目管理 `config` 块，`insert` 里的条目永远判为被覆盖，面板显示「本部署没有接受这次修改」。本插件面板不显示只读横幅，所以那句拒绝提示是唯一判据。
 
 ## 用法
 

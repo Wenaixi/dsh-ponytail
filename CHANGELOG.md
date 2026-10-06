@@ -1,5 +1,10 @@
 ## [Unreleased]
 
+### Fixed
+
+- 安装指引：`dsh plugin add` 不写 profile 的 `cordis.patch.yml`，包自带补丁（`insert:`，bundle 惯例）只作为 overlay 层合进启动树，因此热装后卡片不渲染。文档明确「安装后手动补顶层条目 + 重启宿主」与判据（`--dump-config` 报 `patch: entry not found` / 卡片「不包含任何组件」）。`verify.mjs` 相应把断言从「顶层 `- id: ponytail`」改为「保持 `insert:` 形态」——此前 `feat(skillDescriptionLang 三态化)` 误把包内补丁改成顶层条目，实测会污染 overlay 合成（`patch: entry not found`），已回滚。
+
+
 ### Changed
 
 - `skillDescriptionLang` 改为三态语义并去掉 Schema 默认值：未配置（跟随宿主 `locale.preference` 显式选择，仅英文触发对齐、其余兜底中文）与显式中文/英文可区分；面板语言控件新增「跟随宿主（自动）」段。宿主语言运行期变更经 `app-boot/config-reload` 失效技能目录（ADR-0011）。

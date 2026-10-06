@@ -1,2 +1,3 @@
-- id: ponytail
-  name: "@wenaixi/dsh-ponytail"
+- insert:
+    - id: ponytail
+      name: "@wenaixi/dsh-ponytail"

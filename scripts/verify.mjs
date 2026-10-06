@@ -225,7 +225,7 @@ const officialConfigChecks = [
   ['Config 含 volatile 的 defaultMode', /defaultMode: Schema\.union\(\[[^\]]*\]\)\.volatile\(\)/.test(hostSrc)],
   ['Config 含 volatile 的 disabledSkills', /disabledSkills: Schema\.array\(Schema\.string\(\)\)\.volatile\(\)/.test(hostSrc)],
   ['defaultMode 仍无 Schema 默认值（否则补丁的缺省与显式写入不可区分，诊断面板失去判别力）', !/defaultMode: Schema\.union\(\[[^\]]*\]\)\.default\(/.test(hostSrc)],
-  ['cordis.patch.yml 声明条目 id: ponytail（命名空间即由此 id 产生）', /- id: ponytail\b/.test(ponytailPatch)],
+  ['cordis.patch.yml 保持 insert 形态（bundle 惯例；顶层条目 overlay 会被 config-editor 拒绝并报 patch: entry not found）', /- insert:\s*\n(?:\s+- id: ponytail\b)/.test(ponytailPatch) && !/^- id: ponytail\b/m.test(ponytailPatch)],
   ['配置通道经 settings.mutate 写入（官方路径）', /mutate\(namespace, ops, revision\)/.test(settingsSrc)],
   ['patchMode 实时读取 volatile 引用（非启动快照）', /readVolatile\(resolved\.defaultMode\)/.test(hostSrc)],
   ['删除不存在的 settings.register 调用', !/settings\.register\(|service\.register\('ponytail'/.test(hostSrc)],

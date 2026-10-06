@@ -50,15 +50,23 @@ Default mode = `full`, auto-active every session. Change it:
 export PONYTAIL_DEFAULT_MODE=ultra
 ```
 
-**Profile patch** (`profiles/<name>/cordis.patch.yml`, entry `- id: ponytail`):
+**Profile patch** (`profiles/<name>/cordis.patch.yml`):
+
+`dsh plugin add` does NOT write this file. After installing, add a top-level
+entry by hand or the config card will not render:
+
 ```yaml
-config:
-  defaultMode: lite
+- id: ponytail
+  name: "@wenaixi/dsh-ponytail"
+  config:
+    defaultMode: lite  # off|lite|full|ultra
 ```
 
-The plugin config card writes the patch for you; `/ponytail default <mode>`
-does the same from a prompt. Set `"off"` to disable auto-activation on session
-start, activate manually with `/ponytail` when wanted.
+Then restart the host (patch entries compose at startup, not on reload).
+The plugin config card writes the patch for you once it renders;
+`/ponytail default <mode>` does the same from a prompt. Set `"off"` to
+disable auto-activation on session start, activate manually with `/ponytail`
+when wanted.
 
 Resolution: env var > profile patch > built-in `full`. The card shows all three
 sources and which one wins, so a level that "looks" set but is shadowed is
