@@ -8,6 +8,7 @@
  * 事件监听，注册处一行构造调用。
  *
  * 边界：skillDir 由 entry 解析后传入（config.skillDir 的优先级归 entry 模块）。
+ * 描述语言由 getDescriptionLang 闭包现读，来源 skills/descriptions.{lang}.json。
  * 与 @deepseek-ai/dsh-skill 的关系：实现其 SkillProvider 接口；
  * 字段以该包 lib/types/index.d.ts 的生成类型为准。
  */
@@ -15,6 +16,7 @@
 import { readdir, readFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { parse } from 'yaml'
+import { readSkillDescriptions } from './ponytail-remote.js'
 import type { Context } from '@deepseek-ai/cordis'
 import type {
   SkillCandidate,
@@ -156,15 +158,19 @@ interface SkillBaseFields {
 /**
  * 私有组装流水线：从 frontmatter 提取并验证公共基础字段。
  * 校验失败或格式非法时抛出 Error，由外层根据上下文决定记录日志或静默处理。
+ *
+ * 描述不在这里决定：SKILL.md 的 frontmatter 只保留英文原文（上游真源），
+ * 中文描述在 skills/descriptions.zh.json，由 Provider 按配置选择下发哪一套。
+ * frontmatter 的 description 因此只作为「文件可解析」的存在性校验与缺项兜底。
  */
 function assembleSkillBase(
   data: Record<string, unknown>,
   filePath: string,
   providerName: string,
+  description: string,
 ): SkillBaseFields {
   const name = readString(data, 'name')
-  const description = readString(data, 'description')
-  if (!name || !description) {
+  if (!name || !readString(data, 'description')) {
     throw new Error('frontmatter 必须包含 name 和 description')
   }
   if (!isSkillName(name)) {
@@ -192,17 +198,34 @@ export class PonytailProvider implements SkillProvider {
   private readonly ctx: Context
   private readonly control: SkillProviderControl
   private readonly isSkillEnabled?: (name: string) => boolean
+  /** 当前配置要求的描述语言；每次求值现读 volatile 引用，不缓存 */
+  private readonly getDescriptionLang?: () => 'zh' | 'en'
 
   constructor(
     ctx: Context,
     control: SkillProviderControl,
-    options: { providerName?: string; skillDir: string; isSkillEnabled?: (name: string) => boolean },
+    options: {
+      providerName?: string
+      skillDir: string
+      isSkillEnabled?: (name: string) => boolean
+      getDescriptionLang?: () => 'zh' | 'en'
+    },
   ) {
     this.ctx = ctx
     this.control = control
     this.name = options.providerName ?? 'ponytail'
     this.skillDir = options.skillDir
     this.isSkillEnabled = options.isSkillEnabled
+    this.getDescriptionLang = options.getDescriptionLang
+  }
+
+  /**
+   * 当前语言的描述表；描述文件不可读时返回 null，调用方回退 frontmatter 里的英文。
+   * 每次现读：配置改动经 loader/volatile-update 就地更新引用并触发目录失效，
+   * 缓存表会让切换停在旧语言。
+   */
+  private descriptions(): Record<string, string> | null {
+    return readSkillDescriptions(this.getDescriptionLang?.() ?? 'zh')
   }
 
   invalidate(): void {
@@ -245,9 +268,15 @@ export class PonytailProvider implements SkillProvider {
         this.ctx.logger.warn(`[ponytail] 跳过 ${entry.name}：缺少或无效的 frontmatter`)
         continue
       }
+      const descriptions = this.descriptions()
       let base: SkillBaseFields
       try {
-        base = assembleSkillBase(parsed.data, skillPath, this.name)
+        base = assembleSkillBase(
+          parsed.data,
+          skillPath,
+          this.name,
+          descriptions?.[entry.name] ?? readString(parsed.data, 'description')!,
+        )
       } catch (err: unknown) {
         this.ctx.logger.warn(`[ponytail] 跳过 ${skillPath}：${(err as Error).message}`)
         continue
@@ -282,7 +311,13 @@ export class PonytailProvider implements SkillProvider {
     if (!parsed) return undefined
     let base: SkillBaseFields
     try {
-      base = assembleSkillBase(parsed.data, targetPath, this.name)
+      const descriptions = this.descriptions()
+      base = assembleSkillBase(
+        parsed.data,
+        targetPath,
+        this.name,
+        descriptions?.[candidate.name] ?? readString(parsed.data, 'description')!,
+      )
     } catch {
       return undefined
     }

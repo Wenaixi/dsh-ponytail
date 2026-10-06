@@ -244,6 +244,13 @@ export interface PonytailConfig {
   skillDir?: string
   /** 默认强度，off 则不自动激活（volatile 引用） */
   defaultMode?: VolatileRef<'off' | 'lite' | 'full' | 'ultra'>
+  /**
+   * 技能描述下发给模型目录与配置面板的语言（volatile 引用，默认 zh）。
+   *
+   * 与 defaultMode 不同：它不参与优先级链，默认值不会 shadow 任何显式配置，
+   * 因此可以带 Schema 默认值（面板要区分「显式选了 en」与「没配」）。
+   */
+  skillDescriptionLang?: VolatileRef<'zh' | 'en'>
 }
 
 /**

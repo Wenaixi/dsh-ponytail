@@ -25,32 +25,52 @@ for (const dir of skillDirs) {
   else console.log(`[verify] ✓ ${dir} -> ${nameMatch[1]} ${descMatch ? `(${descMatch[1].slice(0,60)})` : ''}`)
 }
 
-// description 长度静态断言：官方 dsh-tool-skill 默认 catalogDescriptionMaxLength=500，
-// 超长会被模型目录截断，压缩不得回退（防回归）。
-// 长度按真实 YAML 折叠块语义计算（description: > 后的连续缩进行归一 join，含折叠块末尾换行），
-// 与运行时 parseFrontmatter 使用同一 yaml.parse，保证断言与投产值一致。
+// 技能描述长度断言：官方 dsh-tool-skill 的 catalogDescriptionMaxLength 默认 500
+// （dsh-tool-skill/lib/index.js:52），超长会在模型目录里被截断成 "...", 触发词可能整段丢失。
+// 断言对象是 skills/descriptions.{lang}.json —— 那才是真正下发给模型目录的字符串；
+// SKILL.md frontmatter 的 description 是上游原文（可超长，宿主只在选中文言时才用）。
 const DESC_MAX = 500
-for (const dir of skillDirs) {
-  const p = join(skillDir, dir, 'SKILL.md')
-  const rawNorm = (await readFile(p, 'utf8')).replace(/^\uFEFF/, '').replace(/\r\n/g, '\n')
-  const lines = rawNorm.split('\n')
-  const end = lines.indexOf('---', 1)
-  if (end < 0) continue
-  let desc = ''
+const skillIds = skillDirs
+for (const lang of ['zh', 'en']) {
+  let table
   try {
-    const fm = parse(lines.slice(1, end).join('\n'))
-    if (typeof fm?.description !== 'string') throw new Error('description 非字符串')
-    desc = fm.description
+    table = JSON.parse(await readFile(join(skillDir, `descriptions.${lang}.json`), 'utf8'))
   } catch (err) {
-    console.error(`[verify] ${dir}: description 解析失败：${err instanceof Error ? err.message : String(err)}`)
+    console.error(`[verify] descriptions.${lang}.json 读取失败：${err instanceof Error ? err.message : String(err)}`)
     ok = false
     continue
   }
-  if (desc.length > DESC_MAX) {
-    console.error(`[verify] ${dir}: description ${desc.length} chars > ${DESC_MAX} (will be truncated by model catalog)`)
+  for (const id of skillIds) {
+    const desc = table[id]
+    if (typeof desc !== 'string' || desc.length === 0) {
+      console.error(`[verify] descriptions.${lang}.json 缺少 ${id}`)
+      ok = false
+      continue
+    }
+    if (desc.length > DESC_MAX) {
+      console.error(`[verify] ${id} (${lang}) description ${desc.length} chars > ${DESC_MAX} (模型目录会截断)`)
+      ok = false
+    }
+  }
+}
+console.log(`[verify] ✓ 技能描述 zh/en 各 ${skillIds.length} 项且均在 ${DESC_MAX} 内`)
+
+// SKILL.md frontmatter 必须保持上游英文原文：模型读到的指令正文不应被中文化，
+// 而描述的两种语言由配置选择（见 skills/descriptions.*.json）。
+for (const dir of skillDirs) {
+  const p = join(skillDir, dir, 'SKILL.md')
+  const rawNorm = (await readFile(p, 'utf8')).replace(/^\uFEFF/, '').replace(/\r\n/g, '\n')
+  const end = rawNorm.indexOf('\n---\n')
+  const fm = parse(rawNorm.slice(4, end))
+  if (typeof fm?.description !== 'string' || fm.description.trim() === '') {
+    console.error(`[verify] ${dir}: frontmatter description 缺失`)
     ok = false
-  } else {
-    console.log(`[verify] ✓ ${dir} description ${desc.length} chars`)
+    continue
+  }
+  const cjk = fm.description.match(/[\u4e00-\u9fa5]/)
+  if (cjk) {
+    console.error(`[verify] ${dir}: frontmatter description 含中文「${cjk[0]}」（上游真源为英文）`)
+    ok = false
   }
 }
 
@@ -59,9 +79,13 @@ for (const dir of skillDirs) {
   const p = join(skillDir, dir, 'SKILL.md')
   const rawNorm = (await readFile(p, 'utf8')).replace(/^\uFEFF/, '').replace(/\r\n/g, '\n')
   const body = rawNorm.slice(rawNorm.indexOf('\n---\n') + 5)
-  const retired = body.match(/\$DSH_HOME\/ponytail\/config\.json|环境变量 > 配置文件|四级/)
+  // 上游原文里的宿主落点对 DSH 全是错的（XDG/APPDATA 路径、Claude Code 的 /plugin 自动更新），
+  // 因此这些表述在 DSH 侧同样要判失败：模型读到会带用户去改不存在的路径。
+  const retired = body.match(
+    /\$DSH_HOME\/ponytail\/config\.json|环境变量 > 配置文件|四级|~\/\.config\/ponytail|%APPDATA%\\ponytail|\/plugin marketplace update/,
+  )
   if (retired) {
-    console.error(`[verify] ${dir}: 技能正文含已退役的表述「${retired[0]}」（模型会读到并据此误导用户）`)
+    console.error(`[verify] ${dir}: 技能正文含对 DSH 无效的表述「${retired[0]}」（模型会读到并据此误导用户）`)
     ok = false
   }
 }
@@ -88,6 +112,8 @@ const checks = [
   'skills/ponytail/SKILL.md',
   'skills/ponytail-review/SKILL.md',
   'AGENTS.md',
+  'skills/descriptions.zh.json',
+  'skills/descriptions.en.json',
 ]
 for (const rel of checks) {
   const p = resolve(dirname(fileURLToPath(import.meta.url)), '..', rel)
@@ -176,18 +202,16 @@ if (clientArtifact.includes('import.meta') || clientArtifact.includes('process.'
 }
 
 
-// 技能元数据单一真源反向断言：描述只能来自 SKILL.md frontmatter（readSkillMeta/extractSkillMeta），
-// 出现「懒人模式本体」等硬编码短摘要即失败（防三处漂移回潮，C2）。
-// 客户端构建脚本不得出现硬编码技能描述：SKILL_META 必须由 frontmatter 生成
+// 技能描述单一真源反向断言：描述只能来自 skills/descriptions.{lang}.json，
+// 出现「懒人模式本体」等硬编码短摘要即失败（防漂移回潮）。
+// 客户端构建脚本不得出现硬编码技能描述（描述经 remote 快照下发，按配置语言取）。
 const clientBuildSrc = await readFile(join(rootDir, 'scripts', 'build-client.mjs'), 'utf8')
 const clientDrift = clientBuildSrc.match(/懒人模式本体|过度设计评审|全仓过度设计审计|债务台账收割|收益看板：展示[^，。]*|速查卡：模式/)
 if (clientDrift) {
-  console.error(`[verify] FAIL: build-client.mjs 出现硬编码技能描述（必须由 SKILL.md frontmatter 生成）：${clientDrift[0]}`)
+  console.error(`[verify] FAIL: build-client.mjs 出现硬编码技能描述（必须由 remote 快照下发）：${clientDrift[0]}`)
   ok = false
 }
-// 宿侧必须经 readSkillMeta 取真源（FALLBACK_SKILL_META 仅作不可读兜底）。
-// 该函数在 HTTP 删除后已迁至 src/ponytail-remote.ts（见下方 officialConfigChecks）。
-console.log('[verify] ✓ skill meta single-source (SKILL.md frontmatter)')
+console.log('[verify] ✓ skill description single-source (skills/descriptions.{lang}.json)')
 
 // 官方配置组合的接线契约（替代已失效的 settings.register 断言）：
 // @deepseek-ai/dsh-settings@0.2.0-rc.2 没有 register 方法（全文件 0 次 register）——命名空间由
@@ -208,7 +232,10 @@ const officialConfigChecks = [
   ['远程服务命名空间为 ponytail（客户端挂成 ctx.remote.ponytail）', /super\(ctx, 'ponytailRemote', \{ namespace: 'ponytail' \}\)/.test(remoteSrc)],
   ['远程通道只暴露只读端点 snapshot', /@Remote\('snapshot'\)/.test(remoteSrc)],
   ['远程通道不含写端点（写操作归 settings）', !/@Remote\('(set|write|update|reset|toggle)'\)/.test(remoteSrc)],
-  ['技能元数据真源随远程通道提供（readSkillMeta）', /export function readSkillMeta/.test(remoteSrc)],
+  ['技能描述语言为带默认值的 volatile 字段（面板要区分显式 en 与未配）', /skillDescriptionLang: Schema\.union\(\['zh', 'en'\]\)\.default\('zh'\)\.volatile\(\)/.test(hostSrc)],
+  ['技能元数据随远程通道提供（readSkillMeta 按语言下发）', /export function readSkillMeta\(lang\?: SkillLang\)/.test(remoteSrc)],
+  ['远程快照携带技能描述语言与 6 项元数据', /skills: readSkillMeta\(skillLang\)/.test(hostSrc)],
+  ['描述语言变更触发技能目录失效（否则模型侧读旧语言）', /touched\.has\('skillDescriptionLang'\)/.test(hostSrc)],
   ['src/ponytail-http.ts 已删除（不再有自制端点）', !existsSync(join(rootDir, 'src', 'ponytail-http.ts'))],
   ['宿主不再注入 webServer', !/webServer/.test(hostSrc)],
   ['宿主不注册 HTTP 路由', !/api\/plugins\/ponytail/.test(hostSrc)],

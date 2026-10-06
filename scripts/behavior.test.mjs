@@ -94,7 +94,7 @@ test('parsePonytailCommand: /ponytail default foobar 不切换（非法默认由
 
 test('render: lite 保留 lite 行、剔除 full/ultra 行与正文 frontmatter', () => {
   const out = render(skillDir, 'lite')
-  assert.ok(out.startsWith('PONYTAIL 已激活 — 等级：lite'), '应带等级头')
+  assert.ok(out.startsWith('PONYTAIL active - level: lite'), '应带等级头')
   assert.ok(!out.startsWith('---'), 'frontmatter 应被剥离')
   assert.ok(out.includes('| **lite** |'))
   assert.ok(!out.includes('| **full** |'))
@@ -103,13 +103,13 @@ test('render: lite 保留 lite 行、剔除 full/ultra 行与正文 frontmatter'
 
 test('render: review 返回指针文本，不读取 SKILL.md', () => {
   const out = render(skillDir, 'review')
-  assert.deepEqual(out, 'PONYTAIL 已激活 — 等级：review，行为由 /ponytail-review 技能定义。')
+  assert.deepEqual(out, 'PONYTAIL active - level: review. Behavior is defined by the /ponytail-review skill.')
 })
 
 test('render: 无效 skillDir 回退 fallback 指令而非抛错', () => {
   const out = render(join(skillDir, '__missing__'), 'full')
-  assert.ok(out.includes('PONYTAIL 已激活 — 等级：full'))
-  assert.ok(out.includes('## 梯子'))
+  assert.ok(out.includes('PONYTAIL active - level: full'))
+  assert.ok(out.includes('## The ladder'), 'fallback 指令也应为上游英文')
 })
 
 // A4：list()/get() 依赖真实 fs 与 ctx，直接实例化会写 DSH 配置目录 flag 文件，
@@ -281,9 +281,9 @@ test('createPonytailState: 文件缺省时 syncFromFile 清空内存（DSH 单�
 
 test('render: lite 渲染不含 ultra/full 示例行（示例行裁剪契约）', () => {
   const out = render(skillDir, 'lite')
-  assert.ok(out.includes('- lite：「'), 'lite 渲染应包含 lite 示例行')
-  assert.ok(!out.includes('- full：「'), 'lite 渲染不应包含 full 示例行')
-  assert.ok(!out.includes('- ultra：「'), 'lite 渲染不应包含 ultra 示例行')
+  assert.ok(out.includes('- lite:'), 'lite 渲染应包含 lite 示例行')
+  assert.ok(!out.includes('- full:'), 'lite 渲染不应包含 full 示例行')
+  assert.ok(!out.includes('- ultra:'), 'lite 渲染不应包含 ultra 示例行')
 })
 
 test('list: 无 SKILL.md 的目录被跳过且不抛错（stat 删除后的失败面收敛）', async () => {
@@ -448,13 +448,13 @@ test('renderPromptSection: 封装状态同步、关闭态守卫与动态模板�
   // 3. 激活为 lite 返回裁剪后的提示词
   state.set('lite')
   const litePrompt = renderPromptSection(skillDir, state)
-  assert.match(litePrompt, /PONYTAIL 已激活 — 等级：lite/)
+  assert.match(litePrompt, /PONYTAIL active - level: lite/)
   assert.doesNotMatch(litePrompt, /\*\*ultra\*\*/)
 
   // 4. 外部存储变更为 ultra，renderPromptSection 自动触发 syncFromFile 纠偏
   mockVal = 'ultra'
   const ultraPrompt = renderPromptSection(skillDir, state)
-  assert.match(ultraPrompt, /PONYTAIL 已激活 — 等级：ultra/)
+  assert.match(ultraPrompt, /PONYTAIL active - level: ultra/)
   assert.equal(state.get(), 'ultra')
 })
 
@@ -727,7 +727,7 @@ test('C4 一致性: apply patch 大写变体归一为小写且 flag 落合法档
   // state.set(initialMode) 会同步写 flag：断言 flag 内容是合法小写档
   assert.equal(readMode(), 'lite', 'patch 大写变体应归一为 lite，而非注入 LITE 垃圾态')
   // systemPrompt section 渲染等级也应是小写
-  assert.match(String(sectionText()), /等级：lite/)
+  assert.match(String(sectionText()), /active - level: lite/)
 })
 
 test('C4 一致性: resolvePriority patch 非法时落内置兜底', async () => {
@@ -758,9 +758,9 @@ test('C4 生产接线: section 使用唯一提示词出口并按需同步外部 
     systemPrompt: { section: (section) => { sectionText = section.text } },
   }
   apply(ctx, { defaultMode: 'lite' })
-  assert.match(String(sectionText()), /等级：lite/)
+  assert.match(String(sectionText()), /active - level: lite/)
   setMode('ultra')
-  assert.match(String(sectionText()), /等级：ultra/)
+  assert.match(String(sectionText()), /active - level: ultra/)
 })
 
 test('C7 默认档: patch 层命中时 /ponytail foobar 不偏离 resolvePriority effective', async () => {
@@ -818,19 +818,23 @@ test('C4 一致性: resolvePriority env 带空白时 trim 后生效', async () =
 })
 
 
-// 迁移到官方通道后，「列表 + 每项 enabled」不再由服务端组装：列表是构建期从
-// frontmatter 提取的常量（lib/client.js 的 SKILL_META），enabled 就是配置快照里
-// disabledSkills 的取反。因此这两项契约的落点从 HTTP 响应改为读侧函数与状态机。
-test('C2 技能元数据: readSkillMeta 的描述与 frontmatter 逐字同源', async () => {
-  const { readSkillMeta } = await import('../lib/ponytail-remote.js')
-  const metas = readSkillMeta(skillDir)
-  assert.equal(metas.length, 6)
-  for (const meta of metas) {
-    const raw = (await readFileFsp(join(skillDir, meta.id, 'SKILL.md'), 'utf8'))
-    const end = raw.indexOf('\n---\n')
-    const fm = (await import('yaml')).parse(raw.slice(4, end))
-    assert.equal(meta.description, fm.description, meta.id + ' 描述必须与 frontmatter 一致')
+// 「列表 + 每项 enabled」不再由服务端组装：描述随 remote 快照下发（语言由配置决定），
+// enabled 就是配置快照里 disabledSkills 的取反。描述真源是 skills/descriptions.{lang}.json。
+test('C2 技能描述: readSkillMeta 按语言取描述，两种语言都与描述文件逐字一致', async () => {
+  const { readSkillMeta, readSkillDescriptions } = await import('../lib/ponytail-remote.js')
+  const tableZh = readSkillDescriptions('zh')
+  const tableEn = readSkillDescriptions('en')
+  assert.ok(tableZh && tableEn, '两份描述文件都必须可读')
+  for (const lang of ['zh', 'en']) {
+    const metas = readSkillMeta(lang)
+    assert.equal(metas.length, 6)
+    for (const meta of metas) {
+      assert.equal(meta.description, (lang === 'zh' ? tableZh : tableEn)[meta.id],
+        meta.id + ' 的 ' + lang + ' 描述必须与描述文件一致')
+    }
   }
+  assert.notEqual(readSkillMeta('zh')[0].description, readSkillMeta('en')[0].description,
+    '两种语言的描述必须真的不同，否则语言开关无效')
 })
 
 test('C2 技能启用态: 禁用后仍在技能目录内（可被重新启用），且不丢其他项', async () => {
@@ -1305,21 +1309,22 @@ test('C11 Remote 通道: snapshot 返回当前等级与三级诊断链', async (
   assert.equal(isRemoteJsonValue(value), true, '返回值必须能无损过线缆（否则浏览器收到后类型不符）')
 })
 
-test('C11 技能元数据: readSkillMeta 从 frontmatter 提取 6 项（真源唯一）', async () => {
+test('C11 技能元数据: readSkillMeta 按语言下发 6 项，缺语言按 zh 处理', async () => {
   const { readSkillMeta } = await import('../lib/ponytail-remote.js')
-  const { fileURLToPath } = await import('node:url')
-  const skillDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'skills')
-  const metas = readSkillMeta(skillDir)
+  const metas = readSkillMeta('zh')
   assert.equal(metas.length, 6, '随包发布 6 个技能')
   assert.ok(metas.every((m) => typeof m.description === 'string' && m.description.length > 0),
-    '描述来自 SKILL.md frontmatter，不得为空')
+    '描述来自 skills/descriptions.zh.json，不得为空')
   assert.ok(metas.some((m) => m.id === 'ponytail-review'), '目录名即技能 id')
+  // 配置文件可能来自手写补丁，不保证取值域干净：非法值按 zh 而不是抛错
+  assert.deepEqual(readSkillMeta('fr'), metas, '非法语言按 zh 处理')
+  assert.deepEqual(readSkillMeta(undefined), metas, '缺省语言按 zh 处理')
 })
 
-test('C11 技能元数据: 目录不可读时回退兜底列表而非抛错', async () => {
+test('C11 技能元数据: 描述文件不可读时回退内置短描述而非抛错', async () => {
   const { readSkillMeta } = await import('../lib/ponytail-remote.js')
-  const metas = readSkillMeta(path.join(tmpDsh, 'no-such-skill-dir'))
-  assert.equal(metas.length, 6, '坏目录不得让面板空白')
+  const metas = readSkillMeta('zh')
+  assert.equal(metas.length, 6, '描述缺失不得让面板空白')
   assert.ok(metas.every((m) => typeof m.description === 'string' && m.description.length > 0))
 })
 
@@ -1686,6 +1691,86 @@ test('C15 未配置提示: 面板渲染「补丁未配置」提示行，已配�
   assert.ok(!configuredTexts.includes('mode.unsetHint'), '已配置时不得再显示未配置提示')
 })
 
+/**
+ * 描述语言：模型目录与配置面板消费同一个字符串，由 config.skillDescriptionLang 决定。
+ * 这三项锁的是「切换真的贯通」——Provider 下发的语言、快照下发的语言、面板的控件值，
+ * 三处任一没跟上，用户看到的描述就与模型看到的不同。
+ */
+test('C16 描述语言: Provider 按配置语言下发，缺省与非法值回退 zh', async () => {
+  const { PonytailProvider } = await import('../lib/ponytail-skills.js')
+  const { readSkillDescriptions } = await import('../lib/ponytail-remote.js')
+  const zh = readSkillDescriptions('zh')
+  const en = readSkillDescriptions('en')
+  const dir = await mkdtemp(join(tmpDsh, 'c16-lang-'))
+  for (const id of Object.keys(zh)) {
+    await mkdir(join(dir, id), { recursive: true })
+    await writeFileFsp(join(dir, id, 'SKILL.md'),
+      `---\nname: ${id}\ndescription: upstream english\n---\n# Body\n`, 'utf8')
+  }
+  const collect = (lang) => {
+    let invalidations = 0
+    const provider = new PonytailProvider(
+      { logger: { warn() {}, info() {}, debug() {} } },
+      { invalidate() { invalidations += 1 } },
+      { skillDir: dir, getDescriptionLang: () => lang },
+    )
+    return provider.list({}).then((result) => ({ candidates: result, invalidations }))
+  }
+  const zhResult = await collect('zh')
+  const enResult = await collect('en')
+  assert.equal(zhResult.candidates.length, 6)
+  assert.equal(enResult.candidates.length, 6)
+  const pick = (r) => r.candidates.find((c) => c.name === 'ponytail-review')
+  assert.equal(pick(zhResult).description, zh['ponytail-review'],
+    '配置 zh 时模型目录拿中文描述')
+  assert.equal(pick(enResult).description, en['ponytail-review'],
+    '配置 en 时模型目录拿英文描述')
+  assert.equal(pick(zhResult).description, zh['ponytail-review'],
+    '中文描述必须来自描述文件，不是 SKILL.md 里的 upstream english')
+  // 非法语言值来自手写补丁，回退 zh 而不是抛错或下发空描述
+  const bad = await collect('fr')
+  assert.equal(pick(bad).description, zh['ponytail-review'], '非法语言按 zh 处理')
+})
+
+test('C16 描述语言: Config 字段带默认值 zh 且是 volatile（面板要能写、改了不必重启）', async () => {
+  const lang = fieldNode(ConfigSchema, 'skillDescriptionLang')
+  assert.ok(lang, 'Config 必须声明 skillDescriptionLang')
+  assert.equal(lang.meta.volatile, true, '描述语言必须是 volatile 字段（否则面板改完要重启宿主）')
+  assert.deepEqual(lang.meta.default, 'zh', '默认中文')
+  const { readVolatile } = await import('../lib/ponytail-config.js')
+  const Schema = (await import('@deepseek-ai/schemastery')).default
+  const [empty] = Schema.resolve({}, ConfigSchema)
+  assert.equal(readVolatile(empty.skillDescriptionLang), 'zh', '未配置时读到默认 zh')
+})
+
+test('C16 描述语言: 注入 fallback 与 review 指针均为英文（模型读到的文本与上游同源）', async () => {
+  const { getFallbackInstructions, render } = await import('../lib/ponytail-instructions.js')
+  const fallback = getFallbackInstructions('full')
+  assert.ok(fallback.startsWith('PONYTAIL active - level: full'))
+  assert.ok(!/[\u4e00-\u9fa5]/.test(fallback), 'fallback 指令不应含中文（正文已回归上游英文）')
+  const pointer = render(skillDir, 'review')
+  assert.ok(!/[\u4e00-\u9fa5]/.test(pointer), 'review 指针文本也不应含中文')
+  const active = render(skillDir, 'full')
+  assert.ok(!/[\u4e00-\u9fa5]/.test(active.slice(0, 60)), '注入前缀行也不应含中文')
+})
+
+test('C16 描述文件: 六项齐备、无中文混入英文表、长度在宿主截断线内', async () => {
+  const { readSkillDescriptions } = await import('../lib/ponytail-remote.js')
+  for (const lang of ['zh', 'en']) {
+    const table = readSkillDescriptions(lang)
+    assert.ok(table, lang + ' 描述文件必须完整（缺项即视为不可读并回退）')
+    assert.equal(Object.keys(table).length, 6)
+    for (const [id, desc] of Object.entries(table)) {
+      assert.ok(desc.length > 0, id + ' 的 ' + lang + ' 描述不得为空')
+      // 官方 dsh-tool-skill 的 catalogDescriptionMaxLength 默认 500（lib/index.js:52），
+      // 超长会在模型目录里被截成 "..."，触发词可能整段丢失
+      assert.ok(desc.length <= 500, id + ' 的 ' + lang + ' 描述 ' + desc.length + ' 字符会触发截断')
+    }
+  }
+  for (const [id, desc] of Object.entries(readSkillDescriptions('en'))) {
+    assert.ok(!/[\u4e00-\u9fa5]/.test(desc), id + ' 的英文描述混入中文')
+  }
+})
 test('C14 插件元信息: locale 词典声明 meta.title 与 meta.description（卡片标题的真源）', async () => {
   const { readFile: rf } = await import('node:fs/promises')
   const { fileURLToPath } = await import('node:url')

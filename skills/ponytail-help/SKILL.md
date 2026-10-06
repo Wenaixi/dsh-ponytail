@@ -1,54 +1,79 @@
 ---
 name: ponytail-help
 description: >
-  ponytail 全量模式、技能与命令的速查卡，一次性展示，非持久模式。触发词：/ponytail-help / ponytail help / ponytail 有哪些命令 / 怎么用 ponytail。
+  Quick-reference card for all ponytail modes, skills, and commands.
+  One-shot display, not a persistent mode. Trigger: /ponytail-help,
+  "ponytail help", "what ponytail commands", "how do I use ponytail".
 ---
 
-# Ponytail Help · 速查卡
+# Ponytail Help
 
-被调用时展示此速查卡。一次性展示，不要切换模式、写 flag 文件或做任何持久化。
+Display this reference card when invoked. One-shot, do NOT change mode,
+write flag files, or persist anything.
 
-## 等级
+## Levels
 
-| 等级 | 触发 | 变化 |
-|-------|---------|------|
-| **Lite** | `/ponytail lite` | 按要求构建，但在同一行里点出更懒的替代方案。 |
-| **Full** | `/ponytail` | 强制走梯子：YAGNI → 标准库 → 原生 → 一行 → 最小实现。默认。 |
-| **Ultra** | `/ponytail ultra` | YAGNI 极端派，先删后加，在构建前先挑战需求本身。 |
+| Level | Trigger | What change |
+|-------|---------|-------------|
+| **Lite** | `/ponytail lite` | Build what's asked, name the lazier alternative in one line. |
+| **Full** | `/ponytail` | The ladder enforced: YAGNI → stdlib → native → one line → minimum. Default. |
+| **Ultra** | `/ponytail ultra` | YAGNI extremist. Deletion before addition. Challenges requirements before building. |
 
-等级会保持到被修改或会话结束。
+Level sticks until changed or session end.
 
-## 技能
+## Skills
 
-| 技能 | 触发 | 作用 |
-|-------|---------|------|
-| **ponytail** | `/ponytail` | 懒人模式本体，用最简可用的解法。 |
-| **ponytail-review** | `/ponytail-review` | 过度设计评审：`L42: yagni: 工厂只有一个产品，直接内联。` |
-| **ponytail-audit** | `/ponytail-audit` | 全仓过度设计审计：按可删行数排序的清单。 |
-| **ponytail-debt** | `/ponytail-debt` | 收割 `ponytail:` 捷径注释，生成待办台账。 |
-| **ponytail-gain** | `/ponytail-gain` | 实测收益看板：更少代码、更低成本、更快速度。 |
-| **ponytail-help** | `/ponytail-help` | 本卡片。 |
+| Skill | Trigger | What it does |
+|-------|---------|--------------|
+| **ponytail** | `/ponytail` | Lazy mode itself. Simplest solution that works. |
+| **ponytail-review** | `/ponytail-review` | Over-engineering review: `L42: yagni: factory, one product. Inline.` |
+| **ponytail-audit** | `/ponytail-audit` | Whole-repo over-engineering audit: ranked list of what to delete. |
+| **ponytail-debt** | `/ponytail-debt` | Harvest `ponytail:` shortcut comments into a tracked ledger. |
+| **ponytail-gain** | `/ponytail-gain` | Measured-impact scoreboard: less code, less cost, more speed. |
+| **ponytail-help** | `/ponytail-help` | This card. |
 
+Codex uses `@ponytail`, `@ponytail-review`, and `@ponytail-help`; Claude Code
+and OpenCode use the slash-command forms above (OpenCode ships all six as
+slash commands).
 
-## 退出
+## Deactivate
 
-说「stop ponytail / 正常模式」即可退出，随时用 `/ponytail` 恢复。
-`/ponytail off` 同样可用。
+Say "stop ponytail" or "normal mode". Resume anytime with `/ponytail`.
+`/ponytail off` also works.
 
-## 配置默认等级
+## Configure Default Mode
 
-默认等级为 `full`，每会话自动激活。取值按下列顺序取第一个有效值：
+Default mode = `full`, auto-active every session. Change it:
 
-1. 环境变量（最高）：`PONYTAIL_DEFAULT_MODE=ultra`
-2. Profile 补丁：`profiles/<profile>/cordis.patch.yml` 里 ponytail 条目的 `defaultMode`
-3. 内置兜底：`full`
+**Environment variable** (highest priority):
+```bash
+export PONYTAIL_DEFAULT_MODE=ultra
+```
 
-界面上「插件 → 懒人模式 → 配置优先级」直接显示这三行的命中与压制关系，比手改文件可靠。要改默认档用 `/ponytail default <档>`，它写进当前 Profile 的补丁。
+**Profile patch** (`profiles/<name>/cordis.patch.yml`, entry `- id: ponytail`):
+```yaml
+config:
+  defaultMode: lite
+```
 
-`ponytail/config.json` 只在没有 Settings 服务的组合（headless / CLI）里承担写入，已不参与优先级。
+The plugin config card writes the patch for you; `/ponytail default <mode>`
+does the same from a prompt. Set `"off"` to disable auto-activation on session
+start, activate manually with `/ponytail` when wanted.
 
-设为 `off` 可关闭会话启动时的自动激活，需要时再用 `/ponytail` 手动开启。
+Resolution: env var > profile patch > built-in `full`. The card shows all three
+sources and which one wins, so a level that "looks" set but is shadowed is
+visible instead of silently ignored.
 
-## 更多
+## Update
 
-完整文档与示例：https://github.com/DietrichGebert/ponytail
+```bash
+dsh plugin --profile <name> add @wenaixi/dsh-ponytail
+```
+
+Restart the host after updating: a plugin entry's artifact fingerprint is
+computed at process start and frozen, so a page refresh alone keeps serving
+the previous build. A fresh install only needs a refresh.
+
+## More
+
+Full docs + examples: https://github.com/DietrichGebert/ponytail

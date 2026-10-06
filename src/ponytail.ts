@@ -37,7 +37,7 @@ import { createCommandDispatcher } from './ponytail-commands.js'
 import { renderPromptSection } from './ponytail-instructions.js'
 import { createDiskStorage, createPonytailState } from './ponytail-state.js'
 import { PonytailProvider } from './ponytail-skills.js'
-import { PonytailRemote } from './ponytail-remote.js'
+import { PonytailRemote, readSkillMeta } from './ponytail-remote.js'
 
 // ---------------------------------------------------------------------------
 // Config — 遵循 references/config.md：Schemastery + 默认值进 schema
@@ -63,6 +63,9 @@ export const Config = Schema.object({
   // 技能禁用列表此前只存在 config.json（HTTP 端点专属）。迁入 Config 后由官方表单承载，
   // 获得 revision 冲突保护与跨页面同步；旧值由 ponytail-settings 的 migrateLegacyConfig 一次性导入。
   disabledSkills: Schema.array(Schema.string()).volatile(),
+  // 技能描述下发给模型目录与面板的语言。带默认值 zh：它不参与优先级链，
+  // 填默认值没有 shadow 代价，而面板需要区分「显式选了 en」与「没配过」。
+  skillDescriptionLang: Schema.union(['zh', 'en']).default('zh').volatile(),
 })
 
 // ---------------------------------------------------------------------------
@@ -142,6 +145,9 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
       : {}),
     ...(rawConfig['disabledSkills'] !== undefined
       ? { disabledSkills: rawConfig['disabledSkills'] as Config['disabledSkills'] }
+      : {}),
+    ...(rawConfig['skillDescriptionLang'] !== undefined
+      ? { skillDescriptionLang: rawConfig['skillDescriptionLang'] as Config['skillDescriptionLang'] }
       : {}),
   }
 
@@ -233,6 +239,9 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
       // 同步过滤。此前从未传入，UI 改开关对模型侧目录无效（静默失效，跨会话仍放行）。
       // 失效闭环：POST 变更点直调 invalidateSkills() → providerInstance.invalidate() → 宿主重扫。
       isSkillEnabled: (name) => state.isSkillEnabled(name),
+      // 描述语言每次现读 volatile 引用：官方表单改完经 loader/volatile-update 就地更新引用，
+      // 闭包化读取让下一次 list/get 立刻拿到新语言（配合下方监听里的 invalidate 生效）。
+      getDescriptionLang: () => readVolatile(resolved.skillDescriptionLang) ?? 'zh',
     })
     return providerInstance
   })
@@ -270,6 +279,16 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
       patchOverride = undefined
       ctx.logger.debug('[ponytail] 默认档已由 profile 补丁提交，乐观缓存已清除')
     }
+    // 描述语言变了但目录不失效，模型侧仍读旧语言的描述（面板经 remote 能看到新值，
+    // 两侧因此不一致）：与 disabledSkills 同一条失效路径。
+    if (touched.has('skillDescriptionLang')) {
+      try {
+        providerInstance?.invalidate()
+      } catch {
+        // 同上：失效失败不阻断，宿主会保留旧缓存到下次自然失效
+      }
+      ctx.logger.debug('[ponytail] 技能描述语言已变更，技能目录已失效')
+    }
   })
 
   // 只读推导值走官方 Typert 通道（命名空间 ponytail）：优先级诊断链与当前生效等级
@@ -280,13 +299,18 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
   // 缺失时快照通道不可用（客户端降级为不显示优先级段），但不得掀翻其余能力。
   if (typeof (ctx as unknown as { plugin?: unknown }).plugin === 'function') {
     ctx.plugin(PonytailRemote, {
-      snapshot: () => ({
-        currentMode: state.get() ?? 'off',
-        priority: resolvePriority({
-          envRaw: process.env['PONYTAIL_DEFAULT_MODE'],
-          patchMode: readPatchMode(),
-              }),
-      }),
+      snapshot: () => {
+        const skillLang = readVolatile(resolved.skillDescriptionLang) ?? 'zh'
+        return {
+          currentMode: state.get() ?? 'off',
+          priority: resolvePriority({
+            envRaw: process.env['PONYTAIL_DEFAULT_MODE'],
+            patchMode: readPatchMode(),
+          }),
+          skillLang,
+          skills: readSkillMeta(skillLang),
+        }
+      },
     })
   } else {
     ctx.logger.debug('[ponytail] 宿主无 ctx.plugin，远程快照通道未挂载（优先级面板将降级）')

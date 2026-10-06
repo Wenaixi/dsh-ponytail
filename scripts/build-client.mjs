@@ -20,44 +20,27 @@ import { writeFile } from 'node:fs/promises'
  * 与 settings-general / settings-models / plugin-manager 同源，视觉自动对齐宿主；
  * 本文件不自定义任何色值与圆角，只做布局。
  */
-// ---- 构建期技能元数据提取（SKILL.md frontmatter 唯一真源，与宿侧 readSkillMeta 同源） ----
+// ---- 构建期技能 id 提取（描述由 remote 快照下发，见 readSkillMeta） ----
+// 描述不再内嵌：模型目录与面板消费同一个字符串，语言由 config.skillDescriptionLang 决定。
+// 构建期常量会停在旧语言，所以这里只带 id 列表。
 const SKILL_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', 'skills')
-function extractSkillMeta() {
-  let dirs = []
+function extractSkillIds() {
   try {
-    dirs = readdirSync(SKILL_ROOT, { withFileTypes: true })
+    return readdirSync(SKILL_ROOT, { withFileTypes: true })
       .filter((d) => d.isDirectory() && !d.name.startsWith('.'))
       .map((d) => d.name)
       .sort()
   } catch {
     return []
   }
-  const metas = []
-  for (const dir of dirs) {
-    let description = dir
-    try {
-      const raw = readFileSync(join(SKILL_ROOT, dir, 'SKILL.md'), 'utf8').replace(/^\uFEFF/, '').replace(/\r\n/g, '\n')
-      if (raw.startsWith('---\n')) {
-        const end = raw.indexOf('\n---\n')
-        if (end > 0) {
-          const fm = parseYaml(raw.slice(4, end))
-          if (fm && typeof fm === 'object' && typeof fm.description === 'string') description = fm.description
-        }
-      }
-    } catch {
-      // 缺 SKILL.md 时以目录名兜底
-    }
-    metas.push({ id: dir, description })
-  }
-  return metas
 }
-const SKILL_META_BUILD = extractSkillMeta()
+const SKILL_IDS_BUILD = extractSkillIds()
 const LOCALE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', 'locale')
 const readLocale = (name) => JSON.parse(readFileSync(join(LOCALE_ROOT, name), 'utf8'))
 const ZH_BUILD = readLocale('zh.json')
 const EN_BUILD = readLocale('en.json')
-if (SKILL_META_BUILD.length !== 6) {
-  console.error('[build-client] 技能目录应含 6 个 SKILL.md，实际 ' + SKILL_META_BUILD.length)
+if (SKILL_IDS_BUILD.length !== 6) {
+  console.error('[build-client] 技能目录应含 6 个 SKILL.md，实际 ' + SKILL_IDS_BUILD.length)
   process.exit(1)
 }
 
@@ -192,9 +175,10 @@ const content = `window.__ModuleLoader__.load({
       return options;
     }
 
-    // 技能元数据从 SKILL.md frontmatter 构建期提取（唯一真源，与宿侧 readSkillMeta 同源）。
+    // 技能 id 列表是构建期常量；描述与语言来自 remote 快照（与模型目录同源）。
+    // 构建期内嵌描述会让语言切换停在旧值，所以这里只带 id。
     // 「是否启用」不再随服务端下发：它就是 configForms 快照里的 disabledSkills 取反。
-    const SKILL_META = ${JSON.stringify(SKILL_META_BUILD)};
+    const SKILL_IDS = ${JSON.stringify(SKILL_IDS_BUILD)};
 
     // 诊断链一行的状态语义：生效 / 被覆盖 / 未设置 / 有问题
     function chainRowState(source) {
@@ -407,6 +391,7 @@ const content = `window.__ModuleLoader__.load({
         applyOps([
           { op: "unset", path: ["defaultMode"] },
           { op: "unset", path: ["disabledSkills"] },
+          { op: "unset", path: ["skillDescriptionLang"] },
         ], t("toast.resetDone"));
       }, [applyOps]);
 
@@ -421,6 +406,13 @@ const content = `window.__ModuleLoader__.load({
       const levelLocked = Boolean(remote && Array.isArray(remote.priority && remote.priority.chain) && remote.priority.chain.some(function (s) {
         return s.level === "env" && s.hit;
       }));
+
+      // 描述语言：带 Schema 默认值（src/ponytail.ts），读得到即生效值，无需区分「配过没配过」。
+      var descLang = typeof config.skillDescriptionLang === "string" ? config.skillDescriptionLang : "zh";
+      var setDescLang = React.useCallback(function (lang) {
+        applyOps([{ op: "set", path: ["skillDescriptionLang"], value: lang }],
+          t("lang.changed", { name: t("lang." + lang) }));
+      }, [applyOps]);
 
       return e(
         "div",
@@ -460,25 +452,39 @@ const content = `window.__ModuleLoader__.load({
           { style: L.section },
           e("h4", { style: L.title }, t("skills.title")),
           e("p", { style: L.hint }, t("skills.hint")),
+          e(P.SegmentedControl, {
+            id: "ponytail-desc-lang",
+            label: t("lang.title"),
+            value: descLang,
+            options: [
+              { value: "zh", label: t("lang.zh") },
+              { value: "en", label: t("lang.en") },
+            ],
+            disabled: busy || !writable,
+            onChange: setDescLang,
+          }),
           e(
             "div",
             { style: { display: "flex", flexDirection: "column", gap: "6px" } },
-            SKILL_META.map(function (skill) {
-              const enabled = disabled.indexOf(skill.id) < 0;
+            SKILL_IDS.map(function (id) {
+              const enabled = disabled.indexOf(id) < 0;
+              var meta = (remote && Array.isArray(remote.skills)
+                ? remote.skills.find(function (s) { return s.id === id; })
+                : null);
               return e(
                 "div",
-                { key: skill.id, style: L.row },
+                { key: id, style: L.row },
                 e(
                   "div",
                   { style: L.rowText },
-                  e("span", { style: L.rowName }, "/" + skill.id),
-                  e("span", { style: L.rowDesc }, skill.description)
+                  e("span", { style: L.rowName }, "/" + id),
+                  e("span", { style: L.rowDesc }, meta ? meta.description : id)
                 ),
                 e(P.Switch, {
                   checked: enabled,
                   disabled: busy || !writable,
-                  label: t("skills.toggleOn", { name: skill.id }),
-                  onChange: function (next) { toggleSkill(skill.id, next); },
+                  label: t("skills.toggleOn", { name: id }),
+                  onChange: function (next) { toggleSkill(id, next); },
                 })
               );
             })

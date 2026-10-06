@@ -86,6 +86,18 @@ stop ponytail        同 off，整句匹配
 dsh --profile web '<任务>'
 ```
 
+## 技能正文与描述语言
+
+技能正文是上游 DietrichGebert/ponytail v4.10.3 的英文原文，按 tag 逐文件取回。两处内容对 DSH
+不适用，已就地改写为真实落点：`ponytail-gain` 的数据来源指向 `assets/*.svg`（本仓无上游的
+`benchmarks/`），`ponytail-help` 的配置与更新章节改为 profile 补丁与 `dsh plugin`。
+
+模型目录与配置面板看到的是同一个描述字符串，语言由 `skillDescriptionLang` 决定（默认中文）。
+两套描述的真源是 `skills/descriptions.zh.json` 与 `skills/descriptions.en.json`，
+经 `ctx.remote.ponytail.snapshot()` 下发，因此切换后模型侧与界面同时改变。
+
+描述长度上限来自官方 `dsh-tool-skill` 的 `catalogDescriptionMaxLength`（默认 500），
+超长会在模型目录里被截断，`verify.mjs` 对两册都断言。
 ## 配置面板
 
 已安装插件的卡片详情内嵌配置面板：运行等级、6 个技能的独立开关、一键恢复默认，外加一条三级优先级诊断链，逐行显示环境变量、Profile 补丁、内置兜底各自的值与生效状态。
