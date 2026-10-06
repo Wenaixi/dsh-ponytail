@@ -1,6 +1,6 @@
 {
   "name": "@wenaixi/dsh-ponytail",
-  "version": "5.3.1",
+  "version": "5.3.2",
   "description": "DietrichGebert/ponytail 的 DSH 完整移植：常驻懒人 senior 模式与七阶梯子（YAGNI 到最小实现），6 个中文原生技能（本体、评审、审计、债务、收益、帮助），零 tool 注册",
   "type": "module",
   "main": "lib/ponytail.js",

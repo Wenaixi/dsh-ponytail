@@ -1,3 +1,10 @@
+## [5.3.2] - 2026-10-06
+
+### Documentation
+
+- 完善安装、热加载与配置说明：排版细节与段落空行规范化，安装指引显式锁定最新版本 `@5.3.2`。
+- 固化零配置体验：明确插件基于纯 `insert:` overlay 机制，安装后无需且严禁手动修改 `cordis.patch.yml`。
+
 ## [5.3.1] - 2026-10-06
 
 ### Fixed
@@ -5,6 +12,7 @@
 - 安装与配置指引彻底正名：支持完全零配置热安装与热卸载，严禁且无需手动编辑 `cordis.patch.yml`。
   宿主 `dsh-hmr` 自动监听 `package.json` 与 `cordis.patch.yml`（Chokidar `awaitWriteFinish: true`，2 秒写入防抖）。安装后等待 2 至 3 秒刷新浏览器即可自动加载配置卡；界面点击档位（如「激进」）由宿主 `config-editor` 自动在补丁中完成持久化写入。
   热卸载后用户配置完好保留在 profile 补丁中；热安装新版本后自动无缝继承原配置并生效。
+
 ## [5.3.0] - 2026-10-06
 
 ### Fixed
@@ -247,7 +255,8 @@
 
 - 首个 DSH 移植版本：单一插件包，`dsh.bundle.patch` 挂载，`PONYTAIL_DEFAULT_MODE` 三级回退（`review` 不可作默认），全部文案中文化，触发词兼容中英文。
 
-[Unreleased]: https://github.com/Wenaixi/dsh-ponytail/compare/v5.3.1...HEAD
+[Unreleased]: https://github.com/Wenaixi/dsh-ponytail/compare/v5.3.2...HEAD
+[5.3.2]: https://github.com/Wenaixi/dsh-ponytail/compare/v5.3.1...v5.3.2
 [5.3.1]: https://github.com/Wenaixi/dsh-ponytail/compare/v5.3.0...v5.3.1
 [5.3.0]: https://github.com/Wenaixi/dsh-ponytail/compare/v5.2.0...v5.3.0
 [5.2.0]: https://github.com/Wenaixi/dsh-ponytail/releases/tag/v5.2.0

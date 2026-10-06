@@ -41,7 +41,7 @@ dsh --profile web --dump-config | grep -A2 ponytail
 支持完全零配置热安装。`dsh plugin add` 将插件包登记至 `package.json` 与 bundle 列表后，宿主 HMR 会自动重载 Loader 树并挂载配置卡片：
 
 ```bash
-dsh plugin --profile web add @wenaixi/dsh-ponytail@5.3.1
+dsh plugin --profile web add @wenaixi/dsh-ponytail@5.3.2
 ```
 
 安装完成后等待 2 至 3 秒（文件监听器防抖期），在浏览器中刷新页面即可使用。无需手动编辑 `cordis.patch.yml`。
@@ -93,6 +93,7 @@ dsh --profile web '<任务>'
 
 描述长度上限来自官方 `dsh-tool-skill` 的 `catalogDescriptionMaxLength`（默认 500），
 超长会在模型目录里被截断，`verify.mjs` 对两册都断言。
+
 ## 配置面板
 
 已安装插件的卡片详情内嵌配置面板：运行等级、6 个技能的独立开关、一键恢复默认，外加一条三级优先级诊断链，逐行显示环境变量、Profile 补丁、内置兜底各自的值与生效状态。
@@ -148,7 +149,7 @@ dsh --profile web --patch ./cordis.patch.yml --dump-config  # 只验证补丁解
 pnpm dsh web --patch ./cordis.patch.yml   # 热重载
 ```
 
-本地版本用独立的标准 SemVer，`pnpm version:bump` 递增 patch，`pnpm version:set -- 5.3.1` 指定版本。旧的 `-dsh.N` 不再生成。上游发布不会改变本地版本号，是否吸收上游变化由本地兼容性评估决定。
+本地版本用独立的标准 SemVer，`pnpm version:bump` 递增 patch，`pnpm version:set -- 5.3.2` 指定版本。旧的 `-dsh.N` 不再生成。上游发布不会改变本地版本号，是否吸收上游变化由本地兼容性评估决定。
 
 发布只走 tag 触发的 CI。严禁本地 `npm publish`，push 与打 tag 都需要明确授权。
 
