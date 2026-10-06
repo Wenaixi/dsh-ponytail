@@ -153,7 +153,7 @@ dsh --profile web --patch ./cordis.patch.yml --dump-config  # 只验证补丁解
 pnpm dsh web --patch ./cordis.patch.yml   # 热重载
 ```
 
-本地版本用独立的标准 SemVer，`pnpm version:bump` 递增 patch，`pnpm version:set -- 5.1.1` 指定版本。旧的 `-dsh.N` 不再生成。上游发布不会改变本地版本号，是否吸收上游变化由本地兼容性评估决定。
+本地版本用独立的标准 SemVer，`pnpm version:bump` 递增 patch，`pnpm version:set -- 5.2.0` 指定版本。旧的 `-dsh.N` 不再生成。上游发布不会改变本地版本号，是否吸收上游变化由本地兼容性评估决定。
 
 发布只走 tag 触发的 CI。严禁本地 `npm publish`，push 与打 tag 都需要明确授权。
 

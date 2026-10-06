@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { readFileSync, writeFileSync } from 'node:fs'
+import { pathToFileURL } from 'node:url'
 import { resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -17,7 +18,7 @@ export function nextVersion(current, requested) {
   return [major, minor, patch + 1].join('.')
 }
 
-if (process.argv[1] && import.meta.url === new URL(process.argv[1], 'file:').href) {
+if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   const args = process.argv.slice(2)
   const packageJson = JSON.parse(readFileSync(packagePath, 'utf8'))
   try {

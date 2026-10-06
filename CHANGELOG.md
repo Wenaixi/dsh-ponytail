@@ -1,12 +1,15 @@
-# Changelog
-
-格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)。本地版本与上游参考版本独立维护，历史 `-dsh.N` 仅用于追溯。
-
-## [Unreleased]
+## [5.2.0] - 2026-10-06
 
 ### Added
 
+- 技能描述语言开关 `skillDescriptionLang`（默认中文），面板在「原生技能开关」段内切换。两套描述真源为 `skills/descriptions.{zh,en}.json`，经 remote 快照下发，切换后模型目录与界面同时生效；`loader/volatile-update` 命中该字段即触发技能目录失效，否则模型侧读旧语言。
 - 版本对照的唯一落点改到 `CLAUDE.md`（ADR-0010）。README 不再写版本号。
+
+### Changed
+
+- 六个技能正文与 hook 注入文本回归上游 DietrichGebert/ponytail v4.10.3 英文原文（按 tag 逐文件取回），模型读到的指令不再与上游分叉。两处对 DSH 不适用的上游内容就地改写：`ponytail-gain` 的数据来源指向本仓 `assets/*.svg`，`ponytail-help` 的配置与更新章节改为 profile 补丁与 `dsh plugin`。
+- 技能描述从构建期内嵌常量改为 remote 快照下发：语言由配置决定，构建期常量会停在旧语言。描述长度断言对象随之改为描述文件（官方 `catalogDescriptionMaxLength` 默认 500，SKILL.md frontmatter 是上游原文可超长）。
+- 修复 `scripts/version.mjs` 的入口守卫：Windows 下 `new URL(process.argv[1], 'file:')` 不归一反斜杠，改 `pathToFileURL` 后 `pnpm version:set` 才真正写盘。
 
 ### Fixed
 
@@ -14,15 +17,6 @@
 - README 记录补丁条目必须写在顶层。插件包自带的 `cordis.patch.yml` 用 `insert` 列表，宿主不为它管理 `config` 块，面板写入永远被拒。
 - `verify.mjs` 的 `t()` 键收集正则在 `[a-z]+` 上漏掉全部含大写的键，缺键时界面会静默显示键名。
 - 技能卡与 README 同步三级链与 profile 落点；新增门禁挡住退役表述。
-
-### Added
-
-- 技能描述语言开关 `skillDescriptionLang`（默认中文），面板在「原生技能开关」段内切换。两套描述真源为 `skills/descriptions.{zh,en}.json`，经 remote 快照下发，切换后模型目录与界面同时生效；`loader/volatile-update` 命中该字段即触发技能目录失效，否则模型侧读旧语言。
-
-### Changed
-
-- 六个技能正文与 hook 注入文本回归上游 DietrichGebert/ponytail v4.10.3 英文原文（按 tag 逐文件取回），模型读到的指令不再与上游分叉。两处对 DSH 不适用的上游内容就地改写：`ponytail-gain` 的数据来源指向本仓 `assets/*.svg`，`ponytail-help` 的配置与更新章节改为 profile 补丁与 `dsh plugin`。
-- 技能描述从构建期内嵌常量改为 remote 快照下发：语言由配置决定，构建期常量会停在旧语言。描述长度断言对象随之改为描述文件（官方 `catalogDescriptionMaxLength` 默认 500，SKILL.md frontmatter 是上游原文可超长）。
 ## [5.1.0] - 2026-10-05
 
 ### Breaking
@@ -236,6 +230,7 @@
 - 首个 DSH 移植版本：单一插件包，`dsh.bundle.patch` 挂载，`PONYTAIL_DEFAULT_MODE` 三级回退（`review` 不可作默认），全部文案中文化，触发词兼容中英文。
 
 [Unreleased]: https://github.com/Wenaixi/dsh-ponytail/compare/v5.1.0...HEAD
+[5.2.0]: https://github.com/Wenaixi/dsh-ponytail/compare/v5.1.0...v5.2.0
 [5.1.0]: https://github.com/Wenaixi/dsh-ponytail/releases/tag/v5.1.0
 [5.0.0]: https://github.com/Wenaixi/dsh-ponytail/compare/v4.10.0-dsh.12...v5.0.0
 [4.10.0-dsh.12]: https://github.com/Wenaixi/dsh-ponytail/compare/v4.10.0-dsh.11...v4.10.0-dsh.12
