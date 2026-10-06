@@ -163,19 +163,44 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
   // 只在用户于宿主设置里显式选过语言时落盘（浏览器 navigator.language 探测不落盘、
   // 宿主侧读不到，因此不作为对齐源）。describe() 在 dsh-settings 返回 descriptors 数组
   // （含 ns/value），createSettingsSink 的 SettingsLike 形状兼容数组与 { namespaces } 两种。
+  // 注意：settings 不在本插件 inject 列表（headless/CLI 组合没有该服务，不能 PENDING），
+  // 而属性读未 inject 的兄弟 fiber 服务在 cordis get trap 里走 isolate 隔离会抛错
+  // （cannot get property "settings" without inject，readService 吞掉变 undefined）。
+  // 官方无 inject 读取是 ctx.get(name)（Service.get：直接查 store，不要求 inject），
+  // 因此这里用 ctx.get('settings') 优先，属性读仅作兜底。每次求值现读不缓存。
   const hostLocalePreference = (): string | undefined => {
+    const svc = (() => {
+      try {
+        const c = ctx as unknown as { get?: (name: string, strict?: boolean) => unknown }
+        if (typeof c.get === 'function') {
+          const s = c.get('settings', false)
+          if (s !== undefined && s !== null) return s
+        }
+      } catch {
+        // 继续走属性读兜底
+      }
+      return readService(ctx, 'settings')
+    })() as { describe?: (...args: unknown[]) => unknown } | null | undefined
+    if (!svc || typeof svc.describe !== 'function') {
+      ctx.logger.debug('[ponytail] 宿主语言读取：settings 服务不可用（跳过跟随）')
+      return undefined
+    }
     try {
-      const svc = settingsService as { describe?: (...args: unknown[]) => unknown } | null | undefined
-      const described = svc?.describe?.()
+      const described = svc.describe()
       const rows = Array.isArray(described) ? described : (described as { namespaces?: unknown } | undefined)?.namespaces
-      if (!Array.isArray(rows)) return undefined
+      if (!Array.isArray(rows)) {
+        ctx.logger.debug('[ponytail] 宿主语言读取：describe 返回非数组，回退 zh')
+        return undefined
+      }
       const locale = rows.find(
-        (row): row is { value?: { preference?: unknown } } =>
+        (row): row is { ns?: string; value?: { preference?: unknown } } =>
           row !== null && typeof row === 'object' && (row as { ns?: unknown }).ns === 'locale',
       )
       const pref = locale?.value?.preference
+      ctx.logger.debug('[ponytail] 宿主语言读取：locale=' + String(locale?.ns ?? '缺失') + ' preference=' + String(pref))
       return typeof pref === 'string' ? pref : undefined
-    } catch {
+    } catch (err: unknown) {
+      ctx.logger.debug('[ponytail] 宿主语言读取失败（回退 zh）：' + String(err))
       return undefined
     }
   }
