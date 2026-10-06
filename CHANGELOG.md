@@ -1,3 +1,9 @@
+## [Unreleased]
+
+### Changed
+
+- `skillDescriptionLang` 改为三态语义并去掉 Schema 默认值：未配置（跟随宿主 `locale.preference` 显式选择，仅英文触发对齐、其余兜底中文）与显式中文/英文可区分；面板语言控件新增「跟随宿主（自动）」段。宿主语言运行期变更经 `app-boot/config-reload` 失效技能目录（ADR-0011）。
+
 ## [5.2.0] - 2026-10-06
 
 ### Added

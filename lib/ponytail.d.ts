@@ -16,13 +16,13 @@ export declare const Config: Schema<Schemastery.ObjectS<NoInfer<{
     skillDir: Schema<string, string, "plain">;
     defaultMode: Schema<"full" | "off" | "lite" | "ultra", "full" | "off" | "lite" | "ultra", "volatile">;
     disabledSkills: Schema<NoInfer<string[]>, NoInfer<string[]>, "volatile">;
-    skillDescriptionLang: Schema<"zh" | "en", "zh" | "en", "volatile-defined">;
+    skillDescriptionLang: Schema<"zh" | "en", "zh" | "en", "volatile">;
 }>>, Schemastery.ObjectT<NoInfer<{
     providerName: Schema<string, string, "defined">;
     skillDir: Schema<string, string, "plain">;
     defaultMode: Schema<"full" | "off" | "lite" | "ultra", "full" | "off" | "lite" | "ultra", "volatile">;
     disabledSkills: Schema<NoInfer<string[]>, NoInfer<string[]>, "volatile">;
-    skillDescriptionLang: Schema<"zh" | "en", "zh" | "en", "volatile-defined">;
+    skillDescriptionLang: Schema<"zh" | "en", "zh" | "en", "volatile">;
 }>>, "plain">;
 export declare const name = "ponytail";
 export declare const inject: readonly ["skills", "systemPrompt"];
@@ -35,13 +35,13 @@ declare const _default: {
         skillDir: Schema<string, string, "plain">;
         defaultMode: Schema<"full" | "off" | "lite" | "ultra", "full" | "off" | "lite" | "ultra", "volatile">;
         disabledSkills: Schema<NoInfer<string[]>, NoInfer<string[]>, "volatile">;
-        skillDescriptionLang: Schema<"zh" | "en", "zh" | "en", "volatile-defined">;
+        skillDescriptionLang: Schema<"zh" | "en", "zh" | "en", "volatile">;
     }>>, Schemastery.ObjectT<NoInfer<{
         providerName: Schema<string, string, "defined">;
         skillDir: Schema<string, string, "plain">;
         defaultMode: Schema<"full" | "off" | "lite" | "ultra", "full" | "off" | "lite" | "ultra", "volatile">;
         disabledSkills: Schema<NoInfer<string[]>, NoInfer<string[]>, "volatile">;
-        skillDescriptionLang: Schema<"zh" | "en", "zh" | "en", "volatile-defined">;
+        skillDescriptionLang: Schema<"zh" | "en", "zh" | "en", "volatile">;
     }>>, "plain">;
     apply: typeof apply;
 };

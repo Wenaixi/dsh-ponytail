@@ -245,12 +245,26 @@ export interface PonytailConfig {
   /** 默认强度，off 则不自动激活（volatile 引用） */
   defaultMode?: VolatileRef<'off' | 'lite' | 'full' | 'ultra'>
   /**
-   * 技能描述下发给模型目录与配置面板的语言（volatile 引用，默认 zh）。
+   * 技能描述下发给模型目录与配置面板的语言（volatile 引用，三态语义）。
    *
-   * 与 defaultMode 不同：它不参与优先级链，默认值不会 shadow 任何显式配置，
-   * 因此可以带 Schema 默认值（面板要区分「显式选了 en」与「没配」）。
+   * 三态：显式 'zh' / 显式 'en' / 未配置（引用包 undefined → 运行时 'auto'）。
+   * 不带 Schema 默认值：未配置必须与显式 zh 可区分——未配置时语言跟随宿主
+   * locale.preference（见 ponytail.ts 的 resolveSkillLang），显式 zh 则锁定。
    */
   skillDescriptionLang?: VolatileRef<'zh' | 'en'>
+}
+
+/** 技能描述语言的有效值域：'auto' 仅作为「未配置」的运行时解析态，不落盘。 */
+export type SkillLangSetting = 'zh' | 'en' | 'auto'
+
+/**
+ * 配置值归一：undefined/非法 → 'auto'（未配置，由调用方决定跟随宿主或兜底 zh），
+ * zh/en 原样。纯函数，零 I/O；宿主语言对齐逻辑在 ponytail.ts（本模块不读任何服务）。
+ */
+export function resolveSkillLang(
+  raw: VolatileRef<'zh' | 'en'> | 'zh' | 'en' | undefined,
+): SkillLangSetting {
+  return raw === 'en' ? 'en' : raw === 'zh' ? 'zh' : 'auto'
 }
 
 /**

@@ -1732,15 +1732,76 @@ test('C16 描述语言: Provider 按配置语言下发，缺省与非法值回�
   assert.equal(pick(bad).description, zh['ponytail-review'], '非法语言按 zh 处理')
 })
 
-test('C16 描述语言: Config 字段带默认值 zh 且是 volatile（面板要能写、改了不必重启）', async () => {
+test('C16 描述语言: Config 字段无默认值且是 volatile（未配置与显式 zh 可区分）', async () => {
   const lang = fieldNode(ConfigSchema, 'skillDescriptionLang')
   assert.ok(lang, 'Config 必须声明 skillDescriptionLang')
   assert.equal(lang.meta.volatile, true, '描述语言必须是 volatile 字段（否则面板改完要重启宿主）')
-  assert.deepEqual(lang.meta.default, 'zh', '默认中文')
+  assert.equal(lang.meta.default, undefined, '不得带 Schema 默认值——默认值会让「未配置」与「显式选了 zh」不可区分（跟随宿主语义失效）')
   const { readVolatile } = await import('../lib/ponytail-config.js')
   const Schema = (await import('@deepseek-ai/schemastery')).default
   const [empty] = Schema.resolve({}, ConfigSchema)
-  assert.equal(readVolatile(empty.skillDescriptionLang), 'zh', '未配置时读到默认 zh')
+  assert.equal(readVolatile(empty.skillDescriptionLang), undefined, '未配置时 volatile 引用包 undefined（= 跟随宿主）')
+})
+
+test('C16 描述语言: resolveSkillLang 纯函数真值表（zh/en 原样，其余一律 auto）', async () => {
+  const { resolveSkillLang } = await import('../lib/ponytail-config.js')
+  assert.equal(resolveSkillLang(undefined), 'auto')
+  assert.equal(resolveSkillLang('zh'), 'zh')
+  assert.equal(resolveSkillLang('en'), 'en')
+  assert.equal(resolveSkillLang(null), 'auto')
+  assert.equal(resolveSkillLang('fr'), 'auto')
+})
+
+test('C16 宿主语言跟随: 未配置时按 settings.describe 的 locale.preference 对齐，现读不缓存', async () => {
+  const { apply } = await import('../lib/ponytail.js')
+  const { readSkillDescriptions } = await import('../lib/ponytail-remote.js')
+  const zhTable = readSkillDescriptions('zh')
+  const enTable = readSkillDescriptions('en')
+  let provider = null
+  let hostPref = undefined
+  const describe = () => ({
+    namespaces: [hostPref === undefined ? { ns: 'locale', value: {} } : { ns: 'locale', value: { preference: hostPref } }],
+  })
+  const handlers = {}
+  const ctx = {
+    on: (ev, h) => { handlers[ev] = h },
+    effect: () => {},
+    logger: { info: () => {}, warn: () => {}, debug: () => {} },
+    skills: { registerProvider: (factory) => { provider = factory({}); return () => {} } },
+    systemPrompt: { section: () => () => {} },
+    settings: { describe, mutate: async () => {} },
+  }
+  delete process.env.PONYTAIL_DEFAULT_MODE
+  apply(ctx, {})
+  assert.ok(provider, 'provider 应已注册')
+  const pickDesc = async () => {
+    const rows = await provider.list({})
+    const list = Array.isArray(rows) ? rows : rows.candidates
+    return list.find((c) => c.name === 'ponytail-review').description
+  }
+  assert.equal(await pickDesc(), zhTable['ponytail-review'], '宿主未显式选语言 → 中文兜底')
+  hostPref = 'en'
+  assert.equal(await pickDesc(), enTable['ponytail-review'], '宿主显式 English 且本插件未配置 → 跟随为英文（现读不缓存）')
+  hostPref = 'zh'
+  assert.equal(await pickDesc(), zhTable['ponytail-review'], '宿主切回中文 → 未配置语言跟随回中文')
+  assert.equal(typeof handlers['app-boot/config-reload'], 'function', '必须监听 app-boot/config-reload（宿主语言变更后触发技能目录失效）')
+  assert.doesNotThrow(() => handlers['app-boot/config-reload'](), 'config-reload 失效回调不得抛错')
+  // 显式配置压过宿主：即便宿主是英文，显式 zh 也锁定为中文
+  const lockedHandlers = {}
+  const lockedCtx = {
+    on: (ev, h) => { lockedHandlers[ev] = h },
+    effect: () => {},
+    logger: { info: () => {}, warn: () => {}, debug: () => {} },
+    skills: { registerProvider: (factory) => { provider = factory({}); return () => {} } },
+    systemPrompt: { section: () => () => {} },
+    settings: { describe, mutate: async () => {} },
+  }
+  hostPref = 'en'
+  apply(lockedCtx, { skillDescriptionLang: 'zh' })
+  const lockedRows = await provider.list({})
+  const lockedList = Array.isArray(lockedRows) ? lockedRows : lockedRows.candidates
+  assert.equal(lockedList.find((c) => c.name === 'ponytail-review').description, zhTable['ponytail-review'],
+    '显式 zh 必须锁定，宿主 English 不得推翻（三态语义核心）')
 })
 
 test('C16 描述语言: 注入 fallback 与 review 指针均为英文（模型读到的文本与上游同源）', async () => {

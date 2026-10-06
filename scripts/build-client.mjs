@@ -407,9 +407,22 @@ const content = `window.__ModuleLoader__.load({
         return s.level === "env" && s.hit;
       }));
 
-      // 描述语言：带 Schema 默认值（src/ponytail.ts），读得到即生效值，无需区分「配过没配过」。
-      var descLang = typeof config.skillDescriptionLang === "string" ? config.skillDescriptionLang : "zh";
+      // 描述语言：三态（src/ponytail.ts 已去 Schema 默认值）。快照里读得到字段 = 显式配置
+      // （zh/en，锁定）；读不到 = 未配置（跟随宿主，控件显示「跟随宿主」段）。
+      // remote.skillLang 是服务端解析后的实际语言（显式值或按宿主对齐值），
+      // 未配置时用它提示「当前跟随到 zh/en」。
+      var descLangConfigured = typeof config.skillDescriptionLang === "string";
+      var descLang = descLangConfigured ? config.skillDescriptionLang : "auto";
+      var descLangOptions = [
+        { value: "zh", label: t("lang.zh") },
+        { value: "en", label: t("lang.en") },
+      ];
+      if (!descLangConfigured) descLangOptions.push({ value: "auto", label: t("lang.auto") });
       var setDescLang = React.useCallback(function (lang) {
+        if (lang === "auto") {
+          applyOps([{ op: "unset", path: ["skillDescriptionLang"] }], t("lang.followHost"));
+          return;
+        }
         applyOps([{ op: "set", path: ["skillDescriptionLang"], value: lang }],
           t("lang.changed", { name: t("lang." + lang) }));
       }, [applyOps]);
@@ -456,13 +469,13 @@ const content = `window.__ModuleLoader__.load({
             id: "ponytail-desc-lang",
             label: t("lang.title"),
             value: descLang,
-            options: [
-              { value: "zh", label: t("lang.zh") },
-              { value: "en", label: t("lang.en") },
-            ],
+            options: descLangOptions,
             disabled: busy || !writable,
             onChange: setDescLang,
           }),
+          !descLangConfigured
+            ? e("p", { style: L.hint }, t("lang.unsetHint", { lang: t("lang." + (remote && (remote.skillLang === "en" || remote.skillLang === "zh") ? remote.skillLang : "zh")) }))
+            : null,
           e(
             "div",
             { style: { display: "flex", flexDirection: "column", gap: "6px" } },

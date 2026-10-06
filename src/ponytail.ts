@@ -24,6 +24,7 @@ import {
   normalizeMode,
   readFullConfig,
   readVolatile,
+  resolveSkillLang,
   type PonytailConfig,
 } from './ponytail-config.js'
 import {
@@ -63,9 +64,11 @@ export const Config = Schema.object({
   // 技能禁用列表此前只存在 config.json（HTTP 端点专属）。迁入 Config 后由官方表单承载，
   // 获得 revision 冲突保护与跨页面同步；旧值由 ponytail-settings 的 migrateLegacyConfig 一次性导入。
   disabledSkills: Schema.array(Schema.string()).volatile(),
-  // 技能描述下发给模型目录与面板的语言。带默认值 zh：它不参与优先级链，
-  // 填默认值没有 shadow 代价，而面板需要区分「显式选了 en」与「没配过」。
-  skillDescriptionLang: Schema.union(['zh', 'en']).default('zh').volatile(),
+  // 技能描述下发给模型目录与面板的语言。三态：显式 zh / 显式 en / 未配置。
+  // 不给 Schema 默认值：默认值会让「未配置」与「显式选了 zh」不可区分，
+  // 而两者语义不同——未配置时跟随宿主语言 locale.preference（见 resolveSkillLang），
+  // 显式 zh 则锁定。字段仍 volatile：面板改完由 loader 就地提交，不必重启。
+  skillDescriptionLang: Schema.union(['zh', 'en']).volatile(),
 })
 
 // ---------------------------------------------------------------------------
@@ -156,6 +159,35 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
   // 静默回退 config.json 文件通道，不能因迁移而让这些组合失去配置能力。
   const settingsService = readService(ctx, 'settings')
 
+  // 宿主语言偏好：locale 命名空间的 volatile 字段 preference（dsh-client-locale）。
+  // 只在用户于宿主设置里显式选过语言时落盘（浏览器 navigator.language 探测不落盘、
+  // 宿主侧读不到，因此不作为对齐源）。describe() 在 dsh-settings 返回 descriptors 数组
+  // （含 ns/value），createSettingsSink 的 SettingsLike 形状兼容数组与 { namespaces } 两种。
+  const hostLocalePreference = (): string | undefined => {
+    try {
+      const svc = settingsService as { describe?: (...args: unknown[]) => unknown } | null | undefined
+      const described = svc?.describe?.()
+      const rows = Array.isArray(described) ? described : (described as { namespaces?: unknown } | undefined)?.namespaces
+      if (!Array.isArray(rows)) return undefined
+      const locale = rows.find(
+        (row): row is { value?: { preference?: unknown } } =>
+          row !== null && typeof row === 'object' && (row as { ns?: unknown }).ns === 'locale',
+      )
+      const pref = locale?.value?.preference
+      return typeof pref === 'string' ? pref : undefined
+    } catch {
+      return undefined
+    }
+  }
+  // 技能描述语言的有效值：显式 zh/en 原样；未配置（auto）→ 跟随宿主 locale.preference，
+  // 仅 en 触发对齐，其余一律 zh（中文兜底，与旧默认一致）。每次求值现读不缓存：
+  // 宿主语言切换后（settings 文档变更 → app-boot/config-reload → invalidate）自然读到新值。
+  const effectiveSkillLang = (): 'zh' | 'en' => {
+    const setting = resolveSkillLang(readVolatile(resolved.skillDescriptionLang))
+    if (setting !== 'auto') return setting
+    return hostLocalePreference() === 'en' ? 'en' : 'zh'
+  }
+
   // profile 目录来自宿主的 profileContext 服务（runProfile 在整棵插件树挂载前 provide，
   // 见 dsh/lib/profile-boot 的 hostCtx.provide('profileContext', ...)）。
   // 它把配置与 flag 的作用域收回单个实例：resolveDshHome() 结构上不含 profile 维度，
@@ -239,9 +271,9 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
       // 同步过滤。此前从未传入，UI 改开关对模型侧目录无效（静默失效，跨会话仍放行）。
       // 失效闭环：POST 变更点直调 invalidateSkills() → providerInstance.invalidate() → 宿主重扫。
       isSkillEnabled: (name) => state.isSkillEnabled(name),
-      // 描述语言每次现读 volatile 引用：官方表单改完经 loader/volatile-update 就地更新引用，
+      // 描述语言每次现读：显式值原样；未配置跟随宿主 locale.preference（effectiveSkillLang）。
       // 闭包化读取让下一次 list/get 立刻拿到新语言（配合下方监听里的 invalidate 生效）。
-      getDescriptionLang: () => readVolatile(resolved.skillDescriptionLang) ?? 'zh',
+      getDescriptionLang: () => effectiveSkillLang(),
     })
     return providerInstance
   })
@@ -291,6 +323,20 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
     }
   })
 
+  // 宿主语言变更的收敛点：locale.preference 属另一个 profile 条目，它的 loader/volatile-update
+  // 只在那条插件自己的 fiber 上广播，本插件收不到。宿主每次应用补丁后广播
+  // app-boot/config-reload（dsh-app-boot/lib/index.js:3494，dsh-settings 自己也靠它重算快照），
+  // 在此让技能目录失效：未配置语言的用户切换宿主语言后，模型侧目录与斜杠菜单才跟着换语言。
+  // 语言显式配置过的用户不受影响——失效只是重扫，读到的仍是显式值。
+  anyCtx.on('app-boot/config-reload', () => {
+    try {
+      providerInstance?.invalidate()
+    } catch {
+      // 失效失败不阻断：宿主保留旧缓存到下次自然失效，下次会话启动仍会读到新语言
+    }
+    ctx.logger.debug('[ponytail] 宿主配置已重载，技能目录已失效（宿主语言可能已变更）')
+  })
+
   // 只读推导值走官方 Typert 通道（命名空间 ponytail）：优先级诊断链与当前生效等级
   // 不是配置——它们由 env / profile 补丁 / 兜底三层合并得出，写进配置层
   // 会让落盘值永久盖住真值。浏览器侧经 ctx.remote.ponytail.snapshot() 读取。
@@ -300,7 +346,9 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
   if (typeof (ctx as unknown as { plugin?: unknown }).plugin === 'function') {
     ctx.plugin(PonytailRemote, {
       snapshot: () => {
-        const skillLang = readVolatile(resolved.skillDescriptionLang) ?? 'zh'
+        // 快照只下发有效语言（显式值或按宿主解析后的值）；「显式 vs 跟随」由面板
+        // 从 configForms 快照里 skillDescriptionLang 字段的有无判断，不经此通道。
+        const skillLang = effectiveSkillLang()
         return {
           currentMode: state.get() ?? 'off',
           priority: resolvePriority({

@@ -40,7 +40,7 @@ export interface PonytailRemoteSnapshot {
     currentMode: string;
     /** 三级优先级诊断链 */
     priority: PriorityReport;
-    /** 技能描述语言（与配置同源，面板据此展示） */
+    /** 技能描述语言（服务端解析后的有效语言：显式值或按宿主对齐值；面板据此展示） */
     skillLang: SkillLang;
     /** 6 个技能元数据，描述已按 skillLang 取好 */
     skills: SkillMeta[];

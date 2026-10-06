@@ -232,7 +232,7 @@ const officialConfigChecks = [
   ['远程服务命名空间为 ponytail（客户端挂成 ctx.remote.ponytail）', /super\(ctx, 'ponytailRemote', \{ namespace: 'ponytail' \}\)/.test(remoteSrc)],
   ['远程通道只暴露只读端点 snapshot', /@Remote\('snapshot'\)/.test(remoteSrc)],
   ['远程通道不含写端点（写操作归 settings）', !/@Remote\('(set|write|update|reset|toggle)'\)/.test(remoteSrc)],
-  ['技能描述语言为带默认值的 volatile 字段（面板要区分显式 en 与未配）', /skillDescriptionLang: Schema\.union\(\['zh', 'en'\]\)\.default\('zh'\)\.volatile\(\)/.test(hostSrc)],
+  ['技能描述语言为无默认值的 volatile 字段（未配置与显式 zh 可区分，跟随宿主）', /skillDescriptionLang: Schema\.union\(\['zh', 'en'\]\)\.volatile\(\)/.test(hostSrc) && !/skillDescriptionLang: Schema\.union\(\['zh', 'en'\]\)\.default\(/.test(hostSrc)],
   ['技能元数据随远程通道提供（readSkillMeta 按语言下发）', /export function readSkillMeta\(lang\?: SkillLang\)/.test(remoteSrc)],
   ['远程快照携带技能描述语言与 6 项元数据', /skills: readSkillMeta\(skillLang\)/.test(hostSrc)],
   ['描述语言变更触发技能目录失效（否则模型侧读旧语言）', /touched\.has\('skillDescriptionLang'\)/.test(hostSrc)],

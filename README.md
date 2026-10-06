@@ -92,8 +92,10 @@ dsh --profile web '<任务>'
 不适用，已就地改写为真实落点：`ponytail-gain` 的数据来源指向 `assets/*.svg`（本仓无上游的
 `benchmarks/`），`ponytail-help` 的配置与更新章节改为 profile 补丁与 `dsh plugin`。
 
-模型目录与配置面板看到的是同一个描述字符串，语言由 `skillDescriptionLang` 决定（默认中文）。
-两套描述的真源是 `skills/descriptions.zh.json` 与 `skills/descriptions.en.json`，
+模型目录与配置面板看到的是同一个描述字符串，语言由 `skillDescriptionLang` 决定
+（三态：显式中文 / 显式英文 / 未配置）。未配置时跟随宿主语言 `locale.preference` 的显式选择
+（仅英文触发对齐，其余兜底中文）；显式选择即锁定。两套描述的真源是
+`skills/descriptions.zh.json` 与 `skills/descriptions.en.json`，
 经 `ctx.remote.ponytail.snapshot()` 下发，因此切换后模型侧与界面同时改变。
 
 描述长度上限来自官方 `dsh-tool-skill` 的 `catalogDescriptionMaxLength`（默认 500），
