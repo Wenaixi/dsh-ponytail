@@ -52,8 +52,10 @@ export PONYTAIL_DEFAULT_MODE=ultra
 
 **Profile patch** (`profiles/<name>/cordis.patch.yml`):
 
-`dsh plugin add` does NOT write this file. After installing, add a top-level
-entry by hand or the config card will not render:
+`dsh plugin add` only writes package.json and does NOT hot-update a running
+host's loader tree (the CLI has no hmr). Restart the host after installing;
+the bundle's `insert:` patch then composes into the loader tree and the
+config card renders. No manual patch editing needed:
 
 ```yaml
 - id: ponytail
@@ -62,7 +64,6 @@ entry by hand or the config card will not render:
     defaultMode: lite  # off|lite|full|ultra
 ```
 
-Then restart the host (patch entries compose at startup, not on reload).
 The plugin config card writes the patch for you once it renders;
 `/ponytail default <mode>` does the same from a prompt. Set `"off"` to
 disable auto-activation on session start, activate manually with `/ponytail`

@@ -1,3 +1,12 @@
+## [Unreleased]
+
+### Fixed
+
+- 安装指引修正：`dsh plugin add` 后**重启宿主即出配置卡片**，无需手工补 profile 顶层条目。
+  对照实验（2026-10-06）证明纯 `insert:` overlay 重启后被 Include 激活、config-editor 认，
+  卡片正常渲染；此前「不渲染必须补顶层条目」是未重启导致的误归因
+  （CLI 子进程 `reload()` 需要 hmr，宿主 loader 树不热更新，`dsh-plugin-manager/lib/index.js:2030`）。
+  5.3.0 已发布的文档指引随之更新为「重启宿主 + 显式版本号」（`add @wenaixi/dsh-ponytail@5.3.x` 避免解析到旧版）。
 ## [5.3.0] - 2026-10-06
 
 ### Fixed
