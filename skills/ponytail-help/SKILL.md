@@ -50,18 +50,11 @@ Default mode = `full`, auto-active every session. Change it:
 export PONYTAIL_DEFAULT_MODE=ultra
 ```
 
-**Profile patch** (`profiles/<name>/cordis.patch.yml`):
-
-`dsh plugin add` only writes package.json and does NOT hot-update a running
-host's loader tree (the CLI has no hmr). Restart the host after installing;
-the bundle's `insert:` patch then composes into the loader tree and the
-config card renders. No manual patch editing needed:
+**Profile patch** (`profiles/<name>/cordis.patch.yml`, entry `- id: ponytail`):
 
 ```yaml
-- id: ponytail
-  name: "@wenaixi/dsh-ponytail"
-  config:
-    defaultMode: lite  # off|lite|full|ultra
+config:
+  defaultMode: lite  # off|lite|full|ultra
 ```
 
 The plugin config card writes the patch for you once it renders;

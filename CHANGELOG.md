@@ -2,11 +2,9 @@
 
 ### Fixed
 
-- 安装指引修正：`dsh plugin add` 后**重启宿主即出配置卡片**，无需手工补 profile 顶层条目。
-  对照实验（2026-10-06）证明纯 `insert:` overlay 重启后被 Include 激活、config-editor 认，
-  卡片正常渲染；此前「不渲染必须补顶层条目」是未重启导致的误归因
-  （CLI 子进程 `reload()` 需要 hmr，宿主 loader 树不热更新，`dsh-plugin-manager/lib/index.js:2030`）。
-  5.3.0 已发布的文档指引随之更新为「重启宿主 + 显式版本号」（`add @wenaixi/dsh-ponytail@5.3.x` 避免解析到旧版）。
+- 安装与配置指引彻底正名：支持完全零配置热安装与热卸载，严禁且无需手动编辑 `cordis.patch.yml`。
+  宿主 `dsh-hmr` 自动监听 `package.json` 与 `cordis.patch.yml`（Chokidar `awaitWriteFinish: true`，2 秒写入防抖）。安装后等待 2 至 3 秒刷新浏览器即可自动加载配置卡；界面点击档位（如「激进」）由宿主 `config-editor` 自动在补丁中完成持久化写入。
+  热卸载后用户配置完好保留在 profile 补丁中；热安装新版本后自动无缝继承原配置并生效。
 ## [5.3.0] - 2026-10-06
 
 ### Fixed

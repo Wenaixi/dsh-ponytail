@@ -36,18 +36,19 @@ dsh --profile web --dump-config | grep -A2 ponytail
 
 若插件卡片只有包名、没有标题描述图标，说明包的 `exports` 没放行 `./package.json` 与 `./locale/*.json`。这是 DSH 读取展示元信息的硬约束，与安装本身无关。
 
-### 安装后：重启宿主
+### 安装与热加载
 
-`dsh plugin add` 只写 `package.json`（依赖与 bundle 层），**不会让运行中的宿主进程热更新 loader 树**——`dsh plugin` 在 CLI 子进程跑，宿主的 `reload()` 需要 `hmr` 服务，CLI 没有（`dsh-plugin-manager/lib/index.js:2030`）。所以装完**必须重启宿主**：重启后插件包的 `insert:` 补丁被 Include 合进 loader 树并激活，配置卡片才会出现。
+支持完全零配置热安装。`dsh plugin add` 将插件包登记至 `package.json` 与 bundle 列表后，宿主 HMR 会自动重载 Loader 树并挂载配置卡片：
 
 ```bash
-dsh plugin --profile web add @wenaixi/dsh-ponytail@5.3.0   # 显式版本，避免解析到旧版
-# 重启宿主（改动客户端产物与补丁层都需重启）
+dsh plugin --profile web add @wenaixi/dsh-ponytail@5.3.0
 ```
 
-装完不重启：boot 有条目、技能与命令可用，但配置卡片不渲染；重启后一切正常，**无需手工编辑 profile 补丁**。
+安装完成后等待 2 至 3 秒（文件监听器防抖期），在浏览器中刷新页面即可使用。无需手动编辑 `cordis.patch.yml`。
 
-补充：更新已装插件同样**必须重启宿主**——条目的产物指纹在进程启动时算出并冻结，刷新页面拿到的还是旧产物。
+说明：
+- 首次安装无需重启宿主，刷新浏览器即可。
+- 原地更新已安装版本时，宿主受条目指纹冻结机制限制，建议重启宿主或通过卸载后重新安装加载新产物。
 
 ## 用法
 
