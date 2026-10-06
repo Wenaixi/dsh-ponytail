@@ -1624,7 +1624,7 @@ test('C13 诊断降级: 部署没有 remote 服务时如实降级，不空转', 
  * 为真实选项 'unset'（不能是空串或不在 options 里的值，否则官方组件求下标 -1、
  * 全段 tabIndex=-1 且指示器滑出轨道，见 lib/index.js:3410-3492）。
  */
-async function renderModeControl(value, effective) {
+async function renderModeControl(value, effective, controlId) {
   const { registered } = await loadClientWithStubs({
     remoteNamespace: {
       snapshot: async () => ({
@@ -1640,9 +1640,10 @@ async function renderModeControl(value, effective) {
     mutate: face.mutate,
     reloadRemote: face.reloadRemote,
   })
+  // controlId 为空时取第一个控件（等级控件排在语言控件之前）；给出 id 时精确取指定控件。
   const find = (node) => {
     if (node === null || typeof node !== 'object') return null
-    if (node.type === 'SegmentedControl') return node.props
+    if (node.type === 'SegmentedControl' && (!controlId || node.props.id === controlId)) return node.props
     for (const child of node.props && node.props.children ? [].concat(node.props.children) : []) {
       const hit = find(child)
       if (hit !== null) return hit
@@ -1650,7 +1651,7 @@ async function renderModeControl(value, effective) {
     return null
   }
   const control = find(tree)
-  assert.ok(control !== null, '面板必须渲染出等级控件')
+  assert.ok(control !== null, '面板必须渲染出' + (controlId || '等级') + '控件')
   return { control, tree }
 }
 
@@ -1672,6 +1673,23 @@ test('C15 等级控件: 补丁已配置时四档、选中配置值，且不受 e
   assert.equal(control.value, 'lite', '显示的是补丁里配置的档，不是运行时推导档')
   assert.deepEqual(control.options.map((o) => o.value), ['off', 'lite', 'full', 'ultra'],
     '已配置时退回四段，位置与未配置态的前四段一致')
+})
+
+test('C17 描述语言控件: 「跟随宿主」段在已配置态同样常驻（三段恒定）', async () => {
+  // 病根：第三段曾按「补丁是否已写 skillDescriptionLang」条件追加，用户点过一次 zh/en 后
+  // 该段消失，只能在中英之间横跳，再也切不回跟随宿主。但「跟随宿主」是三态之一，
+  // 可以随时选回的合法配置态，不是一次性占位选项（等级控件的「未设置」段才是）。
+  const cases = [
+    [{}, 'auto', '未配置'],
+    [{ skillDescriptionLang: 'zh' }, 'zh', '显式中文'],
+    [{ skillDescriptionLang: 'en' }, 'en', '显式英文'],
+  ]
+  for (const [config, expected, label] of cases) {
+    const { control } = await renderModeControl(config, 'full', 'ponytail-desc-lang')
+    assert.deepEqual(control.options.map((o) => o.value), ['zh', 'en', 'auto'],
+      label + '：语言控件必须恒为三段，「跟随宿主」常驻末尾')
+    assert.equal(control.value, expected, label + '：选中值只反映配置态')
+  }
 })
 
 test('C15 未配置提示: 面板渲染「补丁未配置」提示行，已配置时不渲染', async () => {

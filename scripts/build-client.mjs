@@ -408,16 +408,19 @@ const content = `window.__ModuleLoader__.load({
       }));
 
       // 描述语言：三态（src/ponytail.ts 已去 Schema 默认值）。快照里读得到字段 = 显式配置
-      // （zh/en，锁定）；读不到 = 未配置（跟随宿主，控件显示「跟随宿主」段）。
+      // （zh/en，锁定）；读不到 = 未配置（跟随宿主）。
       // remote.skillLang 是服务端解析后的实际语言（显式值或按宿主对齐值），
       // 未配置时用它提示「当前跟随到 zh/en」。
       var descLangConfigured = typeof config.skillDescriptionLang === "string";
       var descLang = descLangConfigured ? config.skillDescriptionLang : "auto";
+      // 「跟随宿主」是三态之一，不是一次性选项：用户配过一次 zh/en 后仍必须能切回来。
+      // 因此第三段常驻，不按是否配置追加（等级控件的「未设置」段是「没配过」的状态标记，
+      // 那里随配置收走合理，这里不行）。auto 固定排在末尾，zh/en 继续占 0、1 段。
       var descLangOptions = [
         { value: "zh", label: t("lang.zh") },
         { value: "en", label: t("lang.en") },
+        { value: "auto", label: t("lang.auto") },
       ];
-      if (!descLangConfigured) descLangOptions.push({ value: "auto", label: t("lang.auto") });
       var setDescLang = React.useCallback(function (lang) {
         if (lang === "auto") {
           applyOps([{ op: "unset", path: ["skillDescriptionLang"] }], t("lang.followHost"));
