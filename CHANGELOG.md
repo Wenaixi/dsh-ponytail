@@ -1,4 +1,4 @@
-## [Unreleased]
+## [5.3.0] - 2026-10-06
 
 ### Fixed
 
@@ -241,7 +241,9 @@
 - 首个 DSH 移植版本：单一插件包，`dsh.bundle.patch` 挂载，`PONYTAIL_DEFAULT_MODE` 三级回退（`review` 不可作默认），全部文案中文化，触发词兼容中英文。
 
 [Unreleased]: https://github.com/Wenaixi/dsh-ponytail/compare/v5.1.0...HEAD
-[5.2.0]: https://github.com/Wenaixi/dsh-ponytail/compare/v5.1.0...v5.2.0
+[Unreleased]: https://github.com/Wenaixi/dsh-ponytail/compare/v5.3.0...HEAD
+[5.3.0]: https://github.com/Wenaixi/dsh-ponytail/compare/v5.2.0...v5.3.0
+[5.2.0]: https://github.com/Wenaixi/dsh-ponytail/releases/tag/v5.2.0
 [5.1.0]: https://github.com/Wenaixi/dsh-ponytail/releases/tag/v5.1.0
 [5.0.0]: https://github.com/Wenaixi/dsh-ponytail/compare/v4.10.0-dsh.12...v5.0.0
 [4.10.0-dsh.12]: https://github.com/Wenaixi/dsh-ponytail/compare/v4.10.0-dsh.11...v4.10.0-dsh.12
