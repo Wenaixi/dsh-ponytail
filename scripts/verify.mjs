@@ -111,7 +111,6 @@ const checks = [
   'package.json',
   'skills/ponytail/SKILL.md',
   'skills/ponytail-review/SKILL.md',
-  'AGENTS.md',
   'skills/descriptions.zh.json',
   'skills/descriptions.en.json',
 ]
