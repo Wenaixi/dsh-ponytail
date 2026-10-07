@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Added
+
+- 模式切换零缓存破坏机制（对齐官方 `renderCatalogUpdate` 范式，ADR-0012）：
+  - 顶层 SystemPrompt（`order: 50`）在会话生命周期内绝对锁定初始 `baselineMode`，会话期间前缀文本逐字节完全恒定，100% 保护历史 KV Cache / Prompt Cache 命中率；
+  - 模式切换（会话内命令切档或全局默认档变更）统一通过 `agent/pre-step` 瀑布流拦截点在当前最新轮次用户消息末尾追加一次带有 `<system-reminder>` 的更新通知（`renderModeUpdate`），后续未切档轮次幂等稳定，绝不重复追加；
+  - 状态管理器引入 `SessionModeState`，支持访问序 LRU 淘汰（上限 100 会话）与 `explicitlySet` 显式设置意图守卫，全局修改不覆盖用户显式锁定的会话，新会话以新全局档纯净启动。
+
 ### Fixed
 
 - 技能描述语言控件的「跟随宿主（自动）」段改为常驻：此前该段按「补丁是否已写 `skillDescriptionLang`」条件追加，用户手动锁过一次中文或英文后该段消失，无法再切回跟随宿主，只能在中英之间横跳。「跟随宿主」是三态之一而非一次性占位选项，因此三段恒定、选中值只反映配置态。

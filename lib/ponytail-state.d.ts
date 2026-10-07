@@ -37,6 +37,7 @@ export interface SessionModeState {
     baselineMode: string;
     effectiveMode: string | null;
     lastEmittedMode: string | null;
+    explicitlySet?: boolean;
 }
 export interface PonytailState {
     /** 当前等级的内存视图；不触发任何文件读。null 表示关闭（'off' 由 set 归一为 null） */

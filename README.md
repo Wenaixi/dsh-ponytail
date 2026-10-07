@@ -61,7 +61,7 @@ dsh plugin --profile web add @wenaixi/dsh-ponytail@5.3.2
 stop ponytail        同 off，整句匹配
 ```
 
-等级在每次会话启动时按 `env > Profile 补丁 > 内置兜底 full` 重置，所以 `/ponytail <档>` 只在本会话有效，跨会话要写 `/ponytail default <档>`。
+等级在每次会话启动时按 `env > Profile 补丁 > 内置兜底 full` 重置，所以 `/ponytail <档>` 只在本会话有效，跨会话要写 `/ponytail default <档>`。会话内切档或全局改配置时，顶层系统提示词基线严格保持静态恒定，切换指令通过当前轮次用户消息末尾的 `<system-reminder>` 增量追加生效（对齐官方技能目录更新范式，ADR-0012），100% 保护长对话的历史 Prompt Cache / KV 缓存，零重算延迟。
 
 六档之外的技能：
 

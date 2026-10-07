@@ -44,6 +44,7 @@ export interface SessionModeState {
   baselineMode: string          // 会话诞生时锁定的初始基线（SystemPrompt 专属，终身静态不变）
   effectiveMode: string | null  // 当前会话实际生效模式（null 表示 off）
   lastEmittedMode: string | null // 历史中最后一次向模型发射的模式（用于变动检测）
+  explicitlySet?: boolean       // 用户是否在该会话内通过命令显式指定过模式（防全局配置覆盖）
 }
 
 export interface PonytailState {
@@ -207,23 +208,31 @@ export function createPonytailState(options?: PonytailStateOptions): PonytailSta
     getSession(sessionId?: string): SessionModeState {
       const key = normalizeSessionKey(sessionId)
       let state = sessions.get(key)
-      if (!state) {
-        if (sessions.size >= MAX_SESSIONS) {
-          const oldestKey = sessions.keys().next().value
-          if (oldestKey && oldestKey !== DEFAULT_SESSION_ID) {
-            sessions.delete(oldestKey)
+      if (state) {
+        // 访问序 LRU：命中时移动至 Map 末尾，维持最新活跃度
+        sessions.delete(key)
+        sessions.set(key, state)
+        return state
+      }
+      if (sessions.size >= MAX_SESSIONS) {
+        // 循环找到首个非 DEFAULT_SESSION_ID 的项淘汰（彻底消除首键死锁）
+        for (const k of sessions.keys()) {
+          if (k !== DEFAULT_SESSION_ID) {
+            sessions.delete(k)
+            break
           }
         }
-        // 新会话诞生：基线锁定为当前全局模式（或 full）
-        const baseline = current ?? 'full'
-        state = {
-          sessionId: key,
-          baselineMode: baseline,
-          effectiveMode: baseline,
-          lastEmittedMode: baseline,
-        }
-        sessions.set(key, state)
       }
+      // 新会话诞生：基线锁定为当前全局模式（或 full）
+      const baseline = current ?? 'full'
+      state = {
+        sessionId: key,
+        baselineMode: baseline,
+        effectiveMode: baseline,
+        lastEmittedMode: baseline,
+        explicitlySet: false,
+      }
+      sessions.set(key, state)
       return state
     },
 
@@ -232,6 +241,7 @@ export function createPonytailState(options?: PonytailStateOptions): PonytailSta
       const session = this.getSession(key)
       const normalized = mode === 'off' ? null : normalizeMode(mode ?? '') ?? mode
       session.effectiveMode = normalized
+      session.explicitlySet = true // 用户在该会话内显式输入过命令，标记保护
       if (key === DEFAULT_SESSION_ID) {
         current = normalized
         this.syncToFile()
@@ -249,9 +259,12 @@ export function createPonytailState(options?: PonytailStateOptions): PonytailSta
       if (!normalized) return
       current = normalized
       this.syncToFile()
-      // 对已有会话：保持 baselineMode 绝对不变，更新 effectiveMode
+      // 对已有会话：保持 baselineMode 绝对不变（保护前缀缓存）；
+      // 仅同步那些从未显式设置过的跟随型会话，保护用户的明确意图
       for (const session of sessions.values()) {
-        session.effectiveMode = normalized
+        if (!session.explicitlySet) {
+          session.effectiveMode = normalized
+        }
       }
     },
   }

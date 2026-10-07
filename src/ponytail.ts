@@ -409,7 +409,11 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
         // ignore
       }
       state.syncFromFile()
-      const sessionTarget = (context as { agent?: { session?: { id?: string } } })?.agent?.session?.id
+      const rawCtx = context as {
+        agent?: { session?: { id?: string } }
+        scope?: { session?: { id?: string } }
+      } | undefined
+      const sessionTarget = rawCtx?.agent?.session?.id ?? rawCtx?.scope?.session?.id
       if (sessionTarget) {
         // 具名会话：锁定初始基线 baselineMode，绝不随切档变动，100% 保护会话前缀缓存
         const sessionState = state.getSession(sessionTarget)
@@ -450,10 +454,14 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
     'agent/pre-step',
     async (...args: unknown[]) => {
       const [payload, next] = args as [
-        { messages?: unknown; agent?: { session?: { id?: string } } },
+        {
+          messages?: unknown
+          agent?: { session?: { id?: string } }
+          scope?: { session?: { id?: string } }
+        },
         () => Promise<unknown>,
       ]
-      const sessionId = payload?.agent?.session?.id
+      const sessionId = payload?.agent?.session?.id ?? payload?.scope?.session?.id
       try {
         dispatcher.dispatchMessages(payload?.messages, sessionId)
       } catch (err: unknown) {

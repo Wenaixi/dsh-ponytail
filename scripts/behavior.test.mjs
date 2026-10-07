@@ -1997,3 +1997,68 @@ test('C21 全局修改隔离: 全局改默认档不影响已存在会话的前�
   const newPrompt = String(sectionFn(newSessionTarget))
   assert.match(newPrompt, /active - level: ultra/, '新创建会话以新全局默认档作为 SystemPrompt 基线')
 })
+
+test('C22 LRU 边界: 插入超出容量时正确淘汰旧会话且避开 __default__ 首键死锁', async () => {
+  const { createPonytailState } = await import('../lib/ponytail-state.js')
+  const state = createPonytailState({ storage: { read: () => null, write: () => {}, clear: () => {} } })
+  // 1. 先触发 __default__ 插入（使其成为 Map 首项）
+  const def = state.getSession()
+  assert.equal(def.sessionId, '__default__')
+
+  // 2. 依次插入 105 个会话
+  for (let i = 0; i < 105; i++) {
+    state.getSession(`sess-${i}`)
+  }
+
+  // 3. 访问 sess-0（将其刷新到末尾）
+  state.getSession('sess-0')
+
+  // 4. 再插入 5 个新会话
+  for (let i = 105; i < 110; i++) {
+    state.getSession(`sess-${i}`)
+  }
+
+  // __default__ 必须依然存活
+  assert.equal(state.getSession().sessionId, '__default__')
+  // sess-0 被访问刷新过，依然存活
+  assert.equal(state.getSession('sess-0').sessionId, 'sess-0')
+})
+
+test('C23 意图守卫: 全局修改仅同步跟随型会话，不覆盖用户显式锁定的会话', async () => {
+  const { createPonytailState } = await import('../lib/ponytail-state.js')
+  const state = createPonytailState({ storage: { read: () => null, write: () => {}, clear: () => {} } })
+  state.set('full')
+
+  // Session A: 用户手动切为 ultra
+  state.setSessionMode('sess-a', 'ultra')
+  assert.equal(state.getSession('sess-a').effectiveMode, 'ultra')
+
+  // Session B: 自然创建，跟随当前 full
+  const sessB = state.getSession('sess-b')
+  assert.equal(sessB.effectiveMode, 'full')
+
+  // 全局修改默认配置为 lite
+  state.syncGlobalModeToSessions('lite')
+
+  // 断言：Session A 显式指定的 ultra 受到保护，未被覆盖！
+  assert.equal(state.getSession('sess-a').effectiveMode, 'ultra', '显式设置的会话必须受到意图保护')
+  // 断言：Session B 跟随型会话同步到了 lite
+  assert.equal(state.getSession('sess-b').effectiveMode, 'lite', '未显式设置的会话随全局更新')
+})
+
+test('C24 双通道识别: scope.session.id 兜底通道能正确识别会话并锁定基线', async () => {
+  let sectionFn
+  const ctx = {
+    on: () => {},
+    effect: () => {},
+    logger: { info: () => {}, warn: () => {}, debug: () => {} },
+    skills: { registerProvider: () => () => {} },
+    systemPrompt: { section: (s) => { sectionFn = s.text } },
+  }
+  apply(ctx, { defaultMode: 'full' })
+
+  // 仅通过 scope 传入会话实体（模拟宿主特定 scope 上下文）
+  const scopeTarget = { scope: { session: { id: 'sess-scope-ch' } } }
+  const prompt = String(sectionFn(scopeTarget))
+  assert.match(prompt, /active - level: full/, '通过 scope 通道也能正确读取基线')
+})
