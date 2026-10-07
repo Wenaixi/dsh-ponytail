@@ -468,6 +468,7 @@ const content = `window.__ModuleLoader__.load({
           { style: L.section },
           e("h4", { style: L.title }, t("skills.title")),
           e("p", { style: L.hint }, t("skills.hint")),
+          e("span", { style: Object.assign({}, L.title, { fontSize: "12px", marginTop: "4px" }) }, t("lang.title")),
           e(P.SegmentedControl, {
             id: "ponytail-desc-lang",
             label: t("lang.title"),
@@ -478,7 +479,7 @@ const content = `window.__ModuleLoader__.load({
           }),
           !descLangConfigured
             ? e("p", { style: L.hint }, t("lang.unsetHint", { lang: t("lang." + (remote && (remote.skillLang === "en" || remote.skillLang === "zh") ? remote.skillLang : "zh")) }))
-            : null,
+            : e("p", { style: L.hint }, t("lang.note")),
           e(
             "div",
             { style: { display: "flex", flexDirection: "column", gap: "6px" } },
