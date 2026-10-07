@@ -1,45 +1,62 @@
-# 依赖
+# 依赖与构建产物
 node_modules/
 dist/
+build/
 *.tgz
+*.tar.gz
 *.tsbuildinfo
-# 注意：lib/ 已提交到 Git，保证 GitHub 直装无需构建（见下方说明）
+# 注意：lib/ 已提交到 Git，保证 GitHub 直装无需构建
 
-# 环境与本地配置
+# 环境与敏感凭证
 .env
 .env.*
 !.env.example
+*.local
+
+# DSH 与本地运行时隔离
 .DSH_HOME/
 .dsh/
+.dsh-vision-toolkit/
+profiles/
+undefined/
 
-# 系统与编辑器
+# 本地记忆与 AI 工具配置（不入库）
+CLAUDE.md
+.claude/
+.agents/
+.cursor/
+.windsurf/
+
+# 系统与编辑器缓存
 .DS_Store
+.DS_Store?
+._*
 Thumbs.db
+ehthumbs.db
+desktop.ini
 .vscode/
 .idea/
+*.sublime-workspace
+*.sublime-project
 *.swp
 *.swo
 *~
 
-# 本地记忆（不提交）
-CLAUDE.md
-
-# 日志与临时
+# 日志与临时文件
 logs/
 *.log
 npm-debug.log*
 pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
 tmp/
 temp/
 coverage/
 .nyc_output/
 .cache/
 
-# GitHub
-# （保留 .github/）
-
-# Superpowers SDD 执行工作区（计划/简报/评审包，不入库）
+# Superpowers SDD 执行工作区与本地调试包（不入库）
 .superpowers/
-
-# 本地环境泄漏（桌面版调试备份 / gh 状态），不入库
 .local/
+.local-pack/
