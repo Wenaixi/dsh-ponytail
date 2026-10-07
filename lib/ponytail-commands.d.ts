@@ -50,13 +50,14 @@ export interface CommandDispatchResult {
     switched: boolean;
 }
 export interface CommandDispatcher {
-    dispatchText: (rawText: string) => CommandDispatchResult;
-    dispatchContent: (content: unknown) => CommandDispatchResult;
-    dispatchMessages: (messages: unknown) => CommandDispatchResult;
+    dispatchText: (rawText: string, sessionId?: string) => CommandDispatchResult;
+    dispatchContent: (content: unknown, sessionId?: string) => CommandDispatchResult;
+    dispatchMessages: (messages: unknown, sessionId?: string) => CommandDispatchResult;
 }
 /**
  * 创建高内聚的命令调度器深模块
  * 将文本提取、指令语法解析、状态机流转与副作用执行完整封装
+ * 支持可选的 sessionId 会话作用域，实现多会话模式隔离与零缓存破坏调度
  */
 export declare function createCommandDispatcher(env: CommandDispatcherEnv): CommandDispatcher;
 //# sourceMappingURL=ponytail-commands.d.ts.map

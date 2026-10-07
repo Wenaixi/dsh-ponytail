@@ -15,4 +15,10 @@ export declare function render(skillDir: string, mode: string): string;
  * 到按需直读模板（ADR-0003）与保底降级渲染的完整链路。
  */
 export declare function renderPromptSection(skillDir: string, state: PonytailState): string;
+/**
+ * 对齐官方 @deepseek-ai/dsh-tool-skill 的 renderCatalogUpdate 范式：
+ * 当会话内命令切档或全局配置变更导致旧会话跟随更新时，绝不修改顶层 SystemPrompt 前缀（100% 保护历史缓存），
+ * 而是生成带有 <system-reminder> 的增量系统提醒，在当前轮次末尾追加，大模型当轮以最高注意力即时生效。
+ */
+export declare function renderModeUpdate(newMode: string | null, previousMode?: string | null, skillDir?: string): string;
 //# sourceMappingURL=ponytail-instructions.d.ts.map

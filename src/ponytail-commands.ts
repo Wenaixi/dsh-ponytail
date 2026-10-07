@@ -133,26 +133,34 @@ export interface CommandDispatchResult {
 }
 
 export interface CommandDispatcher {
-  dispatchText: (rawText: string) => CommandDispatchResult
-  dispatchContent: (content: unknown) => CommandDispatchResult
-  dispatchMessages: (messages: unknown) => CommandDispatchResult
+  dispatchText: (rawText: string, sessionId?: string) => CommandDispatchResult
+  dispatchContent: (content: unknown, sessionId?: string) => CommandDispatchResult
+  dispatchMessages: (messages: unknown, sessionId?: string) => CommandDispatchResult
 }
 
 /**
  * 创建高内聚的命令调度器深模块
  * 将文本提取、指令语法解析、状态机流转与副作用执行完整封装
+ * 支持可选的 sessionId 会话作用域，实现多会话模式隔离与零缓存破坏调度
  */
 export function createCommandDispatcher(env: CommandDispatcherEnv): CommandDispatcher {
   const getDef = env.getDefaultMode ?? getDefaultMode
   const writeDef = env.writeDefaultMode ?? writeDefaultMode
 
-  function dispatchText(rawText: string): CommandDispatchResult {
+  function dispatchText(rawText: string, sessionId?: string): CommandDispatchResult {
     const text = String(rawText ?? '').trim()
-    const result = parsePonytailCommand(text, env.state.get(), getDef)
+    const currentMode = (sessionId && typeof env.state.getSession === 'function')
+      ? env.state.getSession(sessionId).effectiveMode
+      : env.state.get()
+    const result = parsePonytailCommand(text, currentMode, getDef)
     if (!result.handled) return { handled: false, switched: false }
 
     if (result.deactivate) {
-      env.state.set(null)
+      if (typeof env.state.setSessionMode === 'function') {
+        env.state.setSessionMode(sessionId, null)
+      } else {
+        env.state.set(null)
+      }
       env.logger.info(`[ponytail] 已通过指令退出：${text}`)
       return { handled: true, switched: true }
     }
@@ -162,10 +170,15 @@ export function createCommandDispatcher(env: CommandDispatcherEnv): CommandDispa
       if (targetMode === 'off' || targetMode === 'lite' || targetMode === 'full' || targetMode === 'ultra') {
         const written = writeDef(targetMode)
         env.logger.info(`[ponytail] 默认等级已持久化：${written}`)
-        // 用户最新意图即时生效：同步外部判定源（apply 的 patchMode），
-        // 否则 patch 层继续压住 config.json，写盘「成功」却「无效」（静默失效）
+        // 用户最新意图即时生效：同步外部判定源（apply 的 patchMode）
         env.updateDefaultMode?.(targetMode)
-        env.state.set(targetMode)
+        // 关键：全局修改配置时，同步更新所有已有会话的 effectiveMode，
+        // 但严禁修改已有会话的 baselineMode，确保已有会话在下轮自动通过尾部追加通知生效！
+        if (typeof env.state.syncGlobalModeToSessions === 'function') {
+          env.state.syncGlobalModeToSessions(targetMode)
+        } else {
+          env.state.set(targetMode)
+        }
       }
       return { handled: true, switched: true }
     }
@@ -177,13 +190,21 @@ export function createCommandDispatcher(env: CommandDispatcherEnv): CommandDispa
     }
 
     if (result.mode && result.mode !== 'off') {
-      env.state.set(result.mode)
+      if (typeof env.state.setSessionMode === 'function') {
+        env.state.setSessionMode(sessionId, result.mode)
+      } else {
+        env.state.set(result.mode)
+      }
       env.logger.info(`[ponytail] 已切换 — 等级：${result.mode}`)
       return { handled: true, switched: true }
     }
 
     if (result.mode === 'off') {
-      env.state.set(null)
+      if (typeof env.state.setSessionMode === 'function') {
+        env.state.setSessionMode(sessionId, null)
+      } else {
+        env.state.set(null)
+      }
       env.logger.info('[ponytail] 已关闭')
       return { handled: true, switched: true }
     }
@@ -193,13 +214,13 @@ export function createCommandDispatcher(env: CommandDispatcherEnv): CommandDispa
 
   return {
     dispatchText,
-    dispatchContent(content: unknown): CommandDispatchResult {
+    dispatchContent(content: unknown, sessionId?: string): CommandDispatchResult {
       const text = extractTextFromContent(content)
-      return text ? dispatchText(text) : { handled: false, switched: false }
+      return text ? dispatchText(text, sessionId) : { handled: false, switched: false }
     },
-    dispatchMessages(messages: unknown): CommandDispatchResult {
+    dispatchMessages(messages: unknown, sessionId?: string): CommandDispatchResult {
       const text = extractText(messages)
-      return text ? dispatchText(text) : { handled: false, switched: false }
+      return text ? dispatchText(text, sessionId) : { handled: false, switched: false }
     },
   }
 }

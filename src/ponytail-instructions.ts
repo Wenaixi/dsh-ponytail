@@ -99,3 +99,37 @@ export function renderPromptSection(skillDir: string, state: PonytailState): str
   if (!mode || mode === 'off') return ''
   return render(skillDir, mode)
 }
+
+/**
+ * 对齐官方 @deepseek-ai/dsh-tool-skill 的 renderCatalogUpdate 范式：
+ * 当会话内命令切档或全局配置变更导致旧会话跟随更新时，绝不修改顶层 SystemPrompt 前缀（100% 保护历史缓存），
+ * 而是生成带有 <system-reminder> 的增量系统提醒，在当前轮次末尾追加，大模型当轮以最高注意力即时生效。
+ */
+export function renderModeUpdate(
+  newMode: string | null,
+  previousMode: string | null = null,
+  skillDir?: string,
+): string {
+  if (!newMode || newMode === 'off') {
+    const prev = previousMode ? ` (superseding previous level: ${previousMode})` : ''
+    return [
+      '<system-reminder>',
+      `Ponytail mode has been switched OFF${prev}.`,
+      'Normal development mode applies for this session until explicitly reactivated. Follow standard engineering practices without ponytail ladder constraints.',
+      '</system-reminder>',
+    ].join('\n')
+  }
+
+  const prev = previousMode ? ` (superseding previous level: ${previousMode})` : ''
+  const upper = newMode.toUpperCase()
+  const body = skillDir ? render(skillDir, newMode) : getFallbackInstructions(newMode)
+
+  return [
+    '<system-reminder>',
+    `Ponytail mode updated to ${upper}${prev}.`,
+    'This complete instruction set applies to all subsequent responses in this session:',
+    '',
+    body,
+    '</system-reminder>',
+  ].join('\n')
+}

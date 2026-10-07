@@ -1876,3 +1876,124 @@ test('C14 插件元信息: 中英文标题指向同一个产品名，不出现�
   assert.ok(!/dsh-ponytail|@wenaixi/.test(en.title), '英文档题不得回落到包名：' + en.title)
   assert.ok(!/@wenaixi/.test(zh.title), '中文档题不得含包名：' + zh.title)
 })
+
+/**
+ * ---------------------------------------------------------------------------
+ * C18-C21 零缓存破坏与会话隔离机制（对齐官方 dsh-tool-skill renderCatalogUpdate 范式）
+ * ---------------------------------------------------------------------------
+ */
+
+test('C18 增量通知: renderModeUpdate 生成标准 <system-reminder> 瞬态提醒', async () => {
+  const { renderModeUpdate } = await import('../lib/ponytail-instructions.js')
+  const ultraNotice = renderModeUpdate('ultra', 'full', skillDir)
+  assert.ok(ultraNotice.startsWith('<system-reminder>'), '必须以 <system-reminder> 开头')
+  assert.ok(ultraNotice.endsWith('</system-reminder>'), '必须以 </system-reminder> 结尾')
+  assert.ok(ultraNotice.includes('Ponytail mode updated to ULTRA (superseding previous level: full)'))
+  assert.ok(ultraNotice.includes('PONYTAIL active - level: ultra'))
+
+  const offNotice = renderModeUpdate('off', 'ultra')
+  assert.ok(offNotice.includes('Ponytail mode has been switched OFF (superseding previous level: ultra)'))
+  assert.ok(offNotice.includes('Normal development mode applies for this session'))
+})
+
+test('C19 零缓存破坏: 会话内切档绝不改变 SystemPrompt 前缀（100% 保护历史 KV Cache）', async () => {
+  let sectionFn
+  const handlers = {}
+  const ctx = {
+    on: (ev, h) => { handlers[ev] = h },
+    effect: () => {},
+    logger: { info: () => {}, warn: () => {}, debug: () => {} },
+    skills: { registerProvider: () => () => {} },
+    systemPrompt: { section: (s) => { sectionFn = s.text } },
+  }
+  apply(ctx, { defaultMode: 'full' })
+
+  const sessionContext = { agent: { session: { id: 'sess-cache-test-1' } } }
+  const initialPrompt = String(sectionFn(sessionContext))
+  assert.match(initialPrompt, /active - level: full/, '初始基线应为 full')
+
+  // 会话内切档至 ultra
+  const preStep = handlers['agent/pre-step']
+  assert.equal(typeof preStep, 'function')
+  await preStep(
+    { messages: [{ content: '/ponytail ultra' }], agent: { session: { id: 'sess-cache-test-1' } } },
+    async () => ({ kind: 'enter', messages: [] })
+  )
+
+  // 关键断言：切档后再次读取 SystemPrompt，前缀文本绝对 100% 保持为基线 full，绝不发生变化！
+  const promptAfterSwitch = String(sectionFn(sessionContext))
+  assert.equal(promptAfterSwitch, initialPrompt, '切档后顶层 SystemPrompt 文本必须逐字节完全不变，确保历史缓存 100% 命中！')
+})
+
+test('C20 尾部追加与幂等性: agent/pre-step 切档轮次追加通知，后续轮次不重复追加', async () => {
+  const handlers = {}
+  const ctx = {
+    on: (ev, h) => { handlers[ev] = h },
+    effect: () => {},
+    logger: { info: () => {}, warn: () => {}, debug: () => {} },
+    skills: { registerProvider: () => () => {} },
+    systemPrompt: { section: () => () => {} },
+  }
+  apply(ctx, { defaultMode: 'full' })
+
+  const preStep = handlers['agent/pre-step']
+  const sessionTarget = { session: { id: 'sess-idempotent-2' } }
+
+  // 第 1 轮：用户输入普通消息，未切档（保持 full）
+  const step1 = await preStep(
+    { messages: [{ content: 'hello' }], agent: sessionTarget },
+    async () => ({ kind: 'enter', messages: [{ id: 'm1', role: 'user', content: 'hello' }] })
+  )
+  assert.equal(step1.messages.length, 1, '未切档时消息流保持纯净，无额外追加')
+
+  // 第 2 轮：用户输入 /ponytail ultra 切档
+  const step2 = await preStep(
+    { messages: [{ content: '/ponytail ultra' }], agent: sessionTarget },
+    async () => ({ kind: 'enter', messages: [{ id: 'm2', role: 'user', content: '/ponytail ultra' }] })
+  )
+  assert.equal(step2.messages.length, 2, '切档当轮末尾必须追加 1 条模式更新消息')
+  const updateMsg = step2.messages[1]
+  assert.equal(updateMsg.role, 'user')
+  assert.ok(updateMsg.content[0].text.includes('<system-reminder>'))
+  assert.ok(updateMsg.content[0].text.includes('Ponytail mode updated to ULTRA'))
+
+  // 第 3 轮：用户在 ultra 下继续提问，未再次切档
+  const step3 = await preStep(
+    { messages: [{ content: 'write some code' }], agent: sessionTarget },
+    async () => ({ kind: 'enter', messages: [{ id: 'm3', role: 'user', content: 'write some code' }] })
+  )
+  assert.equal(step3.messages.length, 1, '后续轮次幂等稳定，绝不重复追加通知')
+})
+
+test('C21 全局修改隔离: 全局改默认档不影响已存在会话的前缀缓存，新会话自动采用新档', async () => {
+  let sectionFn
+  const handlers = {}
+  const ctx = {
+    on: (ev, h) => { handlers[ev] = h },
+    effect: () => {},
+    logger: { info: () => {}, warn: () => {}, debug: () => {} },
+    skills: { registerProvider: () => () => {} },
+    systemPrompt: { section: (s) => { sectionFn = s.text } },
+  }
+  // 模拟官方 loader 下发的 volatile 引用（C8 同款）
+  let globalMode = 'full'
+  const ref = Object.freeze({ get: () => globalMode })
+  apply(ctx, { defaultMode: ref })
+
+  const oldSessionTarget = { agent: { session: { id: 'sess-old-3' } } }
+  const oldPromptInitial = String(sectionFn(oldSessionTarget))
+  assert.match(oldPromptInitial, /active - level: full/, '旧会话初始基线应为 full')
+
+  // 模拟全局 volatile 变更：loader 就地更新引用并派发 volatile-update
+  globalMode = 'ultra'
+  handlers['loader/volatile-update']([['defaultMode']])
+
+  // 关键断言 1：旧会话的 SystemPrompt 依然绝对锁定为初始 full 基线（零缓存破坏）
+  const oldPromptAfterGlobal = String(sectionFn(oldSessionTarget))
+  assert.equal(oldPromptAfterGlobal, oldPromptInitial, '全局修改后旧会话的顶层前缀必须保持基线不变')
+
+  // 关键断言 2：新建会话直接采用新的 ultra 基线
+  const newSessionTarget = { agent: { session: { id: 'sess-new-4' } } }
+  const newPrompt = String(sectionFn(newSessionTarget))
+  assert.match(newPrompt, /active - level: ultra/, '新创建会话以新全局默认档作为 SystemPrompt 基线')
+})

@@ -33,9 +33,10 @@ import {
   migrateLegacyConfig,
   type PonytailConfigSink,
 } from './ponytail-settings.js'
+import { randomUUID } from 'node:crypto'
 import { resolvePriority } from './ponytail-priority.js'
 import { createCommandDispatcher } from './ponytail-commands.js'
-import { renderPromptSection } from './ponytail-instructions.js'
+import { renderPromptSection, renderModeUpdate, render } from './ponytail-instructions.js'
 import { createDiskStorage, createPonytailState } from './ponytail-state.js'
 import { PonytailProvider } from './ponytail-skills.js'
 import { PonytailRemote, readSkillMeta } from './ponytail-remote.js'
@@ -334,7 +335,11 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
     }
     if (touched.has('defaultMode')) {
       patchOverride = undefined
-      ctx.logger.debug('[ponytail] 默认档已由 profile 补丁提交，乐观缓存已清除')
+      const newMode = readPatchMode()
+      if (newMode) {
+        state.syncGlobalModeToSessions(newMode)
+      }
+      ctx.logger.debug('[ponytail] 默认档已由 profile 补丁提交，乐观缓存已清除并同步活跃会话生效状态')
     }
     // 描述语言变了但目录不失效，模型侧仍读旧语言的描述（面板经 remote 能看到新值，
     // 两侧因此不一致）：与 disabledSkills 同一条失效路径。
@@ -390,17 +395,29 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
   }
 
   // Always-on 注入：systemPrompt section，order 50 位于 persona(0) 之后
-  const systemPrompt = (ctx as unknown as { systemPrompt: { section: (section: { name: string; order: number; text: string | (() => string) }) => () => void } }).systemPrompt
+  // 关键契约：永远只渲染该会话初始锁定的 baselineMode！
+  // 无论是会话内切档还是全局配置变更，SystemPrompt 前缀字节级绝对不变，100% 保护历史缓存！
+  const systemPrompt = (ctx as unknown as { systemPrompt: { section: (section: { name: string; order: number; text: string | ((context?: unknown) => string) }) => () => void } }).systemPrompt
   systemPrompt.section({
     name: 'ponytail',
     order: 50,
-    text: () => {
+    text: (context?: unknown) => {
       // 文件优先：每次注入前拉齐 flag 与内存（外部改 flag 在此收敛）
       try {
         state.reloadDisabledSkills()
       } catch {
         // ignore
       }
+      state.syncFromFile()
+      const sessionTarget = (context as { agent?: { session?: { id?: string } } })?.agent?.session?.id
+      if (sessionTarget) {
+        // 具名会话：锁定初始基线 baselineMode，绝不随切档变动，100% 保护会话前缀缓存
+        const sessionState = state.getSession(sessionTarget)
+        const baseMode = sessionState.baselineMode
+        if (!baseMode || baseMode === 'off') return ''
+        return render(skillDir, baseMode)
+      }
+      // 无 sessionTarget 时（单会话全局模式 / 外部直接读取）：走全局单例出口
       return renderPromptSection(skillDir, state)
     },
   })
@@ -427,19 +444,61 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
     writeDefaultMode: (mode) => configSink.writeDefaultMode(mode),
   })
 
-  // 监听 agent/pre-step waterfall：模型请求前的最后拦截点（对齐上游 UserPromptSubmit）
+  // 监听 agent/pre-step waterfall：模型请求前的最后拦截点（对齐官方 dsh-tool-skill 的 renderCatalogUpdate 范式）
   // 必须 return next()，否则短路下游
   anyCtx.on(
     'agent/pre-step',
     async (...args: unknown[]) => {
-      const [payload, next] = args as [{ messages?: unknown; agent?: unknown }, () => Promise<unknown>]
+      const [payload, next] = args as [
+        { messages?: unknown; agent?: { session?: { id?: string } } },
+        () => Promise<unknown>,
+      ]
+      const sessionId = payload?.agent?.session?.id
       try {
-        dispatcher.dispatchMessages(payload?.messages)
+        dispatcher.dispatchMessages(payload?.messages, sessionId)
       } catch (err: unknown) {
         // best-effort：与 session/event 同一防御策略，失败可见（坏订阅者不断链）
         ctx.logger.warn(`[ponytail] agent/pre-step 处理失败（仍会调用 next()，不拦截请求）：${String(err)}`)
       }
-      return (await next()) as unknown as Awaited<ReturnType<typeof next>>
+
+      const downstream = (await next()) as { kind: string; messages: unknown[] } | unknown
+      if (!downstream || typeof downstream !== 'object' || (downstream as { kind?: string }).kind !== 'enter') {
+        return downstream
+      }
+
+      const decision = downstream as { kind: string; messages: unknown[] }
+      const sessionState = state.getSession(sessionId)
+
+      // 变动检测（对齐 dsh-tool-skill 的 renderCatalogUpdate 范式）：
+      // 当当前实际生效模式 effectiveMode 与最后一次发射给模型的模式 lastEmittedMode 不一致时，
+      // 绝不重写顶层 SystemPrompt，只在当前轮次尾部追加一条 <system-reminder> 系统提醒！
+      // 既 100% 保护历史所有轮次的 KV Cache，又让大模型当轮以最高注意力即时生效。
+      if (sessionState.effectiveMode !== sessionState.lastEmittedMode) {
+        const noticeText = renderModeUpdate(
+          sessionState.effectiveMode,
+          sessionState.lastEmittedMode,
+          skillDir,
+        )
+        const updateMsg = {
+          id: randomUUID(),
+          role: 'user',
+          content: [{ type: 'text', text: noticeText }],
+          source: {
+            kind: 'ponytail-mode-update',
+            mode: sessionState.effectiveMode,
+            previousMode: sessionState.lastEmittedMode,
+          },
+        }
+        // 标记已发射，后续对话不再重复追加
+        state.markSessionEmitted(sessionId, sessionState.effectiveMode)
+
+        return {
+          ...decision,
+          messages: Array.isArray(decision.messages) ? [...decision.messages, updateMsg] : [updateMsg],
+        }
+      }
+
+      return decision
     },
   )
 
@@ -447,9 +506,10 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
   // defensive-patterns：坏订阅者不得断链核心生命周期，整体 try/catch 不抛出
   anyCtx.on('session/event', (...args: unknown[]) => {
     try {
-      const [_session, event] = args as [unknown, { type: string; data?: { content?: unknown } }]
+      const [session, event] = args as [{ id?: string }, { type: string; data?: { content?: unknown } }]
       if (event?.type !== 'user/message') return
-      dispatcher.dispatchContent(event.data?.content)
+      const sessionId = session?.id
+      dispatcher.dispatchContent(event.data?.content, sessionId)
     } catch (err: unknown) {
       ctx.logger.warn(`[ponytail] session/event 处理失败：${String(err)}`)
     }
@@ -472,7 +532,11 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
   // source 仅 startup|resume 触发对齐，clear|compact 不动作；本监听整体包 try/catch（agent/created 为 serial 模式，坏监听器会失败整个 agent 创建）
   anyCtx.on('agent/created', (...args: unknown[]) => {
     try {
-      const [payload] = args as [{ agent: { id: unknown }; source: string }]
+      const [payload] = args as [{ agent: { id: unknown; session?: { id?: string } }; source: string }]
+      const sessId = payload.agent?.session?.id
+      if (sessId) {
+        state.getSession(sessId) // 首次调用即完成基线快照锁定
+      }
       if (subagentRe) {
         ctx.logger.debug(
           `[ponytail] 子智能体已创建：${String(payload.agent.id)} — 匹配器：${subagentMatcherEnv}`,

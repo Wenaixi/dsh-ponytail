@@ -5,6 +5,7 @@
  * - 内存态（currentMode）与 flag 文件的同步
  * - 「文件优先」与「内存赢」两种纠偏方向（由调用方选方法表达，不写死一处）
  * - off / review / 非法值的归一
+ * - 扩展支持多会话隔离：每个会话锁定基线模式（baselineMode），当切换模式时通过追加通知生效，保护前缀缓存
  *
  * 与 config 的关系：flag（.ponytail-active）物理存取内联于此（原 ponytail-runtime.ts 已并入，
  * C6 收敛：46 行薄壳 + 一层间接委托不如直接内联）；也可由 options.storage 注入内存适配器隔离测试。
@@ -38,6 +39,13 @@ export interface PonytailStateOptions {
   sink?: PonytailConfigSink
 }
 
+export interface SessionModeState {
+  sessionId: string
+  baselineMode: string          // 会话诞生时锁定的初始基线（SystemPrompt 专属，终身静态不变）
+  effectiveMode: string | null  // 当前会话实际生效模式（null 表示 off）
+  lastEmittedMode: string | null // 历史中最后一次向模型发射的模式（用于变动检测）
+}
+
 export interface PonytailState {
   /** 当前等级的内存视图；不触发任何文件读。null 表示关闭（'off' 由 set 归一为 null） */
   get(): string | null
@@ -61,13 +69,17 @@ export interface PonytailState {
   resetToDefaults(): void
   /** 文件优先：重读 profile 内 config.json 的 disabledSkills 重建内存 Set（外部手改文件后的收敛入口） */
   reloadDisabledSkills(): void
+  /** 获取指定会话的模式状态（不存在则原子捕获当前基线新建） */
+  getSession(sessionId?: string): SessionModeState
+  /** 设置指定会话的当前生效模式 */
+  setSessionMode(sessionId: string | undefined, mode: string | null): void
+  /** 标记指定会话已向模型发射了该模式的指令（避免重复追加通知） */
+  markSessionEmitted(sessionId: string | undefined, mode: string | null): void
+  /** 全局配置变更时同步到已有会话的生效模式（但严禁修改 baselineMode，确保 Prompt Cache 恒定） */
+  syncGlobalModeToSessions(newDefaultMode: string): void
 }
 
 // flag 物理存取（原 src/ponytail-runtime.ts，C6 内联）：profile 内 .ponytail-active
-//
-// profileDir 与 config.json 同维度：不带它时 flag 落在 $DSH_HOME/ponytail 下，被所有实例共享，
-// 多实例并存时 renderPromptSection 的 syncFromFile（文件优先）会把另一个实例写的档位当成本实例的
-// 生效档。createDiskStorage(profileDir) 由 apply() 传入 profileContext.dir。
 const STATE_FILE = '.ponytail-active'
 
 export function createDiskStorage(profileDir?: string): PonytailStorage {
@@ -94,12 +106,23 @@ export function createDiskStorage(profileDir?: string): PonytailStorage {
   };
 }
 
+const DEFAULT_SESSION_ID = '__default__'
+
 export function createPonytailState(options?: PonytailStateOptions): PonytailState {
   const storage = options?.storage ?? createDiskStorage()
   let current: string | null = null
 
   const sink = options?.sink ?? createFileSink()
   let disabledSkills = new Set<string>(sink.readDisabled())
+
+  // 会话隔离状态表（带 LRU 上限防泄漏）
+  const sessions = new Map<string, SessionModeState>()
+  const MAX_SESSIONS = 100
+
+  function normalizeSessionKey(id?: string): string {
+    const trimmed = String(id ?? '').trim()
+    return trimmed.length > 0 ? trimmed : DEFAULT_SESSION_ID
+  }
 
   return {
     get: () => current,
@@ -136,6 +159,7 @@ export function createPonytailState(options?: PonytailStateOptions): PonytailSta
       sink.reset()
       disabledSkills.clear()
       current = 'full'
+      sessions.clear()
       storage.write('full')
     },
 
@@ -156,6 +180,10 @@ export function createPonytailState(options?: PonytailStateOptions): PonytailSta
       // 单一关闭契约：'off' 与 null 都是关闭，统一为 null（删 flag）。
       current = mode === 'off' ? null : mode
       this.syncToFile()
+      const defState = sessions.get(DEFAULT_SESSION_ID)
+      if (defState) {
+        defState.effectiveMode = current
+      }
     },
 
     syncFromFile() {
@@ -173,6 +201,57 @@ export function createPonytailState(options?: PonytailStateOptions): PonytailSta
       } else if (fileMode === null && current !== null) {
         // DSH 单一宿主：flag 缺失即关闭（外部宿主共存语义已移除，见 ADR-0004）
         current = null
+      }
+    },
+
+    getSession(sessionId?: string): SessionModeState {
+      const key = normalizeSessionKey(sessionId)
+      let state = sessions.get(key)
+      if (!state) {
+        if (sessions.size >= MAX_SESSIONS) {
+          const oldestKey = sessions.keys().next().value
+          if (oldestKey && oldestKey !== DEFAULT_SESSION_ID) {
+            sessions.delete(oldestKey)
+          }
+        }
+        // 新会话诞生：基线锁定为当前全局模式（或 full）
+        const baseline = current ?? 'full'
+        state = {
+          sessionId: key,
+          baselineMode: baseline,
+          effectiveMode: baseline,
+          lastEmittedMode: baseline,
+        }
+        sessions.set(key, state)
+      }
+      return state
+    },
+
+    setSessionMode(sessionId: string | undefined, mode: string | null): void {
+      const key = normalizeSessionKey(sessionId)
+      const session = this.getSession(key)
+      const normalized = mode === 'off' ? null : normalizeMode(mode ?? '') ?? mode
+      session.effectiveMode = normalized
+      if (key === DEFAULT_SESSION_ID) {
+        current = normalized
+        this.syncToFile()
+      }
+    },
+
+    markSessionEmitted(sessionId: string | undefined, mode: string | null): void {
+      const key = normalizeSessionKey(sessionId)
+      const session = this.getSession(key)
+      session.lastEmittedMode = mode === 'off' ? null : mode
+    },
+
+    syncGlobalModeToSessions(newDefaultMode: string): void {
+      const normalized = normalizeMode(newDefaultMode)
+      if (!normalized) return
+      current = normalized
+      this.syncToFile()
+      // 对已有会话：保持 baselineMode 绝对不变，更新 effectiveMode
+      for (const session of sessions.values()) {
+        session.effectiveMode = normalized
       }
     },
   }

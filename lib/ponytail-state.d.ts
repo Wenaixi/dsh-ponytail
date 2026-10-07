@@ -5,6 +5,7 @@
  * - 内存态（currentMode）与 flag 文件的同步
  * - 「文件优先」与「内存赢」两种纠偏方向（由调用方选方法表达，不写死一处）
  * - off / review / 非法值的归一
+ * - 扩展支持多会话隔离：每个会话锁定基线模式（baselineMode），当切换模式时通过追加通知生效，保护前缀缓存
  *
  * 与 config 的关系：flag（.ponytail-active）物理存取内联于此（原 ponytail-runtime.ts 已并入，
  * C6 收敛：46 行薄壳 + 一层间接委托不如直接内联）；也可由 options.storage 注入内存适配器隔离测试。
@@ -31,6 +32,12 @@ export interface PonytailStateOptions {
      */
     sink?: PonytailConfigSink;
 }
+export interface SessionModeState {
+    sessionId: string;
+    baselineMode: string;
+    effectiveMode: string | null;
+    lastEmittedMode: string | null;
+}
 export interface PonytailState {
     /** 当前等级的内存视图；不触发任何文件读。null 表示关闭（'off' 由 set 归一为 null） */
     get(): string | null;
@@ -54,6 +61,14 @@ export interface PonytailState {
     resetToDefaults(): void;
     /** 文件优先：重读 profile 内 config.json 的 disabledSkills 重建内存 Set（外部手改文件后的收敛入口） */
     reloadDisabledSkills(): void;
+    /** 获取指定会话的模式状态（不存在则原子捕获当前基线新建） */
+    getSession(sessionId?: string): SessionModeState;
+    /** 设置指定会话的当前生效模式 */
+    setSessionMode(sessionId: string | undefined, mode: string | null): void;
+    /** 标记指定会话已向模型发射了该模式的指令（避免重复追加通知） */
+    markSessionEmitted(sessionId: string | undefined, mode: string | null): void;
+    /** 全局配置变更时同步到已有会话的生效模式（但严禁修改 baselineMode，确保 Prompt Cache 恒定） */
+    syncGlobalModeToSessions(newDefaultMode: string): void;
 }
 export declare function createDiskStorage(profileDir?: string): PonytailStorage;
 export declare function createPonytailState(options?: PonytailStateOptions): PonytailState;
