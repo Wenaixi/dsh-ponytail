@@ -92,8 +92,7 @@
     "developer-tools"
   ],
   "engines": {
-    "node": ">=20",
-    "pnpm": ">=11"
+    "node": ">=20"
   },
   "publishConfig": {
     "access": "public"
