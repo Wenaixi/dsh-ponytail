@@ -1,56 +1,47 @@
 # dsh-ponytail
 
-<p align="center">
-  <img src="assets/logo.png" width="180" alt="Ponytail" />
-</p>
+[English](./README.md) | [简体中文](./README.zh-CN.md)
+
+[![npm](https://img.shields.io/npm/v/@wenaixi%2Fdsh-ponytail?label=npm&color=CB3837)](https://www.npmjs.com/package/@wenaixi/dsh-ponytail)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](./LICENSE)
+[![DSH](https://img.shields.io/badge/DSH-Plugin-7c3aed)](https://github.com/deepseek-ai/deepseek-harness)
+[![Prompt Cache](https://img.shields.io/badge/Prompt%20Cache-100%25%20Hit-blueviolet)](./docs/adr/0012-zero-cache-miss-session-baseline-and-turn-override.md)
+[![Tests](https://img.shields.io/badge/tests-104%20passed-success)](./scripts/behavior.test.mjs)
+[![Tools](https://img.shields.io/badge/model%20tools-0-orange)](./docs/adr/0002-zero-model-tools-pure-system-prompt.md)
+[![Node](https://img.shields.io/badge/node-%3E%3D18-5FA04E)](https://nodejs.org)
+[![pnpm](https://img.shields.io/badge/pnpm-%3E%3D9-F69220)](https://pnpm.io)
 
 <p align="center">
-  Lazy senior developer mode, ported to DeepSeek Harness.<br/>
+  <img src="./assets/logo.png" alt="@wenaixi/dsh-ponytail" width="128" height="128"><br/>
   <em>The best code is the code you never wrote.</em>
 </p>
 
-<p align="center">
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-111111?style=flat-square" alt="MIT"/></a>
-  <a href="https://www.npmjs.com/package/@wenaixi/dsh-ponytail"><img src="https://img.shields.io/npm/v/@wenaixi/dsh-ponytail?color=111111&style=flat-square" alt="npm"/></a>
-</p>
+A DeepSeek Harness (DSH) port of [DietrichGebert/ponytail](https://github.com/DietrichGebert/ponytail), maintained independently (ADR-0010). Injects the 7-rung ladder directly into system prompts, provides 6 specialized skills, and registers zero tools.
 
-<p align="center">
-  <b>English</b> ·
-  <a href="README.zh-CN.md">简体中文</a> ·
-  <a href="CHANGELOG.md">Changelog</a> ·
-  <a href="https://github.com/DietrichGebert/ponytail">Upstream</a> ·
-  <a href="https://www.npmjs.com/package/@wenaixi/dsh-ponytail">npm</a>
-</p>
+## What it is
 
-An always-on plugin for DeepSeek Harness (DSH): injects the 7-rung ladder directly into system prompts, provides 6 specialized skills, and registers zero tools. Ported from and inspired by [DietrichGebert/ponytail](https://github.com/DietrichGebert/ponytail). Local releases are maintained independently with decoupled versioning (ADR-0010).
+A counter-weight to LLM boilerplate and over-engineering: deletion over addition, boring over clever, and fewest files possible. Challenge requirements before writing code (YAGNI), prioritize existing functions and standard libraries, and solve in one line when possible.
 
-## Installation
+Features a **Zero Cache Miss Architecture** (ADR-0012): session baseline is locked permanently, and dynamic intensity switches take effect via turn-end reminders, leaving historical prompt / KV cache 100% untouched across long conversations. Ships as a pure `dsh.bundle`, writes zero garbage to your home root, uninstalls cleanly, and rebuilds itself through HMR.
 
-Install into any target profile. Replace `web` with your own `--profile <name>`.
+## Install
+
+Needs the DSH runtime (`npm i -g @deepseek-ai/dsh`). Node and pnpm floors are in the badges above. Examples use the `web` profile; substitute your own profile name.
 
 ```bash
+# Install (automatic HMR reload)
 dsh plugin --profile web add @wenaixi/dsh-ponytail
+
+# Remove
 dsh plugin --profile web remove @wenaixi/dsh-ponytail
+
+# Inspect composed patch tree
 dsh --profile web --dump-config | grep -A2 ponytail
 ```
 
 `WARN missing peer @deepseek-ai/...` warnings are normal; peer dependencies are provided by the DSH host runtime. Seeing `Packages: +2 Done` indicates a successful install.
 
-If the plugin card displays only the raw package name without an icon, title, or description, ensure that your package exports expose `./package.json` and `./locale/*.json`. This is a hard requirement for DSH metadata discovery.
-
-### Installation and Hot Reload
-
-Zero-configuration hot installation is fully supported. When `dsh plugin add` registers the package in `package.json` and the bundle list, DSH HMR automatically reloads the Loader tree and renders the configuration card:
-
-```bash
-dsh plugin --profile web add @wenaixi/dsh-ponytail@5.3.2
-```
-
-After running the command, wait 2–3 seconds for the file watcher debounce period (Chokidar `awaitWriteFinish: true`), then refresh your browser. Manual editing of `cordis.patch.yml` is neither required nor recommended.
-
-Notes:
-- Fresh installs do not require restarting the host process; a browser refresh is sufficient.
-- When performing in-place upgrades of an already-installed version, host entry revision freezing applies. Restarting the host or removing and re-adding the plugin is recommended to pick up updated artifacts.
+After running the install command, wait 2–3 seconds for the file watcher debounce period (Chokidar `awaitWriteFinish: true`), then refresh your browser. Manual editing of `cordis.patch.yml` is neither required nor recommended.
 
 ## Usage
 
@@ -65,35 +56,28 @@ stop ponytail        Equivalent to off (exact match)
 
 Intensity levels reset on each new session according to `env > Profile patch > fallback full`. Therefore, `/ponytail <level>` is session-scoped. To persist across restarts and new sessions, use `/ponytail default <level>`.
 
-### Zero Cache Miss Architecture (Prompt Cache Friendly)
+### Zero Cache Miss Architecture
 
 When switching intensity levels within an ongoing session or updating global default configurations, the top-level SystemPrompt baseline remains **strictly byte-identical and static**. 
 
 Mode transitions take effect dynamically by appending an incremental system notification (`<system-reminder>`) at the end of the current turn's user message (aligned with the official `dsh-tool-skill` catalog update pattern, ADR-0012). This **100% protects historical KV Cache / Prompt Cache** across all multi-turn conversation history, eliminating costly prefill recalculations and latency spikes.
 
-Specialized Skills beyond the 6 intensity levels:
+## Skills
 
 | Skill | Description |
-| --- | --- |
-| `/ponytail-review` | Focus strictly on diffs; hunt for code that can be deleted |
-| `/ponytail-audit` | Repo-wide over-engineering audit ranked by deletion yield |
+|---|---|
+| `/ponytail` | Core mode: 7-rung ladder, lazy senior dev mindset |
+| `/ponytail-review` | Over-engineering code review: hunt for code that can be deleted |
+| `/ponytail-audit` | Whole-repo complexity audit, ranked by deletion yield |
 | `/ponytail-debt` | Harvest `ponytail:` comments into an actionable debt ledger |
-| `/ponytail-gain` | Minimal metrics dashboard |
+| `/ponytail-gain` | Minimal metrics dashboard showing code reduction benchmarks |
 | `/ponytail-help` | Quick reference card for modes, commands, and skills |
-
-When debugging via the CLI, avoid using the keyword `headless` in your task prompt, as it may interfere with `/ponytail` prefix matching:
-
-```bash
-dsh --profile web '<your-task>'
-```
 
 ## Skill Bodies and Description Languages
 
 Skill bodies are retrieved directly from upstream DietrichGebert/ponytail v4.10.3 in verbatim English. Two host-incompatible details are tailored for DSH: `ponytail-gain` data sources point to `assets/*.svg` (as upstream `benchmarks/` is excluded), and `ponytail-help` configuration and update sections reference profile patches and `dsh plugin`.
 
 Model catalog views and configuration forms share the exact same description string, governed by `skillDescriptionLang` (three-state: explicit Chinese `zh` / explicit English `en` / unconfigured `auto`). When unconfigured, it follows the host's `locale.preference` (English triggers English alignment; others default to Chinese). Explicit selection locks the language. Canonical descriptions reside in `skills/descriptions.zh.json` and `skills/descriptions.en.json`, served live via `ctx.remote.ponytail.snapshot()`.
-
-Catalog descriptions are constrained to the official 500-character ceiling (`dsh-tool-skill`). Longer descriptions will be truncated with `...` in the model catalog; static gates in `verify.mjs` enforce this boundary across both languages.
 
 ## Configuration Panel
 
@@ -104,28 +88,18 @@ The level segmented control reflects only the actual persisted configuration. Wh
 Configuration reads and writes use two official DSH channels:
 
 | Channel | Scope | Target |
-| --- | --- | --- |
+|---|---|---|
 | `ctx.configForms.get('ponytail')` | Default level & disabled skills with revision conflict checking | `profiles/<name>/cordis.patch.yml` |
 | `ctx.remote.ponytail.snapshot()` | Active runtime level & 3-tier diagnostic chain (read-only) | In-memory RPC |
 
 Profiles lacking a full UI service bundle (headless, CLI) fall back gracefully to `profiles/<name>/ponytail/config.json`. Legacy configurations from `$DSH_HOME/ponytail/config.json` are migrated once into profile patches upon initial boot and renamed to `.imported`.
-
-## Installation, Upgrade, and Removal Lifecycle
-
-| Action | Host Restart Required | Reason |
-| --- | --- | --- |
-| Fresh Install | No (browser refresh only) | Host detects newly registered entries and pushes new revision hashes |
-| Upgrade | Yes | Host entry revisions are frozen at process startup; in-place file replacement does not trigger hash updates |
-| Removal | No (patch entry cleaned manually) | `dsh plugin remove` cleans `package.json`, bundle registries, and physical modules, leaving patch entries untouched |
-
-Residual entries after uninstallation log a non-fatal warning (`patch: entry "ponytail" not found`). This does not prevent host startup.
 
 ## Upstream Mapping
 
 The six hooks from upstream `hooks/` are consolidated into a single DSH Cordis plugin:
 
 | Upstream | DSH Implementation |
-| --- | --- |
+|---|---|
 | `ponytail-config.js` | `src/ponytail-config.ts` |
 | `ponytail-instructions.js` | `src/ponytail-instructions.ts` (single entrypoint `renderPromptSection`) |
 | `ponytail-state.js` | `src/ponytail-state.ts` (flag file I/O, session baseline manager, reload) |
@@ -142,7 +116,7 @@ pnpm typecheck              # tsc --noEmit
 pnpm build                  # tsc into lib/, scripts/build-client.mjs generates lib/client.js
 node scripts/verify.mjs     # Static contract gates: artifacts, skills, zero tools, slots, locales
 node scripts/docs-verify.mjs # Documentation and version consistency gates
-node scripts/behavior.test.mjs  # Behavioral test suite (102 tests pass)
+node scripts/behavior.test.mjs  # Behavioral test suite (104 tests pass)
 
 dsh --profile web --patch ./cordis.patch.yml --dump-config  # Verify patch parsing
 pnpm dsh web --patch ./cordis.patch.yml   # Hot reload dev runner
