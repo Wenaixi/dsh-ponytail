@@ -5,9 +5,6 @@
 [![npm](https://img.shields.io/npm/v/@wenaixi%2Fdsh-ponytail?label=npm&color=CB3837)](https://www.npmjs.com/package/@wenaixi/dsh-ponytail)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](./LICENSE)
 [![DSH](https://img.shields.io/badge/DSH-Plugin-7c3aed)](https://github.com/deepseek-ai/deepseek-harness)
-[![Prompt Cache](https://img.shields.io/badge/Prompt%20Cache-100%25%20Hit-blueviolet)](./docs/adr/0012-zero-cache-miss-session-baseline-and-turn-override.md)
-[![Tests](https://img.shields.io/badge/tests-104%20passed-success)](./scripts/behavior.test.mjs)
-[![Tools](https://img.shields.io/badge/model%20tools-0-orange)](./docs/adr/0002-zero-model-tools-pure-system-prompt.md)
 [![Node](https://img.shields.io/badge/node-%3E%3D18-5FA04E)](https://nodejs.org)
 [![pnpm](https://img.shields.io/badge/pnpm-%3E%3D9-F69220)](https://pnpm.io)
 
