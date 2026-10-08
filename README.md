@@ -109,7 +109,7 @@ pnpm typecheck              # tsc --noEmit
 pnpm build                  # tsc into lib/, scripts/build-client.mjs generates lib/client.js
 node scripts/verify.mjs     # Static contract gates: artifacts, skills, zero tools, slots, locales
 node scripts/docs-verify.mjs # Documentation and version consistency gates
-node scripts/behavior.test.mjs  # Behavioral test suite (104 tests pass)
+node scripts/behavior.test.mjs  # Behavioral test suite (107 tests pass)
 
 dsh --profile web --patch ./cordis.patch.yml --dump-config  # Verify patch parsing
 pnpm dsh web --patch ./cordis.patch.yml   # Hot reload dev runner
