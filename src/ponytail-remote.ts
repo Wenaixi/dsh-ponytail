@@ -16,9 +16,7 @@
  * 由配置决定下哪一套，缓存的构建期常量会让切换停在旧语言。
  */
 
-import { readFileSync, readdirSync } from 'node:fs'
-import { dirname, join } from 'node:path'
-import { parse as parseYaml } from 'yaml'
+import { readFileSync } from 'node:fs'
 import { Remote, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 import type { Context } from '@deepseek-ai/cordis'
 import type { PriorityReport } from './ponytail-priority.js'
