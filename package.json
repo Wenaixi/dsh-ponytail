@@ -76,15 +76,24 @@
     "dsh",
     "dsh-plugin",
     "deepseek-harness",
+    "deepseek",
+    "cordis",
     "ponytail",
     "yagni",
     "skills",
     "agent-skills",
     "lazy",
-    "over-engineering"
+    "over-engineering",
+    "code-review",
+    "prompt-caching",
+    "kv-cache",
+    "prompt-engineering",
+    "ai-agents",
+    "developer-tools"
   ],
   "engines": {
-    "node": ">=18"
+    "node": ">=20",
+    "pnpm": ">=11"
   },
   "publishConfig": {
     "access": "public"

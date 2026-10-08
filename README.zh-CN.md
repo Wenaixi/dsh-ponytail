@@ -5,8 +5,8 @@
 [![npm](https://img.shields.io/npm/v/@wenaixi%2Fdsh-ponytail?label=npm&color=CB3837)](https://www.npmjs.com/package/@wenaixi/dsh-ponytail)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](./LICENSE)
 [![DSH](https://img.shields.io/badge/DSH-Plugin-7c3aed)](https://github.com/deepseek-ai/deepseek-harness)
-[![Node](https://img.shields.io/badge/node-%3E%3D18-5FA04E)](https://nodejs.org)
-[![pnpm](https://img.shields.io/badge/pnpm-%3E%3D9-F69220)](https://pnpm.io)
+[![Node](https://img.shields.io/badge/node-%3E%3D20-5FA04E)](https://nodejs.org)
+[![pnpm](https://img.shields.io/badge/pnpm-%3E%3D11-F69220)](https://pnpm.io)
 
 <p align="center">
   <img src="./assets/logo.png" alt="@wenaixi/dsh-ponytail" width="128" height="128"><br/>
