@@ -125,3 +125,4 @@ MIT. Full text in [LICENSE](./LICENSE).
 
 - Upstream [DietrichGebert/ponytail](https://github.com/DietrichGebert/ponytail) by [Dietrich Gebert](https://github.com/DietrichGebert), also MIT licensed
 - [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) for the plugin architecture and runtime
+- [dsh-plugin-dev](https://github.com/Wenaixi/dsh-plugin-dev) for DSH plugin development patterns and architectural guidelines

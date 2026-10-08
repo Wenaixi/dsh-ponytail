@@ -123,3 +123,4 @@ MIT，详见 [LICENSE](./LICENSE)。
 
 - 上游 [DietrichGebert/ponytail](https://github.com/DietrichGebert/ponytail)，作者 [Dietrich Gebert](https://github.com/DietrichGebert)，同为 MIT 协议
 - [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的插件架构与运行底座
+- [dsh-plugin-dev](https://github.com/Wenaixi/dsh-plugin-dev) 提供的 DSH 插件开发架构规范与权威开发指南
