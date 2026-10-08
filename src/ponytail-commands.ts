@@ -1,9 +1,11 @@
+import { randomUUID } from 'node:crypto'
 import type { PonytailState } from './ponytail-state.js'
 import {
   getDefaultMode,
   writeDefaultMode,
   type RuntimeMode,
 } from './ponytail-config.js'
+import { renderModeUpdate } from './ponytail-instructions.js'
 
 /**
  * 仅当整句为该命令时失活，避免 "add a normal mode toggle" 误触发
@@ -212,5 +214,123 @@ export function createCommandDispatcher(env: CommandDispatcherEnv): CommandDispa
       const text = extractText(messages)
       return text ? dispatchText(text, sessionId) : { handled: false, switched: false }
     },
+  }
+}
+
+/** 统一从多层级宿主上下文对象中安全提取会话 ID */
+export function resolveSessionId(target: unknown): string | undefined {
+  const t = target as {
+    agent?: { session?: { id?: string } }
+    scope?: { session?: { id?: string } }
+    session?: { id?: string }
+  } | undefined
+  return t?.agent?.session?.id ?? t?.scope?.session?.id ?? t?.session?.id
+}
+
+export interface TurnCoordinatorEnv extends CommandDispatcherEnv {
+  skillDir: string
+}
+
+export interface TurnCoordinator {
+  handlePreStep(payload: unknown, next: () => Promise<unknown>): Promise<unknown>
+  handleSessionEvent(session: unknown, event: unknown): void
+}
+
+/**
+ * 轮次生命周期协作者深模块 (TurnCoordinator)
+ *
+ * 核心架构杠杆：
+ * 将用户指令解析、会话状态机流转、宿主 waterfall 穿透、变动对比、
+ * <system-reminder> 瞬态提醒构造、单轮原地替换与已发射标记回写完整内聚于此。
+ *
+ * 严守 6 大不变量：
+ * 1. Waterfall 不断链（异常捕获并穿透）；
+ * 2. KV Cache 保护（顶层基线不可变，所有动态变动收敛在当前轮次尾部）；
+ * 3. 单通知幂等（同轮重试时原地替换，绝不重复 push）；
+ * 4. 发射标记收敛时机（仅在 downstream.kind === 'enter' 后标记已发射）；
+ * 5. 多会话隔离（基于 sessionId 独立闭环）；
+ * 6. 纯命令只读安全（裸 /ponytail 无副作用）。
+ */
+export function createTurnCoordinator(env: TurnCoordinatorEnv): TurnCoordinator {
+  const dispatcher = createCommandDispatcher(env)
+
+  async function handlePreStep(payload: unknown, next: () => Promise<unknown>): Promise<unknown> {
+    const raw = payload as { messages?: unknown } | undefined
+    const sessionId = resolveSessionId(payload)
+
+    // 1. 尝试解析并分发指令
+    try {
+      if (raw?.messages) {
+        dispatcher.dispatchMessages(raw.messages, sessionId)
+      }
+    } catch (err: unknown) {
+      env.logger.warn?.(`[ponytail] agent/pre-step 处理失败（仍会调用 next()，不拦截请求）：${String(err)}`)
+    }
+
+    // 2. 必须且只能穿透下游 waterfall（断链守卫）
+    const downstream = (await next()) as { kind: string; messages: unknown[] } | unknown
+    if (!downstream || typeof downstream !== 'object' || (downstream as { kind?: string }).kind !== 'enter') {
+      return downstream
+    }
+
+    const decision = downstream as { kind: string; messages: unknown[] }
+    const sessionState = env.state.getSession(sessionId)
+
+    // 3. 变动检测（Change Detection 保护 KV 缓存幂等性）
+    if (sessionState.effectiveMode !== sessionState.lastEmittedMode) {
+      const noticeText = renderModeUpdate(
+        sessionState.effectiveMode,
+        sessionState.lastEmittedMode,
+        env.skillDir,
+      )
+      const updateMsg = {
+        id: randomUUID(),
+        role: 'user',
+        content: [{ type: 'text', text: noticeText }],
+        source: {
+          kind: 'ponytail-mode-update',
+          mode: sessionState.effectiveMode,
+          previousMode: sessionState.lastEmittedMode,
+        },
+      }
+
+      // 4. 标记已发射（严守收敛时机不变量）
+      env.state.markSessionEmitted(sessionId, sessionState.effectiveMode)
+
+      // 5. 原地替换或追加（严守单通知幂等不变量，对齐 dsh-tool-skill）
+      const msgs = Array.isArray(decision.messages) ? [...decision.messages] : []
+      const existingIdx = msgs.findIndex(
+        (m: unknown) =>
+          Boolean(m && typeof m === 'object' && (m as { source?: { kind?: string } }).source?.kind === 'ponytail-mode-update'),
+      )
+      if (existingIdx !== -1) {
+        msgs[existingIdx] = updateMsg
+      } else {
+        msgs.push(updateMsg)
+      }
+
+      return {
+        ...decision,
+        messages: msgs,
+      }
+    }
+
+    return decision
+  }
+
+  function handleSessionEvent(session: unknown, event: unknown): void {
+    try {
+      const ev = event as { type: string; data?: { content?: unknown } } | undefined
+      if (ev?.type !== 'user/message') return
+      const sessionId = (session as { id?: string })?.id
+      dispatcher.dispatchContent(ev.data?.content, sessionId)
+    } catch (err: unknown) {
+      env.logger.warn?.(`[ponytail] session/event 处理失败：${String(err)}`)
+    }
+  }
+
+  return {
+    handlePreStep,
+    handleSessionEvent,
   }
 }

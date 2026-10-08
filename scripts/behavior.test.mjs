@@ -13,7 +13,7 @@ const clearMode = () => flagStore.clear()
 import assert from 'node:assert/strict'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { parsePonytailCommand, createCommandDispatcher, extractTextFromContent, extractText } from '../lib/ponytail-commands.js'
+import { parsePonytailCommand, createCommandDispatcher, createTurnCoordinator, extractTextFromContent, extractText } from '../lib/ponytail-commands.js'
 import { render, renderPromptSection } from '../lib/ponytail-instructions.js'
 import { apply, Config as ConfigSchema } from '../lib/ponytail.js'
 import {
@@ -2117,4 +2117,60 @@ test('C26 原地替换: agent/pre-step 在同轮消息流中已有未提交更�
   // 关键断言：消息数依然是 1 条（原地替换更新），绝不无脑 push 变成 2 条！
   assert.equal(step2.messages.length, 1, '同轮消息流中存在旧更新通知时必须原地替换，保持单条')
   assert.equal(step2.messages[0].source.mode, 'lite', '原地替换后内容更新为最新档位')
+})
+
+test('C27 TurnCoordinator深模块: handlePreStep 端到端拦截、变动检测注入与非enter透传契约', async () => {
+  const state = createPonytailState()
+  state.set('full')
+  const coordinator = createTurnCoordinator({
+    state,
+    skillDir,
+    logger: { info: () => {}, warn: () => {}, debug: () => {} },
+  })
+
+  const sessionTarget = { session: { id: 'turn-coord-sess' } }
+
+  // 1. 验证正常切档轮次拦截：输入 /ponytail ultra，下游返回 enter 决策
+  const step1 = await coordinator.handlePreStep(
+    { messages: [{ content: '/ponytail ultra' }], agent: sessionTarget },
+    async () => ({ kind: 'enter', messages: [{ role: 'user', content: 'hello' }] })
+  )
+  assert.equal(step1.kind, 'enter')
+  assert.equal(step1.messages.length, 2, '应包含原消息与增量模式通知')
+  const updateMsg = step1.messages[1]
+  assert.equal(updateMsg.source.kind, 'ponytail-mode-update')
+  assert.equal(updateMsg.source.mode, 'ultra')
+
+  // 2. 验证后续未切档轮次：无重复通知注入（幂等性）
+  const step2 = await coordinator.handlePreStep(
+    { messages: [{ content: 'just a normal query' }], agent: sessionTarget },
+    async () => ({ kind: 'enter', messages: [{ role: 'user', content: 'query' }] })
+  )
+  assert.equal(step2.messages.length, 1, '后续轮次不再注入通知，保护 KV 缓存')
+
+  // 3. 验证非 enter 决策（如 cancel）：原样透传且不触发已发射状态漂移
+  const stepCancel = await coordinator.handlePreStep(
+    { messages: [{ content: '/ponytail lite' }], agent: sessionTarget },
+    async () => ({ kind: 'cancel', reason: 'user cancelled' })
+  )
+  assert.equal(stepCancel.kind, 'cancel')
+})
+
+test('C28 TurnCoordinator深模块: handleSessionEvent 兜底通道正确分发外部直接投递消息', () => {
+  const state = createPonytailState()
+  state.set('full')
+  const coordinator = createTurnCoordinator({
+    state,
+    skillDir,
+    logger: { info: () => {}, warn: () => {}, debug: () => {} },
+  })
+
+  // 模拟宿主通过 session/event 投递 user/message
+  coordinator.handleSessionEvent(
+    { id: 'turn-coord-event-sess' },
+    { type: 'user/message', data: { content: '/ponytail lite' } }
+  )
+
+  const sess = state.getSession('turn-coord-event-sess')
+  assert.equal(sess.effectiveMode, 'lite', 'handleSessionEvent 应正确更新会话生效模式')
 })

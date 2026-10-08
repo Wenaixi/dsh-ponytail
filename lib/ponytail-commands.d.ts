@@ -60,4 +60,29 @@ export interface CommandDispatcher {
  * 支持可选的 sessionId 会话作用域，实现多会话模式隔离与零缓存破坏调度
  */
 export declare function createCommandDispatcher(env: CommandDispatcherEnv): CommandDispatcher;
+/** 统一从多层级宿主上下文对象中安全提取会话 ID */
+export declare function resolveSessionId(target: unknown): string | undefined;
+export interface TurnCoordinatorEnv extends CommandDispatcherEnv {
+    skillDir: string;
+}
+export interface TurnCoordinator {
+    handlePreStep(payload: unknown, next: () => Promise<unknown>): Promise<unknown>;
+    handleSessionEvent(session: unknown, event: unknown): void;
+}
+/**
+ * 轮次生命周期协作者深模块 (TurnCoordinator)
+ *
+ * 核心架构杠杆：
+ * 将用户指令解析、会话状态机流转、宿主 waterfall 穿透、变动对比、
+ * <system-reminder> 瞬态提醒构造、单轮原地替换与已发射标记回写完整内聚于此。
+ *
+ * 严守 6 大不变量：
+ * 1. Waterfall 不断链（异常捕获并穿透）；
+ * 2. KV Cache 保护（顶层基线不可变，所有动态变动收敛在当前轮次尾部）；
+ * 3. 单通知幂等（同轮重试时原地替换，绝不重复 push）；
+ * 4. 发射标记收敛时机（仅在 downstream.kind === 'enter' 后标记已发射）；
+ * 5. 多会话隔离（基于 sessionId 独立闭环）；
+ * 6. 纯命令只读安全（裸 /ponytail 无副作用）。
+ */
+export declare function createTurnCoordinator(env: TurnCoordinatorEnv): TurnCoordinator;
 //# sourceMappingURL=ponytail-commands.d.ts.map
