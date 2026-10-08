@@ -110,8 +110,9 @@ export function renderModeUpdate(
   previousMode: string | null = null,
   skillDir?: string,
 ): string {
+  const prev = previousMode ? ` (superseding previous level: ${previousMode})` : ''
+
   if (!newMode || newMode === 'off') {
-    const prev = previousMode ? ` (superseding previous level: ${previousMode})` : ''
     return [
       '<system-reminder>',
       `Ponytail mode has been switched OFF${prev}.`,
@@ -120,7 +121,6 @@ export function renderModeUpdate(
     ].join('\n')
   }
 
-  const prev = previousMode ? ` (superseding previous level: ${previousMode})` : ''
   const upper = newMode.toUpperCase()
   const body = skillDir ? render(skillDir, newMode) : getFallbackInstructions(newMode)
 

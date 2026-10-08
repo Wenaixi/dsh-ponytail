@@ -92,6 +92,16 @@ function resolveDefaultSkillDir(configSkillDir?: string): string {
   }
 }
 
+/** 统一从多层级宿主上下文对象中安全提取会话 ID（消除消息链坏味与多处重复钻取） */
+function resolveSessionId(target: unknown): string | undefined {
+  const t = target as {
+    agent?: { session?: { id?: string } }
+    scope?: { session?: { id?: string } }
+    session?: { id?: string }
+  } | undefined
+  return t?.agent?.session?.id ?? t?.scope?.session?.id ?? t?.session?.id
+}
+
 /**
  * 读一个可能不存在、且未在 inject 里声明的服务。
  *
@@ -409,11 +419,7 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
         // ignore
       }
       state.syncFromFile()
-      const rawCtx = context as {
-        agent?: { session?: { id?: string } }
-        scope?: { session?: { id?: string } }
-      } | undefined
-      const sessionTarget = rawCtx?.agent?.session?.id ?? rawCtx?.scope?.session?.id
+      const sessionTarget = resolveSessionId(context)
       if (sessionTarget) {
         // 具名会话：锁定初始基线 baselineMode，绝不随切档变动，100% 保护会话前缀缓存
         const sessionState = state.getSession(sessionTarget)
@@ -453,15 +459,8 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
   anyCtx.on(
     'agent/pre-step',
     async (...args: unknown[]) => {
-      const [payload, next] = args as [
-        {
-          messages?: unknown
-          agent?: { session?: { id?: string } }
-          scope?: { session?: { id?: string } }
-        },
-        () => Promise<unknown>,
-      ]
-      const sessionId = payload?.agent?.session?.id ?? payload?.scope?.session?.id
+      const [payload, next] = args as [{ messages?: unknown }, () => Promise<unknown>]
+      const sessionId = resolveSessionId(payload)
       try {
         dispatcher.dispatchMessages(payload?.messages, sessionId)
       } catch (err: unknown) {

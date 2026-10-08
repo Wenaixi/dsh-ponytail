@@ -17,7 +17,7 @@
 
 import { mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
-import { normalizeMode, getConfigDir } from './ponytail-config.js'
+import { normalizeMode, getConfigDir, type RuntimeMode } from './ponytail-config.js'
 import { createFileSink, type PonytailConfigSink } from './ponytail-settings.js'
 
 /**
@@ -42,7 +42,7 @@ export interface PonytailStateOptions {
 export interface SessionModeState {
   sessionId: string
   baselineMode: string          // 会话诞生时锁定的初始基线（SystemPrompt 专属，终身静态不变）
-  effectiveMode: string | null  // 当前会话实际生效模式（null 表示 off）
+  effectiveMode: string | null  // 当前会话实际生效模式（含 review 独立模式，null 表示 off）
   lastEmittedMode: string | null // 历史中最后一次向模型发射的模式（用于变动检测）
   explicitlySet?: boolean       // 用户是否在该会话内通过命令显式指定过模式（防全局配置覆盖）
 }
