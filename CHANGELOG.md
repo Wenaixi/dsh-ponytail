@@ -6,10 +6,23 @@
   - 顶层 SystemPrompt（`order: 50`）在会话生命周期内绝对锁定初始 `baselineMode`，会话期间前缀文本逐字节完全恒定，100% 保护历史 KV Cache / Prompt Cache 命中率；
   - 模式切换（会话内命令切档或全局默认档变更）统一通过 `agent/pre-step` 瀑布流拦截点在当前最新轮次用户消息末尾追加一次带有 `<system-reminder>` 的更新通知（`renderModeUpdate`），后续未切档轮次幂等稳定，绝不重复追加；
   - 状态管理器引入 `SessionModeState`，支持访问序 LRU 淘汰（上限 100 会话）与 `explicitlySet` 显式设置意图守卫，全局修改不覆盖用户显式锁定的会话，新会话以新全局档纯净启动。
+- 轮次拦截生命周期深模块 `TurnCoordinator`（ADR-0013）：
+  - 完整封装消息纯文本提取、指令语法解析、下游 waterfall 穿透、变动对比、原地替换/追加与发射标记落盘 7 步调用流；
+  - 严格捍卫不断链、KV Cache 零破坏、单通知幂等、发射标记收敛时机、多会话隔离与只读安全 6 大不变量；
+  - 宿主入口 `src/ponytail.ts` 消除 90+ 行底层消息拼接胶水代码，大幅提升 Locality 与 Leverage。
+- 提示词引擎唯一生产出口收敛 `renderPromptSection`（ADR-0013）：
+  - 扩展方法签名，在模块内部自洽接管会话基线锁定与无会话降级判定，修复名存实亡的单出口裂痕；
+  - 坚决杜绝类内部内存模板缓存，严守 ADR-0003 同步直读铁律。
+- 存储适配器全虚拟化 `StateStorageAdapter`（ADR-0013）：
+  - 扩展 `PonytailStorage` 契约，支持会话状态持久化映射解耦；
+  - 导出 `createMemoryStorage` 纯内存适配器，使单元测试物理零触碰磁盘，彻底消除测试脏文件残留与并发竞争。
+- 行为测试套件扩充至 **107 项全绿**：
+  - 新增 C27（TurnCoordinator 端到端拦截与幂等性）、C28（会话事件兜底通道）与 C29（内存存储适配器纯内存隔离）回归锁。
 
 ### Fixed
 
 - 技能描述语言控件的「跟随宿主（自动）」段改为常驻：此前该段按「补丁是否已写 `skillDescriptionLang`」条件追加，用户手动锁过一次中文或英文后该段消失，无法再切回跟随宿主，只能在中英之间横跳。「跟随宿主」是三态之一而非一次性占位选项，因此三段恒定、选中值只反映配置态。
+- 清理 `src/ponytail-remote.ts` 与 `src/ponytail.ts` 中的死导入（`readdirSync`、`dirname`、`join`、`parseYaml`），精简依赖树。
 
 ## [5.3.2] - 2026-10-06
 
