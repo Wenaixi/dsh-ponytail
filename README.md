@@ -115,14 +115,12 @@ dsh --profile web --patch ./cordis.patch.yml --dump-config  # Verify patch parsi
 pnpm dsh web --patch ./cordis.patch.yml   # Hot reload dev runner
 ```
 
-Local releases follow standard SemVer. Releases are triggered exclusively via git tags in CI. Push and tag operations require explicit authorization.
-
 ## License
 
 MIT. Full text in [LICENSE](./LICENSE).
 
 ## Credits
 
-- Upstream [DietrichGebert/ponytail](https://github.com/DietrichGebert/ponytail) by [Dietrich Gebert](https://github.com/DietrichGebert), also MIT licensed
+- Upstream [DietrichGebert/ponytail](https://github.com/DietrichGebert/ponytail)
 - [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) for the plugin architecture and runtime
 - [dsh-plugin-dev](https://github.com/Wenaixi/dsh-plugin-dev) for DSH plugin development patterns and architectural guidelines
