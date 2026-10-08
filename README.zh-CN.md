@@ -36,10 +36,6 @@ dsh plugin --profile web remove @wenaixi/dsh-ponytail
 dsh --profile web --dump-config | grep -A2 ponytail
 ```
 
-`WARN missing peer @deepseek-ai/...` 是正常的，peer 由 DSH 运行时提供。看到 `Packages: +2 Done` 就是装好了。
-
-安装完成后等待 2 至 3 秒（文件监听器防抖期），在浏览器中刷新页面即可使用。无需手动编辑 `cordis.patch.yml`。
-
 ## 用法
 
 ```
@@ -119,6 +115,11 @@ pnpm dsh web --patch ./cordis.patch.yml   # 热重载联调
 
 本地版本用独立的标准 SemVer，发布只走 tag 触发的 CI。严禁本地 `npm publish`。
 
-## 许可
+## 协议
 
-[MIT](LICENSE)，原作 DietrichGebert，移植 Wenaixi。上游仓库 https://github.com/DietrichGebert/ponytail
+MIT，详见 [LICENSE](./LICENSE)。
+
+## 致谢
+
+- 上游 [DietrichGebert/ponytail](https://github.com/DietrichGebert/ponytail)，作者 [Dietrich Gebert](https://github.com/DietrichGebert)，同为 MIT 协议
+- [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的插件架构与运行底座

@@ -36,10 +36,6 @@ dsh plugin --profile web remove @wenaixi/dsh-ponytail
 dsh --profile web --dump-config | grep -A2 ponytail
 ```
 
-`WARN missing peer @deepseek-ai/...` warnings are normal; peer dependencies are provided by the DSH host runtime. Seeing `Packages: +2 Done` indicates a successful install.
-
-After running the install command, wait 2–3 seconds for the file watcher debounce period (Chokidar `awaitWriteFinish: true`), then refresh your browser. Manual editing of `cordis.patch.yml` is neither required nor recommended.
-
 ## Usage
 
 ```
@@ -123,4 +119,9 @@ Local releases follow standard SemVer. Releases are triggered exclusively via gi
 
 ## License
 
-[MIT](LICENSE), original by DietrichGebert, DSH port by Wenaixi. Upstream repository: https://github.com/DietrichGebert/ponytail
+MIT. Full text in [LICENSE](./LICENSE).
+
+## Credits
+
+- Upstream [DietrichGebert/ponytail](https://github.com/DietrichGebert/ponytail) by [Dietrich Gebert](https://github.com/DietrichGebert), also MIT licensed
+- [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) for the plugin architecture and runtime
