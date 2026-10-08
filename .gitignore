@@ -1,31 +1,40 @@
-# 依赖与构建产物
+# 依赖与打包临时产物（注意：lib/ 已提交到 Git，保证 GitHub 直装无需现场构建）
 node_modules/
 dist/
 build/
 *.tgz
 *.tar.gz
 *.tsbuildinfo
-# 注意：lib/ 已提交到 Git，保证 GitHub 直装无需构建
+
+# 本地项目记忆库（本地宪法，不随版本发布）
+CLAUDE.md
 
 # 环境与敏感凭证
 .env
 .env.*
 !.env.example
 *.local
+*.local.json
+*.local.yml
+*.local.yaml
 
 # DSH 与本地运行时隔离
 .DSH_HOME/
 .dsh/
 .dsh-vision-toolkit/
 profiles/
+.worktrees/
+.private-journal/
 undefined/
 
-# 本地记忆与 AI 工具配置（不入库）
-CLAUDE.md
+# 本地 AI 工具与工作区配置
 .claude/
 .agents/
 .cursor/
 .windsurf/
+.superpowers/
+.local/
+.local-pack/
 
 # 系统与编辑器缓存
 .DS_Store
@@ -41,6 +50,10 @@ desktop.ini
 *.swp
 *.swo
 *~
+*.orig
+*.rej
+*.bak
+.history/
 
 # 日志与临时文件
 logs/
@@ -52,11 +65,16 @@ yarn-error.log*
 .pnpm-debug.log*
 tmp/
 temp/
-coverage/
-.nyc_output/
 .cache/
 
-# Superpowers SDD 执行工作区与本地调试包（不入库）
-.superpowers/
-.local/
-.local-pack/
+# 测试产物、覆盖率与浏览器真机验收截图（不入库）
+test-artifacts/
+.verify-shots/
+test-results/
+playwright-report/
+blob-report/
+.playwright/
+coverage/
+.nyc_output/
+junit.xml
+reports/
