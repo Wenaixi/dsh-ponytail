@@ -1,8 +1,7 @@
 import { before, after, test } from 'node:test'
 import os from 'node:os'
 import path from 'node:path'
-import { createPonytailState } from '../lib/ponytail-state.js'
-import { createDiskStorage } from '../lib/ponytail-state.js'
+import { createPonytailState, createDiskStorage, createMemoryStorage } from '../lib/ponytail-state.js'
 
 // flag 存取现按 profile 维度（1A 下沉）；测试里的「默认存储」即无 profile 目录那份，
 // 落点仍是测试隔离出来的临时 DSH_HOME/ponytail/.ponytail-active。
@@ -2173,4 +2172,23 @@ test('C28 TurnCoordinator深模块: handleSessionEvent 兜底通道正确分发�
 
   const sess = state.getSession('turn-coord-event-sess')
   assert.equal(sess.effectiveMode, 'lite', 'handleSessionEvent 应正确更新会话生效模式')
+})
+
+test('C29 内存存储隔离: createMemoryStorage 支撑跨实例会话基线持久化且物理零磁盘触碰', async () => {
+  const { createMemoryStorage, createPonytailState } = await import('../lib/ponytail-state.js')
+  const memStore = createMemoryStorage()
+  
+  // 第 1 实例：绑定基线为 ultra
+  const state1 = createPonytailState({ storage: memStore })
+  state1.set('ultra')
+  const s1 = state1.getSession('sess-mem-1')
+  assert.equal(s1.baselineMode, 'ultra')
+
+  // 全局修改为 lite
+  state1.set('lite')
+
+  // 第 2 实例：使用同一个 memStore，模拟重启后新状态机实例恢复
+  const state2 = createPonytailState({ storage: memStore })
+  const s2 = state2.getSession('sess-mem-1')
+  assert.equal(s2.baselineMode, 'ultra', '新实例应通过 memoryStorage 纯内存适配器恢复基线 ultra，杜绝物理磁盘硬编码！')
 })

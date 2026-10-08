@@ -27,6 +27,10 @@ export interface PonytailStorage {
   read(): string | null
   write(mode: string): void
   clear(): void
+  /** 可选：读取会话状态持久化映射（解耦物理磁盘，支持测试纯内存隔离） */
+  readSessions?(): Record<string, SessionModeState>
+  /** 可选：写入会话状态持久化映射（解耦物理磁盘，支持测试纯内存隔离） */
+  writeSessions?(sessions: Record<string, SessionModeState>): void
 }
 
 export interface PonytailStateOptions {
@@ -87,6 +91,7 @@ const STATE_FILE = '.ponytail-active'
 
 export function createDiskStorage(profileDir?: string): PonytailStorage {
   const statePath = (): string => join(getConfigDir(profileDir), STATE_FILE);
+  const sessionStatesPath = (): string => join(getConfigDir(profileDir), 'session-states.json');
   return {
     read: () => {
       try {
@@ -106,7 +111,39 @@ export function createDiskStorage(profileDir?: string): PonytailStorage {
         // ignore
       }
     },
+    readSessions: () => {
+      try {
+        const raw = readFileSync(sessionStatesPath(), 'utf8')
+        return JSON.parse(raw)
+      } catch {
+        return {}
+      }
+    },
+    writeSessions: (sessions) => {
+      try {
+        mkdirSync(dirname(sessionStatesPath()), { recursive: true })
+        writeFileSync(sessionStatesPath(), JSON.stringify(sessions, null, 2), 'utf8')
+      } catch {
+        // best-effort：文件写失败不阻断内存与会话
+      }
+    },
   };
+}
+
+/** 纯内存存储适配器（用于单测与沙箱隔离，物理零磁盘触碰） */
+export function createMemoryStorage(initialMode: string | null = null): PonytailStorage {
+  let mode = initialMode
+  const sessions: Record<string, SessionModeState> = {}
+  return {
+    read: () => mode,
+    write: (m) => { mode = m },
+    clear: () => { mode = null },
+    readSessions: () => JSON.parse(JSON.stringify(sessions)),
+    writeSessions: (data) => {
+      for (const k of Object.keys(sessions)) delete sessions[k]
+      Object.assign(sessions, JSON.parse(JSON.stringify(data)))
+    },
+  }
 }
 
 const DEFAULT_SESSION_ID = '__default__'
@@ -118,13 +155,12 @@ export function createPonytailState(options?: PonytailStateOptions): PonytailSta
   const sink = options?.sink ?? createFileSink(options?.profileDir)
   let disabledSkills = new Set<string>(sink.readDisabled())
 
-  const profileDir = options?.profileDir
-  const sessionStatesPath = (): string => join(getConfigDir(profileDir), 'session-states.json')
-
   function loadPersistedSessions(): Record<string, SessionModeState> {
     try {
-      const raw = readFileSync(sessionStatesPath(), 'utf8')
-      return JSON.parse(raw)
+      if (typeof storage.readSessions === 'function') {
+        return storage.readSessions() ?? {}
+      }
+      return {}
     } catch {
       return {}
     }
@@ -136,10 +172,11 @@ export function createPonytailState(options?: PonytailStateOptions): PonytailSta
       for (const [k, v] of map.entries()) {
         if (k !== DEFAULT_SESSION_ID) obj[k] = v
       }
-      mkdirSync(dirname(sessionStatesPath()), { recursive: true })
-      writeFileSync(sessionStatesPath(), JSON.stringify(obj, null, 2), 'utf8')
+      if (typeof storage.writeSessions === 'function') {
+        storage.writeSessions(obj)
+      }
     } catch {
-      // best-effort：文件写失败不阻断内存与会话
+      // best-effort：存储写失败不阻断内存与会话
     }
   }
 

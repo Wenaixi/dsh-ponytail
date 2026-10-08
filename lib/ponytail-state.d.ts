@@ -22,6 +22,10 @@ export interface PonytailStorage {
     read(): string | null;
     write(mode: string): void;
     clear(): void;
+    /** 可选：读取会话状态持久化映射（解耦物理磁盘，支持测试纯内存隔离） */
+    readSessions?(): Record<string, SessionModeState>;
+    /** 可选：写入会话状态持久化映射（解耦物理磁盘，支持测试纯内存隔离） */
+    writeSessions?(sessions: Record<string, SessionModeState>): void;
 }
 export interface PonytailStateOptions {
     /** 可选注入的存储适配器；缺省时使用内联的 DSH 配置目录磁盘实现（flag 存取已并入本模块） */
@@ -74,6 +78,8 @@ export interface PonytailState {
     syncGlobalModeToSessions(newDefaultMode: string): void;
 }
 export declare function createDiskStorage(profileDir?: string): PonytailStorage;
+/** 纯内存存储适配器（用于单测与沙箱隔离，物理零磁盘触碰） */
+export declare function createMemoryStorage(initialMode?: string | null): PonytailStorage;
 export declare function createPonytailState(options?: PonytailStateOptions): PonytailState;
 /**
  * 纯函数守卫：「禁用主技能 ponytail → 关闭运行等级」业务规则的唯一实现。
