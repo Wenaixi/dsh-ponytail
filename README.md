@@ -22,7 +22,7 @@
   <a href="https://www.npmjs.com/package/@wenaixi/dsh-ponytail">npm</a>
 </p>
 
-An always-on plugin for DeepSeek Harness (DSH): injects the 7-rung ladder directly into system prompts, provides 6 specialized skills, and registers zero tools. Ported from and inspired by [DietrichGebert/ponytail](https://github.com/DietrichGebert/ponytail). Local releases are maintained independently (独立维护) with decoupled versioning (ADR-0010).
+An always-on plugin for DeepSeek Harness (DSH): injects the 7-rung ladder directly into system prompts, provides 6 specialized skills, and registers zero tools. Ported from and inspired by [DietrichGebert/ponytail](https://github.com/DietrichGebert/ponytail). Local releases are maintained independently with decoupled versioning (ADR-0010).
 
 ## Installation
 
@@ -127,7 +127,7 @@ The six hooks from upstream `hooks/` are consolidated into a single DSH Cordis p
 | Upstream | DSH Implementation |
 | --- | --- |
 | `ponytail-config.js` | `src/ponytail-config.ts` |
-| `ponytail-instructions.js` | `src/ponytail-instructions.ts` (single出口 `renderPromptSection`) |
+| `ponytail-instructions.js` | `src/ponytail-instructions.ts` (single entrypoint `renderPromptSection`) |
 | `ponytail-state.js` | `src/ponytail-state.ts` (flag file I/O, session baseline manager, reload) |
 | `ponytail-activate.js` | `src/ponytail.ts` (`agent/created` hook) |
 | `ponytail-mode-tracker.js` | `src/ponytail-commands.ts` (`createCommandDispatcher`) |

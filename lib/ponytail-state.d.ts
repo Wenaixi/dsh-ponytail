@@ -31,6 +31,8 @@ export interface PonytailStateOptions {
      * 有 settings 服务的组合由 apply 注入 settings 实现（写入落 profile 补丁）。
      */
     sink?: PonytailConfigSink;
+    /** profile 目录路径（由宿主 profileContext.dir 传入，用于会话状态持久化） */
+    profileDir?: string;
 }
 export interface SessionModeState {
     sessionId: string;

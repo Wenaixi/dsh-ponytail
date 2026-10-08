@@ -11,10 +11,14 @@ const failures = []
 if (!/^\d+\.\d+\.\d+$/.test(pkg.version)) failures.push('package.json.version 必须是本地标准 SemVer')
 
 // README 不承载版本对照（ADR-0010）：版本号散落在多处必然漂移，npm 页面也不需要核验日期。
-// 这里只锁两件事：README 仍说出「独立维护」这一定性策略，且仍指向上游仓库。
+// 这里锁两件事：README 仍说出「独立维护 / maintained independently」定性策略，且指向上游仓库。
 const readme = await read('README.md')
-for (const text of ['独立维护', 'https://github.com/DietrichGebert/ponytail']) {
+const readmeZh = await read('README.zh-CN.md').catch(() => '')
+for (const text of ['https://github.com/DietrichGebert/ponytail']) {
   if (!readme.includes(text)) failures.push('README 缺少：' + text)
+}
+if (!readme.includes('maintained independently') && !readmeZh.includes('独立维护')) {
+  failures.push('README 缺少独立维护策略说明')
 }
 if (readme.includes('bump:dsh')) failures.push('README 仍包含已废弃的 bump:dsh')
 

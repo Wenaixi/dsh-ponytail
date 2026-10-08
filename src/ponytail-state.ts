@@ -37,6 +37,8 @@ export interface PonytailStateOptions {
    * 有 settings 服务的组合由 apply 注入 settings 实现（写入落 profile 补丁）。
    */
   sink?: PonytailConfigSink
+  /** profile 目录路径（由宿主 profileContext.dir 传入，用于会话状态持久化） */
+  profileDir?: string
 }
 
 export interface SessionModeState {
@@ -110,13 +112,38 @@ export function createDiskStorage(profileDir?: string): PonytailStorage {
 const DEFAULT_SESSION_ID = '__default__'
 
 export function createPonytailState(options?: PonytailStateOptions): PonytailState {
-  const storage = options?.storage ?? createDiskStorage()
+  const storage = options?.storage ?? createDiskStorage(options?.profileDir)
   let current: string | null = null
 
-  const sink = options?.sink ?? createFileSink()
+  const sink = options?.sink ?? createFileSink(options?.profileDir)
   let disabledSkills = new Set<string>(sink.readDisabled())
 
-  // 会话隔离状态表（带 LRU 上限防泄漏）
+  const profileDir = options?.profileDir
+  const sessionStatesPath = (): string => join(getConfigDir(profileDir), 'session-states.json')
+
+  function loadPersistedSessions(): Record<string, SessionModeState> {
+    try {
+      const raw = readFileSync(sessionStatesPath(), 'utf8')
+      return JSON.parse(raw)
+    } catch {
+      return {}
+    }
+  }
+
+  function savePersistedSessions(map: Map<string, SessionModeState>): void {
+    try {
+      const obj: Record<string, SessionModeState> = {}
+      for (const [k, v] of map.entries()) {
+        if (k !== DEFAULT_SESSION_ID) obj[k] = v
+      }
+      mkdirSync(dirname(sessionStatesPath()), { recursive: true })
+      writeFileSync(sessionStatesPath(), JSON.stringify(obj, null, 2), 'utf8')
+    } catch {
+      // best-effort：文件写失败不阻断内存与会话
+    }
+  }
+
+  // 会话隔离状态表（带 LRU 上限防泄漏与持久化备份恢复）
   const sessions = new Map<string, SessionModeState>()
   const MAX_SESSIONS = 100
 
@@ -214,6 +241,17 @@ export function createPonytailState(options?: PonytailStateOptions): PonytailSta
         sessions.set(key, state)
         return state
       }
+
+      // 跨进程重启 / LRU 淘汰唤醒保护：优先从 Profile 磁盘恢复历史基线！
+      if (key !== DEFAULT_SESSION_ID) {
+        const persisted = loadPersistedSessions()[key]
+        if (persisted) {
+          state = persisted
+          sessions.set(key, state)
+          return state
+        }
+      }
+
       if (sessions.size >= MAX_SESSIONS) {
         // 循环找到首个非 DEFAULT_SESSION_ID 的项淘汰（彻底消除首键死锁）
         for (const k of sessions.keys()) {
@@ -223,7 +261,7 @@ export function createPonytailState(options?: PonytailStateOptions): PonytailSta
           }
         }
       }
-      // 新会话诞生：基线锁定为当前全局模式（或 full）
+      // 全新会话诞生：基线锁定为当前全局模式（或 full）
       const baseline = current ?? 'full'
       state = {
         sessionId: key,
@@ -233,6 +271,7 @@ export function createPonytailState(options?: PonytailStateOptions): PonytailSta
         explicitlySet: false,
       }
       sessions.set(key, state)
+      savePersistedSessions(sessions)
       return state
     },
 
@@ -242,6 +281,7 @@ export function createPonytailState(options?: PonytailStateOptions): PonytailSta
       const normalized = mode === 'off' ? null : normalizeMode(mode ?? '') ?? mode
       session.effectiveMode = normalized
       session.explicitlySet = true // 用户在该会话内显式输入过命令，标记保护
+      savePersistedSessions(sessions)
       if (key === DEFAULT_SESSION_ID) {
         current = normalized
         this.syncToFile()
@@ -252,6 +292,7 @@ export function createPonytailState(options?: PonytailStateOptions): PonytailSta
       const key = normalizeSessionKey(sessionId)
       const session = this.getSession(key)
       session.lastEmittedMode = mode === 'off' ? null : mode
+      savePersistedSessions(sessions)
     },
 
     syncGlobalModeToSessions(newDefaultMode: string): void {
@@ -266,6 +307,7 @@ export function createPonytailState(options?: PonytailStateOptions): PonytailSta
           session.effectiveMode = normalized
         }
       }
+      savePersistedSessions(sessions)
     },
   }
 }

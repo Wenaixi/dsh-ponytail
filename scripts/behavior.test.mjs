@@ -2062,3 +2062,59 @@ test('C24 双通道识别: scope.session.id 兜底通道能正确识别会话并
   const prompt = String(sectionFn(scopeTarget))
   assert.match(prompt, /active - level: full/, '通过 scope 通道也能正确读取基线')
 })
+
+test('C25 跨进程恢复: 重新唤醒会话时从磁盘 session-states.json 恢复历史基线（永久零缓存破坏）', async () => {
+  const { createPonytailState } = await import('../lib/ponytail-state.js')
+  const testProfile = path.join(os.tmpdir(), 'ponytail-persist-test-' + Date.now())
+  
+  // 模拟第一代进程：创建会话并绑定基线为 full
+  const state1 = createPonytailState({ profileDir: testProfile })
+  state1.set('full')
+  const sess1 = state1.getSession('sess-reboot-1')
+  assert.equal(sess1.baselineMode, 'full')
+
+  // 全局修改默认配置为 ultra（模拟外部配置已升级）
+  state1.set('ultra')
+
+  // 模拟第二代进程重启（创建全新的 state 实例，无旧内存缓存）
+  const state2 = createPonytailState({ profileDir: testProfile })
+  // 重新唤醒旧会话 sess-reboot-1
+  const sessRecovered = state2.getSession('sess-reboot-1')
+
+  // 关键断言：旧会话的 baselineMode 从磁盘文件完美恢复为 full，绝不被新的全局 ultra 篡改！
+  assert.equal(sessRecovered.baselineMode, 'full', '重启后旧会话的 baselineMode 必须从磁盘恢复，保证历史 KV Cache 永久稳固！')
+})
+
+test('C26 原地替换: agent/pre-step 在同轮消息流中已有未提交更新时原地替换，绝不重复追加', async () => {
+  const handlers = {}
+  const ctx = {
+    on: (ev, h) => { handlers[ev] = h },
+    effect: () => {},
+    logger: { info: () => {}, warn: () => {}, debug: () => {} },
+    skills: { registerProvider: () => () => {} },
+    systemPrompt: { section: () => () => {} },
+  }
+  apply(ctx, { defaultMode: 'full' })
+
+  const preStep = handlers['agent/pre-step']
+  const sessionTarget = { session: { id: 'sess-replace-2' } }
+
+  // 模拟第一步切档至 ultra
+  const step1 = await preStep(
+    { messages: [{ content: '/ponytail ultra' }], agent: sessionTarget },
+    async () => ({ kind: 'enter', messages: [] })
+  )
+  assert.equal(step1.messages.length, 1)
+  assert.equal(step1.messages[0].source.mode, 'ultra')
+
+  // 模拟同一轮次发生内部重试流水线，并在消息流已包含 step1 更新通知时，再次收到切换指令（如切到 lite）：
+  // 此时输入消息切到 lite，而 downstream 已经带有包含 step1.messages (ultra) 的消息
+  const step2 = await preStep(
+    { messages: [{ content: '/ponytail lite' }], agent: sessionTarget },
+    async () => ({ kind: 'enter', messages: [...step1.messages] })
+  )
+
+  // 关键断言：消息数依然是 1 条（原地替换更新），绝不无脑 push 变成 2 条！
+  assert.equal(step2.messages.length, 1, '同轮消息流中存在旧更新通知时必须原地替换，保持单条')
+  assert.equal(step2.messages[0].source.mode, 'lite', '原地替换后内容更新为最新档位')
+})
