@@ -1,5 +1,7 @@
 ## [Unreleased]
 
+## [5.4.0] - 2026-10-09
+
 ### Added
 
 - 模式切换零缓存破坏机制（对齐官方 `renderCatalogUpdate` 范式，ADR-0012）：
@@ -281,7 +283,8 @@
 
 - 首个 DSH 移植版本：单一插件包，`dsh.bundle.patch` 挂载，`PONYTAIL_DEFAULT_MODE` 三级回退（`review` 不可作默认），全部文案中文化，触发词兼容中英文。
 
-[Unreleased]: https://github.com/Wenaixi/dsh-ponytail/compare/v5.3.2...HEAD
+[Unreleased]: https://github.com/Wenaixi/dsh-ponytail/compare/v5.4.0...HEAD
+[5.4.0]: https://github.com/Wenaixi/dsh-ponytail/compare/v5.3.2...v5.4.0
 [5.3.2]: https://github.com/Wenaixi/dsh-ponytail/compare/v5.3.1...v5.3.2
 [5.3.1]: https://github.com/Wenaixi/dsh-ponytail/compare/v5.3.0...v5.3.1
 [5.3.0]: https://github.com/Wenaixi/dsh-ponytail/compare/v5.2.0...v5.3.0
