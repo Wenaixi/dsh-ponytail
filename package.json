@@ -1,7 +1,7 @@
 {
   "name": "@wenaixi/dsh-ponytail",
   "version": "5.3.2",
-  "description": "DeepSeek Harness plugin: ponytail 7-rung ladder, 6 skills, 0 tools, zero-cache-miss | DeepSeek Harness 插件：DietrichGebert/ponytail 懒人 senior 模式与七阶梯子完美移植，6 个技能描述双语自由切换，各个技能自由开关，零 tool 注册，全场景零缓存破坏",
+  "description": "DeepSeek Harness plugin: DietrichGebert/ponytail lazy senior mode & 7-rung ladder port, 6 skills with bilingual descriptions & per-skill toggles, zero tools, zero-cache-miss | DeepSeek Harness 插件：DietrichGebert/ponytail 懒人 senior 模式与七阶梯子完美移植，6 个技能描述双语自由切换，各个技能自由开关，零 tool 注册，全场景零缓存破坏",
   "type": "module",
   "main": "lib/ponytail.js",
   "types": "lib/ponytail.d.ts",

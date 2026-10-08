@@ -20,7 +20,7 @@
   "level.patch": "Profile patch",
   "meta": {
     "title": "Lazy Senior Dev Mode",
-    "description": "Ponytail 7-rung ladder, 6 skills with bilingual descriptions and toggles, 0 tools, zero-cache-miss prompt injection."
+    "description": "DietrichGebert/ponytail lazy senior mode & 7-rung ladder port, 6 skills with bilingual descriptions & per-skill toggles, zero tools, zero-cache-miss."
   },
   "meta.description": "A full DSH port of DietrichGebert/ponytail: the always-on lazy senior developer mode and its seven-rung ladder (YAGNI down to the minimum implementation), with six native Chinese skills (core, review, audit, debt, gain, help) and zero tool registrations.",
   "meta.title": "Ponytail (lazy senior mode)",
