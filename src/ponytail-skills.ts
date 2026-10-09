@@ -13,10 +13,80 @@
  * 字段以该包 lib/types/index.d.ts 的生成类型为准。
  */
 
+import { readFileSync } from 'node:fs'
 import { readdir, readFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { parse } from 'yaml'
-import { readSkillDescriptions } from './ponytail-remote.js'
+
+/** 技能描述的语言。与 Config.skillDescriptionLang 同一取值域。 */
+export type SkillLang = 'zh' | 'en'
+
+/** 技能 id 列表与描述的唯一真源：skills/descriptions.{lang}.json */
+export const SKILL_IDS = ['ponytail', 'ponytail-review', 'ponytail-audit', 'ponytail-debt', 'ponytail-gain', 'ponytail-help'] as const
+
+/**
+ * 短描述兜底：描述文件不可读时用（模型目录与面板至少有一行说明，不至于空白）。
+ * 完整描述在 skills/descriptions.{lang}.json，不在此重复。
+ */
+export const FALLBACK_DESCRIPTION: Record<SkillLang, Record<string, string>> = {
+  zh: {
+    'ponytail': '懒人模式本体：7 阶梯子，lite/full/ultra 三档强度',
+    'ponytail-review': '过度设计评审：只挑能删的代码，一行一条',
+    'ponytail-audit': '全仓过度设计审计：按可删行数降序猎取臃肿',
+    'ponytail-debt': '收割 ponytail: 注释列成债务台账',
+    'ponytail-gain': '收益看板：benchmark 中位数实测收益',
+    'ponytail-help': '速查卡：模式、技能与命令',
+  },
+  en: {
+    'ponytail': 'Lazy senior dev mode: seven-rung ladder, lite/full/ultra',
+    'ponytail-review': 'Over-engineering review: only what can be deleted',
+    'ponytail-audit': 'Whole-repo audit for over-engineering, ranked by cut size',
+    'ponytail-debt': 'Harvest ponytail: shortcut comments into a debt ledger',
+    'ponytail-gain': 'Measured-impact scoreboard from benchmark medians',
+    'ponytail-help': 'Quick reference: modes, skills, commands',
+  },
+}
+
+export interface SkillMeta {
+  id: string
+  name: string
+  description: string
+}
+
+/** 读 skills/descriptions.<lang>.json；不可读返回 null 由调用方回退。 */
+export function readSkillDescriptions(lang?: SkillLang): Record<string, string> | null {
+  try {
+    const raw = readFileSync(
+      new URL(`../skills/descriptions.${lang === 'en' ? 'en' : 'zh'}.json`, import.meta.url),
+      'utf8',
+    ).replace(/^\uFEFF/, '')
+    const parsed = JSON.parse(raw) as Record<string, unknown>
+    const out: Record<string, string> = {}
+    for (const id of SKILL_IDS) {
+      const value = parsed[id]
+      if (typeof value === 'string' && value.length > 0) out[id] = value
+    }
+    return Object.keys(out).length === SKILL_IDS.length ? out : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * 从包内描述文件读取技能元数据；文件不可读或缺项时回退短描述。
+ *
+ * lang 缺省或非法一律按 zh 处理：调用方（面板、Provider）读的是配置值，
+ * 而配置可能来自手写的补丁，不保证取值域干净。
+ */
+export function readSkillMeta(lang?: SkillLang): SkillMeta[] {
+  const safeLang: SkillLang = lang === 'en' ? 'en' : 'zh'
+  const text = readSkillDescriptions(safeLang)
+  return SKILL_IDS.map((id) => ({
+    id,
+    name: id,
+    description: text?.[id] ?? FALLBACK_DESCRIPTION[safeLang][id] ?? id,
+  }))
+}
 import type { Context } from '@deepseek-ai/cordis'
 import type {
   SkillCandidate,
