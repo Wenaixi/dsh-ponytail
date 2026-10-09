@@ -58,14 +58,21 @@ export interface FullConfigData {
     defaultMode: RuntimeMode;
     disabledSkills: string[];
 }
+/**
+ * 读取完整配置（向后兼容接缝薄委托，统一经由 FileSink 底层深模块处理）
+ */
 export declare function readFullConfig(profileDir?: string): FullConfigData;
 /**
- * 字段级 merge 写盘：保留 config.json 中用户手写的未知字段（不再重建为两键对象），
- * defaultMode 经 normalizeMode 校验——非法值拒绝返回 null 不写盘（writeDefaultMode 语义统一）。
- * 失败契约：写盘异常返回 null（与 resetFullConfig/writeDefaultMode 一致）。
+ * 字段级 merge 写盘（向后兼容接缝薄委托，统一由 FileSink 独占处理）
  */
 export declare function writeFullConfig(patch: Partial<FullConfigData>, profileDir?: string): FullConfigData | null;
+/**
+ * 重置配置（向后兼容接缝薄委托）
+ */
 export declare function resetFullConfig(profileDir?: string): FullConfigData | null;
+/**
+ * 写入默认档（向后兼容接缝薄委托，统一通过 FileSink 实现）
+ */
 export declare function writeDefaultMode(mode: string, profileDir?: string): RuntimeMode | null;
 /**
  * volatile 配置引用：宿主在 `.volatile()` 字段上放的活值容器（cosmokit/lib/index.js:102-108）。

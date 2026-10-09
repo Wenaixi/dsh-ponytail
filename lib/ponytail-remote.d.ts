@@ -18,21 +18,17 @@
 import { TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol';
 import type { Context } from '@deepseek-ai/cordis';
 import type { PriorityReport } from './ponytail-priority.js';
-/** 技能描述的语言。与 Config.skillDescriptionLang 同一取值域。 */
-export type SkillLang = 'zh' | 'en';
-export interface SkillMeta {
-    id: string;
-    name: string;
-    description: string;
-}
+import { type SkillLang, type SkillMeta } from './ponytail-skills.js';
+export type { SkillLang, SkillMeta };
 /**
  * 从包内描述文件读取技能元数据；文件不可读或缺项时回退短描述。
- *
- * lang 缺省或非法一律按 zh 处理：调用方（面板、Provider）读的是配置值，
- * 而配置可能来自手写的补丁，不保证取值域干净。
+ * 委托至领域深模块 ponytail-skills 统一实现，遵守单一真源。
  */
 export declare function readSkillMeta(lang?: SkillLang): SkillMeta[];
-/** 读 skills/descriptions.<lang>.json；不可读返回 null 由调用方回退。 */
+/**
+ * 读 skills/descriptions.<lang>.json；不可读返回 null 由调用方回退。
+ * 委托至领域深模块 ponytail-skills 统一实现。
+ */
 export declare function readSkillDescriptions(lang?: SkillLang): Record<string, string> | null;
 /** 跨端下发的只读快照：形状必须是 lossless JSON（typert-protocol 的 isRemoteJsonValue） */
 export interface PonytailRemoteSnapshot {

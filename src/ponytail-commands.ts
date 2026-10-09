@@ -279,13 +279,13 @@ export function createTurnCoordinator(env: TurnCoordinatorEnv): TurnCoordinator 
     }
 
     const decision = downstream as { kind: string; messages: unknown[] }
-    const sessionState = env.state.getSession(sessionId)
 
-    // 3. 变动检测（Change Detection 保护 KV 缓存幂等性）
-    if (sessionState.effectiveMode !== sessionState.lastEmittedMode) {
+    // 3. 变动检测与原子发射标记（深模块原子事务接缝，消除两步时序外泄）
+    const transition = env.state.consumeSessionTransition(sessionId)
+    if (transition.changed) {
       const noticeText = renderModeUpdate(
-        sessionState.effectiveMode,
-        sessionState.lastEmittedMode,
+        transition.effectiveMode,
+        transition.previousMode,
         env.skillDir,
       )
       const updateMsg = {
@@ -294,15 +294,12 @@ export function createTurnCoordinator(env: TurnCoordinatorEnv): TurnCoordinator 
         content: [{ type: 'text', text: noticeText }],
         source: {
           kind: 'ponytail-mode-update',
-          mode: sessionState.effectiveMode,
-          previousMode: sessionState.lastEmittedMode,
+          mode: transition.effectiveMode,
+          previousMode: transition.previousMode,
         },
       }
 
-      // 4. 标记已发射（严守收敛时机不变量）
-      env.state.markSessionEmitted(sessionId, sessionState.effectiveMode)
-
-      // 5. 原地替换或追加（严守单通知幂等不变量，对齐 dsh-tool-skill）
+      // 4. 原地替换或追加（严守单通知幂等不变量，对齐 dsh-tool-skill）
       const msgs = Array.isArray(decision.messages) ? [...decision.messages] : []
       const existingIdx = msgs.findIndex(
         (m: unknown) =>

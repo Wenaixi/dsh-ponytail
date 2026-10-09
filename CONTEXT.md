@@ -30,6 +30,14 @@
   在 review 模式下直接返回的静态指令短语，用于直接指引至 `/ponytail-review` 原生技能，跳过磁盘 I/O。
   *Avoid (严禁混用)*: Review Stub, Short Prompt, Review Fallback
 
+- **Session Transition Atomicity（会话跃迁原子事务）**:
+  在会话模式发生切换时，状态机内部一次性原子完成模式对比、发射标记落盘与更新通知构造的深模块机制（`consumeSessionTransition`）。杜绝调用方时序泄漏与并发重试撕裂。
+  *Avoid (严禁混用)*: Mode Change Detector, Manual Emit Flag, Two-step Switch
+
+- **CardController（双面客户端领域控制器）**:
+  客户端纯 JS 领域控制器深模块，封装所有档位计算、诊断灯映射与原子 `mutate` ops 拍平，无 DOM 依赖，支持纯 Node 环境脱机单测。
+  *Avoid (严禁混用)*: UI Helper, Form Hook, View State, Client Logic
+
 ### 1.2 安全与容灾 (Security & Resilience)
 
 - **Shell Safe Path（Shell 安全路径）**:
@@ -85,12 +93,12 @@
 
 | 模块文件 | 架构职责 | 接口深度 (Interface Depth) | 信息隐藏 (Information Hiding) |
 |---|---|---|---|
-| `ponytail-commands.ts` | 指令分发与纯语法解析 | `createCommandDispatcher`, `parsePonytailCommand` | 前缀归一化、全句失活、持久化提取、上下文展开 |
-| `ponytail-instructions.ts` | 提示词裁剪与渲染单一出口 | `render` | Markdown 解析、正则裁剪、review 短路、异常容灾 |
-| `ponytail-state.ts` | 对偶状态机管理（含 flag 物理存取，C6 内联） | `PonytailState` 对偶接口 | 内存状态流转、对偶落盘、文件优先纠偏、`.ponytail-active` 读写、技能禁用 reload 收敛 |
-| `ponytail-skills.ts` | 技能发现与契约提供 | `PonytailProvider` (SkillProvider) | 目录扫描、Frontmatter 解析、assembleSkillBase 流水线 |
-| `ponytail-config.ts` | Schemastery 声明与配置 | `Config`, `readVolatile`, `readFullConfig` / `writeFullConfig` / `resetFullConfig` | 模式归一、路径字符白名单、DSH 数据根解析、读写 config.json、volatile 引用的三态读取 |
-| `ponytail-settings.ts` | 可持久化配置的读写通道 | `PonytailConfigSink`, `createSettingsSink` / `createFileSink`, `migrateLegacyConfig` | settings 通道与文件通道的选择、乐观写入语义、旧配置一次性导入 |
+| `ponytail-commands.ts` | 轮次生命周期协作者与指令分发 | `createTurnCoordinator`, `createCommandDispatcher`, `resolveSessionId` | 轮次拦截 waterfall 穿透、增量通知构造与原地替换、全句失活、统一会话提取 |
+| `ponytail-instructions.ts` | 提示词裁剪与渲染单一出口 | `renderPromptSection`, `render`, `renderModeUpdate` | 会话基线锁定直读、增量系统提醒通知构造、Markdown 裁剪、review 短路 |
+| `ponytail-state.ts` | 状态机管理与多会话隔离 | `createPonytailState`, `createDiskStorage`, `createMemoryStorage` | Flag 文件同步、双向纠偏、多会话基线锁定与增量追踪、状态跃迁原子事务消费、存储虚拟化 |
+| `ponytail-skills.ts` | 技能发现与元数据单一真源 | `PonytailProvider`, `readSkillMeta`, `readSkillDescriptions` | 技能发现、Frontmatter 校验、多语言短描述单一真源、物理隐藏过滤 |
+| `ponytail-config.ts` | 配置 Schema 与路径常量声明 | `Config`, `readVolatile`, `resolveDshHome`, `normalizeMode` | 纯无状态路径解析、枚举类型归一化、volatile 引用解包、向后兼容接缝薄委托 |
+| `ponytail-settings.ts` | 可持久化配置的读写深模块 | `PonytailConfigSink`, `createSettingsSink`, `createFileSink` | settings 通道与文件回退通道选择、config.json 物理读写与字段级 merge 独占内聚 |
 | `ponytail-priority.ts` | 优先级诊断纯函数 | `resolvePriority` | 三级诊断链组装、状态语义（hit/shadowed/problem） |
 | `ponytail-remote.ts` | 只读推导值的跨端下发 | `PonytailRemote` (TypertRemoteService), `readSkillMeta` | 命名空间与端点声明、技能 frontmatter 元数据读取 |
 | `ponytail.ts` | Cordis 插件生命周期编排 | `apply` | Waterfall 中间件流转、agent/created 钩子、section 注入、`loader/volatile-update` 收敛 |

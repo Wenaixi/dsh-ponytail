@@ -14,13 +14,13 @@ export type Config = PonytailConfig;
 export declare const Config: Schema<Schemastery.ObjectS<NoInfer<{
     providerName: Schema<string, string, "defined">;
     skillDir: Schema<string, string, "plain">;
-    defaultMode: Schema<"full" | "off" | "lite" | "ultra", "full" | "off" | "lite" | "ultra", "volatile">;
+    defaultMode: Schema<"off" | "lite" | "full" | "ultra", "off" | "lite" | "full" | "ultra", "volatile">;
     disabledSkills: Schema<NoInfer<string[]>, NoInfer<string[]>, "volatile">;
     skillDescriptionLang: Schema<"zh" | "en", "zh" | "en", "volatile">;
 }>>, Schemastery.ObjectT<NoInfer<{
     providerName: Schema<string, string, "defined">;
     skillDir: Schema<string, string, "plain">;
-    defaultMode: Schema<"full" | "off" | "lite" | "ultra", "full" | "off" | "lite" | "ultra", "volatile">;
+    defaultMode: Schema<"off" | "lite" | "full" | "ultra", "off" | "lite" | "full" | "ultra", "volatile">;
     disabledSkills: Schema<NoInfer<string[]>, NoInfer<string[]>, "volatile">;
     skillDescriptionLang: Schema<"zh" | "en", "zh" | "en", "volatile">;
 }>>, "plain">;
@@ -33,13 +33,13 @@ declare const _default: {
     Config: Schema<Schemastery.ObjectS<NoInfer<{
         providerName: Schema<string, string, "defined">;
         skillDir: Schema<string, string, "plain">;
-        defaultMode: Schema<"full" | "off" | "lite" | "ultra", "full" | "off" | "lite" | "ultra", "volatile">;
+        defaultMode: Schema<"off" | "lite" | "full" | "ultra", "off" | "lite" | "full" | "ultra", "volatile">;
         disabledSkills: Schema<NoInfer<string[]>, NoInfer<string[]>, "volatile">;
         skillDescriptionLang: Schema<"zh" | "en", "zh" | "en", "volatile">;
     }>>, Schemastery.ObjectT<NoInfer<{
         providerName: Schema<string, string, "defined">;
         skillDir: Schema<string, string, "plain">;
-        defaultMode: Schema<"full" | "off" | "lite" | "ultra", "full" | "off" | "lite" | "ultra", "volatile">;
+        defaultMode: Schema<"off" | "lite" | "full" | "ultra", "off" | "lite" | "full" | "ultra", "volatile">;
         disabledSkills: Schema<NoInfer<string[]>, NoInfer<string[]>, "volatile">;
         skillDescriptionLang: Schema<"zh" | "en", "zh" | "en", "volatile">;
     }>>, "plain">;

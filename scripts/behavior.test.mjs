@@ -2227,3 +2227,85 @@ test('C30 统一配置通道接缝: TurnCoordinator 经由 sink 统一持久化�
   assert.equal(writtenMode, 'ultra', '必须通过注入的 sink.writeDefaultMode 写入默认档，杜绝裸写物理磁盘！')
   assert.equal(state.get(), 'ultra', '状态机当前运行档位必须同步更新为 ultra')
 })
+
+test('C31 会话状态跃迁原子事务: consumeSessionTransition 消除时序外泄且单通知幂等', async () => {
+  const { createPonytailState, createMemoryStorage } = await import('../lib/ponytail-state.js')
+  const state = createPonytailState({ storage: createMemoryStorage() })
+  state.set('full')
+
+  // 1. 初次访问会话，初始基线锁定为 full，此时未发射新指令，应返回 changed: false
+  const initial = state.consumeSessionTransition('sess-atom-1')
+  assert.equal(initial.changed, false, '初次会话未切档时无变动')
+  assert.equal(initial.effectiveMode, 'full')
+
+  // 2. 会话内部切档为 ultra
+  state.setSessionMode('sess-atom-1', 'ultra')
+
+  // 3. 首次消费状态跃迁：原子返回 changed: true，并在内部标记发射
+  const step1 = state.consumeSessionTransition('sess-atom-1')
+  assert.equal(step1.changed, true, '切档后首次消费应原子返回 changed: true')
+  assert.equal(step1.effectiveMode, 'ultra')
+  assert.equal(step1.previousMode, 'full')
+
+  // 4. 同一轮次再次重试或下一轮未切档：应原子返回 changed: false（单通知幂等不变量）
+  const step2 = state.consumeSessionTransition('sess-atom-1')
+  assert.equal(step2.changed, false, '同轮再次消费或未切档应返回 changed: false，杜绝重复发射')
+  assert.equal(step2.effectiveMode, 'ultra')
+})
+
+test('C32 双面客户端控制器深模块: CardController 纯 Node 脱机状态机与单次原子 ops 拍平', async () => {
+  const fs = await import('node:fs/promises')
+  const vm = await import('node:vm')
+
+  // 纯内存脱机加载 lib/client.js，零浏览器、零 DOM 依赖
+  const clientCode = await fs.readFile('lib/client.js', 'utf8')
+  let loadedModule = null
+  const sandbox = {
+    window: {
+      __ModuleLoader__: {
+        load: (entry) => {
+          loadedModule = entry.factory((name) => {
+            if (name === 'react') return { createElement: () => {} }
+            if (name === '@deepseek-ai/dsh-client-ui-primitives') return {}
+            return {}
+          })
+        },
+      },
+    },
+  }
+  vm.createContext(sandbox)
+  vm.runInContext(clientCode, sandbox)
+
+  assert.ok(loadedModule, 'client.js 应通过 ModuleLoader 成功装载')
+  const { CardController } = loadedModule
+  assert.ok(CardController, '客户端工厂应导出 CardController 领域控制器深模块')
+
+  // 1. 选项计算：未配置时末尾追加 unset，配置后为 4 项
+  const mockT = (k) => k
+  const unconfiguredOpts = CardController.getModeOptions(false, mockT)
+  assert.equal(unconfiguredOpts.length, 5)
+  assert.equal(unconfiguredOpts[4].value, 'unset', '未配置时末尾真实追加 unset 选项')
+  const configuredOpts = CardController.getModeOptions(true, mockT)
+  assert.equal(configuredOpts.length, 4, '已配置时仅保留 4 个合法档位')
+
+  // 2. 诊断灯状态映射
+  const hitVisual = CardController.getChainRowState({ hit: true, level: 'patch' }, mockT)
+  assert.equal(hitVisual.dot, 'done')
+  assert.equal(hitVisual.tone, 'success')
+  const shadowedVisual = CardController.getChainRowState({ shadowed: true, level: 'fallback' }, mockT)
+  assert.equal(shadowedVisual.dot, 'warning')
+
+  // 3. 环境变量锁定判断
+  assert.equal(CardController.isLevelLocked({ chain: [{ level: 'env', hit: true }] }), true, 'env 命中时判定为锁定')
+  assert.equal(CardController.isLevelLocked({ chain: [{ level: 'fallback', hit: true }] }), false, 'fallback 命中时绝不锁定')
+
+  // 4. 原子 ops 拍平（跨 vm 沙箱 Realm 统一经 JSON 结构断言）
+  const toJson = (v) => JSON.parse(JSON.stringify(v))
+  assert.deepEqual(toJson(CardController.buildSetModeOps('ultra')), [{ op: 'set', path: ['defaultMode'], value: 'ultra' }])
+  assert.deepEqual(toJson(CardController.buildToggleSkillOps(['a'], 'b', false)), [{ op: 'set', path: ['disabledSkills'], value: ['a', 'b'] }])
+  assert.deepEqual(toJson(CardController.buildResetOps()), [
+    { op: 'unset', path: ['defaultMode'] },
+    { op: 'unset', path: ['disabledSkills'] },
+    { op: 'unset', path: ['skillDescriptionLang'] },
+  ], '重置操作必须平铺为单次原子 mutate ops，杜绝多次并发乐观锁撕裂')
+})

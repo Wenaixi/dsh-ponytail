@@ -34,11 +34,11 @@ import {
   type PonytailConfigSink,
 } from './ponytail-settings.js'
 import { resolvePriority } from './ponytail-priority.js'
-import { createTurnCoordinator } from './ponytail-commands.js'
+import { createTurnCoordinator, resolveSessionId } from './ponytail-commands.js'
 import { renderPromptSection } from './ponytail-instructions.js'
 import { createDiskStorage, createPonytailState } from './ponytail-state.js'
-import { PonytailProvider } from './ponytail-skills.js'
-import { PonytailRemote, readSkillMeta } from './ponytail-remote.js'
+import { PonytailProvider, readSkillMeta } from './ponytail-skills.js'
+import { PonytailRemote } from './ponytail-remote.js'
 
 // ---------------------------------------------------------------------------
 // Config — 遵循 references/config.md：Schemastery + 默认值进 schema
@@ -89,16 +89,6 @@ function resolveDefaultSkillDir(configSkillDir?: string): string {
   } catch {
     return resolve('skills')
   }
-}
-
-/** 统一从多层级宿主上下文对象中安全提取会话 ID（消除消息链坏味与多处重复钻取） */
-function resolveSessionId(target: unknown): string | undefined {
-  const t = target as {
-    agent?: { session?: { id?: string } }
-    scope?: { session?: { id?: string } }
-    session?: { id?: string }
-  } | undefined
-  return t?.agent?.session?.id ?? t?.scope?.session?.id ?? t?.session?.id
 }
 
 /**

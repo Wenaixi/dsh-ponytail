@@ -16,8 +16,16 @@
  * 优先级链不在本模块：resolvePriority 仍是 env > profile 补丁 > full 的唯一真源。
  */
 
-import { DEFAULT_MODE, normalizeMode, readFullConfig, resetFullConfig, writeFullConfig } from './ponytail-config.js'
-import type { RuntimeMode } from './ponytail-config.js'
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { dirname } from 'node:path'
+import {
+  DEFAULT_MODE,
+  getConfigPath,
+  getSharedConfigPath,
+  normalizeMode,
+  type FullConfigData,
+  type RuntimeMode,
+} from './ponytail-config.js'
 
 /** 写入操作：与官方 settings.mutate 的 ops 形状一致（dsh-api-settings-controller:432）。 */
 export interface ConfigWriteOp {
@@ -143,28 +151,106 @@ function applyOps(value: Record<string, unknown>, ops: ConfigWriteOp[]): Record<
 }
 
 /**
- * 文件回退通道：无 settings 服务的组合（headless / CLI）直接读写 profile 内 config.json。
- * 与 settings 通道共享同一组语义：非法档不写、reset 清空两项。
+ * 读取本地配置文件文本（支持新 profile 路径与全局旧路径回退）
+ */
+function readConfigFileRaw(profileDir?: string): string | null {
+  const candidates = [getConfigPath(profileDir), getSharedConfigPath()]
+  for (const p of candidates) {
+    try {
+      return readFileSync(p, 'utf8').replace(/^\uFEFF/, '')
+    } catch {
+      // 忽略不可读
+    }
+  }
+  return null
+}
+
+function parseConfigFile(raw: string | null): FullConfigData {
+  if (raw === null) return { defaultMode: DEFAULT_MODE, disabledSkills: [] }
+  try {
+    const parsed = JSON.parse(raw) as unknown
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      const obj = parsed as Record<string, unknown>
+      const dm = typeof obj['defaultMode'] === 'string' ? normalizeMode(obj['defaultMode']) : null
+      const ds = Array.isArray(obj['disabledSkills'])
+        ? obj['disabledSkills'].filter((s: unknown): s is string => typeof s === 'string')
+        : []
+      return { defaultMode: dm ?? DEFAULT_MODE, disabledSkills: ds }
+    }
+  } catch {
+    // 忽略解析错误
+  }
+  return { defaultMode: DEFAULT_MODE, disabledSkills: [] }
+}
+
+/** 供外部或向后兼容接缝调用的内部物理文件读取 */
+export function readDiskConfig(profileDir?: string): FullConfigData {
+  return parseConfigFile(readConfigFileRaw(profileDir))
+}
+
+/** 供外部或向后兼容接缝调用的内部物理文件写入（字段级 merge，保留未知键） */
+export function writeDiskConfig(patch: Partial<FullConfigData>, profileDir?: string): FullConfigData | null {
+  try {
+    const configPath = getConfigPath(profileDir)
+    mkdirSync(dirname(configPath), { recursive: true })
+    let config: Record<string, unknown> = {}
+    try {
+      const raw = readConfigFileRaw(profileDir)
+      const parsed = raw === null ? null : (JSON.parse(raw) as unknown)
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        config = parsed as Record<string, unknown>
+      }
+    } catch {
+      // 容错处理
+    }
+    if (patch.defaultMode !== undefined) {
+      const nm = normalizeMode(patch.defaultMode)
+      if (nm === null) return null
+      config['defaultMode'] = nm
+    }
+    if (patch.disabledSkills !== undefined) {
+      config['disabledSkills'] = patch.disabledSkills.filter((s: unknown) => typeof s === 'string')
+    }
+    writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf8')
+    return {
+      defaultMode: (normalizeMode(config['defaultMode'] as string) ?? DEFAULT_MODE) as RuntimeMode,
+      disabledSkills: Array.isArray(config['disabledSkills'])
+        ? config['disabledSkills'].filter((s: unknown): s is string => typeof s === 'string')
+        : [],
+    }
+  } catch {
+    return null
+  }
+}
+
+/** 供外部或向后兼容接缝调用的内部物理文件重置 */
+export function resetDiskConfig(profileDir?: string): FullConfigData | null {
+  return writeDiskConfig({ defaultMode: DEFAULT_MODE, disabledSkills: [] }, profileDir)
+}
+
+/**
+ * 文件回退通道深模块实现：无 settings 服务的组合（headless / CLI）直接读写 profile 内 config.json。
+ * 完整内聚 config.json 读写、字段级 merge 与异常容错，对外提供统一的 PonytailConfigSink 契约。
  */
 export function createFileSink(profileDir?: string): PonytailConfigSink {
   return {
     readDefaultMode(): RuntimeMode {
-      return readFullConfig(profileDir).defaultMode
+      return readDiskConfig(profileDir).defaultMode
     },
     writeDefaultMode(mode: string): RuntimeMode | null {
       const normalized = normalizeMode(mode)
       if (normalized === null) return null
-      const written = writeFullConfig({ defaultMode: normalized }, profileDir)
+      const written = writeDiskConfig({ defaultMode: normalized }, profileDir)
       return written === null ? null : written.defaultMode
     },
     readDisabled(): string[] {
-      return readFullConfig(profileDir).disabledSkills
+      return readDiskConfig(profileDir).disabledSkills
     },
     writeDisabled(skills: string[]): void {
-      writeFullConfig({ disabledSkills: skills }, profileDir)
+      writeDiskConfig({ disabledSkills: skills }, profileDir)
     },
     reset(): void {
-      resetFullConfig(profileDir)
+      resetDiskConfig(profileDir)
     },
   }
 }

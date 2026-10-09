@@ -12,6 +12,29 @@
  * 与 @deepseek-ai/dsh-skill 的关系：实现其 SkillProvider 接口；
  * 字段以该包 lib/types/index.d.ts 的生成类型为准。
  */
+/** 技能描述的语言。与 Config.skillDescriptionLang 同一取值域。 */
+export type SkillLang = 'zh' | 'en';
+/** 技能 id 列表与描述的唯一真源：skills/descriptions.{lang}.json */
+export declare const SKILL_IDS: readonly ["ponytail", "ponytail-review", "ponytail-audit", "ponytail-debt", "ponytail-gain", "ponytail-help"];
+/**
+ * 短描述兜底：描述文件不可读时用（模型目录与面板至少有一行说明，不至于空白）。
+ * 完整描述在 skills/descriptions.{lang}.json，不在此重复。
+ */
+export declare const FALLBACK_DESCRIPTION: Record<SkillLang, Record<string, string>>;
+export interface SkillMeta {
+    id: string;
+    name: string;
+    description: string;
+}
+/** 读 skills/descriptions.<lang>.json；不可读返回 null 由调用方回退。 */
+export declare function readSkillDescriptions(lang?: SkillLang): Record<string, string> | null;
+/**
+ * 从包内描述文件读取技能元数据；文件不可读或缺项时回退短描述。
+ *
+ * lang 缺省或非法一律按 zh 处理：调用方（面板、Provider）读的是配置值，
+ * 而配置可能来自手写的补丁，不保证取值域干净。
+ */
+export declare function readSkillMeta(lang?: SkillLang): SkillMeta[];
 import type { Context } from '@deepseek-ai/cordis';
 import type { SkillCandidate, SkillDefinition, SkillLookupOptions, SkillProvider, SkillProviderControl, SkillProviderObservation } from '@deepseek-ai/dsh-skill';
 export declare class PonytailProvider implements SkillProvider {

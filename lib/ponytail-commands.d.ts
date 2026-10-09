@@ -1,5 +1,6 @@
 import type { PonytailState } from './ponytail-state.js';
 import { type RuntimeMode } from './ponytail-config.js';
+import type { PonytailConfigSink } from './ponytail-settings.js';
 /**
  * 仅当整句为该命令时失活，避免 "add a normal mode toggle" 误触发
  * 中英文全句匹配：英文 stop ponytail / normal mode，中文 退出 ponytail / 正常模式
@@ -40,6 +41,8 @@ export interface CommandDispatcherLogger {
 export interface CommandDispatcherEnv {
     state: PonytailState;
     logger: CommandDispatcherLogger;
+    /** 官方配置持久化通道接缝（统一经此流转，遵守 profile 补丁与文件回退一致性） */
+    sink?: PonytailConfigSink;
     getDefaultMode?: () => RuntimeMode;
     writeDefaultMode?: (mode: string) => RuntimeMode | null;
     /** 写盘成功后同步外部默认档判定源（如 apply 的 patchMode），使命令层/UI 即时反映用户意图 */

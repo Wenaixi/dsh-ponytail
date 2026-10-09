@@ -45,6 +45,12 @@ export interface SessionModeState {
     lastEmittedMode: string | null;
     explicitlySet?: boolean;
 }
+/** 会话状态跃迁消费结果（深模块原子事务，消除两步时序外泄） */
+export interface SessionTransitionResult {
+    changed: boolean;
+    effectiveMode: string | null;
+    previousMode: string | null;
+}
 export interface PonytailState {
     /** 当前等级的内存视图；不触发任何文件读。null 表示关闭（'off' 由 set 归一为 null） */
     get(): string | null;
@@ -74,6 +80,8 @@ export interface PonytailState {
     setSessionMode(sessionId: string | undefined, mode: string | null): void;
     /** 标记指定会话已向模型发射了该模式的指令（避免重复追加通知） */
     markSessionEmitted(sessionId: string | undefined, mode: string | null): void;
+    /** 原子消费会话状态跃迁：若当前生效模式与上次发射模式不同，则原子标记并返回变动上下文；否则返回 changed: false */
+    consumeSessionTransition(sessionId?: string): SessionTransitionResult;
     /** 全局配置变更时同步到已有会话的生效模式（但严禁修改 baselineMode，确保 Prompt Cache 恒定） */
     syncGlobalModeToSessions(newDefaultMode: string): void;
 }

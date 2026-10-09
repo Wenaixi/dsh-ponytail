@@ -15,7 +15,7 @@
  *
  * 优先级链不在本模块：resolvePriority 仍是 env > profile 补丁 > full 的唯一真源。
  */
-import type { RuntimeMode } from './ponytail-config.js';
+import { type FullConfigData, type RuntimeMode } from './ponytail-config.js';
 /** 写入操作：与官方 settings.mutate 的 ops 形状一致（dsh-api-settings-controller:432）。 */
 export interface ConfigWriteOp {
     op: 'set' | 'unset';
@@ -55,9 +55,15 @@ export interface SettingsSinkOptions {
 export declare function createSettingsSink(ctx: {
     settings?: SettingsLike | null;
 }, namespace?: string, options?: SettingsSinkOptions): PonytailConfigSink;
+/** 供外部或向后兼容接缝调用的内部物理文件读取 */
+export declare function readDiskConfig(profileDir?: string): FullConfigData;
+/** 供外部或向后兼容接缝调用的内部物理文件写入（字段级 merge，保留未知键） */
+export declare function writeDiskConfig(patch: Partial<FullConfigData>, profileDir?: string): FullConfigData | null;
+/** 供外部或向后兼容接缝调用的内部物理文件重置 */
+export declare function resetDiskConfig(profileDir?: string): FullConfigData | null;
 /**
- * 文件回退通道：无 settings 服务的组合（headless / CLI）直接读写 profile 内 config.json。
- * 与 settings 通道共享同一组语义：非法档不写、reset 清空两项。
+ * 文件回退通道深模块实现：无 settings 服务的组合（headless / CLI）直接读写 profile 内 config.json。
+ * 完整内聚 config.json 读写、字段级 merge 与异常容错，对外提供统一的 PonytailConfigSink 契约。
  */
 export declare function createFileSink(profileDir?: string): PonytailConfigSink;
 export interface LegacyMigrationDeps {

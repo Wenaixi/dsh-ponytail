@@ -17,9 +17,15 @@
  * 不再使用 XDG / APPDATA 等宿主平台约定（旧位置仅作一次性兼容读取）。
  */
 
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { dirname, join, resolve } from 'node:path'
+import { join, resolve } from 'node:path'
+import {
+  readDiskConfig,
+  writeDiskConfig,
+  resetDiskConfig,
+  createFileSink,
+} from './ponytail-settings.js'
 
 export const DEFAULT_MODE = 'full'
 export const RUNTIME_MODES = ['off', 'lite', 'full', 'ultra'] as const
@@ -141,83 +147,31 @@ export interface FullConfigData {
 }
 
 /**
- * 私有解析唯一真源：把 config.json 原文（或 null）解析为 FullConfigData。
- * defaultMode 经 normalizeMode 归一（非法→DEFAULT_MODE）；disabledSkills 过滤字符串数组。
- * readFullConfig / getDefaultMode（config 分支）共用；writeFullConfig 的 merge 读段
- * 仍需原始对象（保留未知键），只复用本函数的字段归一规则。
+ * 读取完整配置（向后兼容接缝薄委托，统一经由 FileSink 底层深模块处理）
  */
-function parseConfigObject(raw: string | null): FullConfigData {
-  if (raw === null) return { defaultMode: DEFAULT_MODE, disabledSkills: [] }
-  try {
-    const parsed = JSON.parse(raw) as unknown
-    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-      const obj = parsed as Record<string, unknown>
-      const dm = typeof obj['defaultMode'] === 'string' ? normalizeMode(obj['defaultMode']) : null
-      const ds = Array.isArray(obj['disabledSkills'])
-        ? obj['disabledSkills'].filter((s: unknown): s is string => typeof s === 'string')
-        : []
-      return { defaultMode: dm ?? DEFAULT_MODE, disabledSkills: ds }
-    }
-  } catch {
-    // 忽略异常，使用默认值
-  }
-  return { defaultMode: DEFAULT_MODE, disabledSkills: [] }
-}
-
 export function readFullConfig(profileDir?: string): FullConfigData {
-  return parseConfigObject(readConfigFileText(profileDir))
+  return readDiskConfig(profileDir)
 }
 
 /**
- * 字段级 merge 写盘：保留 config.json 中用户手写的未知字段（不再重建为两键对象），
- * defaultMode 经 normalizeMode 校验——非法值拒绝返回 null 不写盘（writeDefaultMode 语义统一）。
- * 失败契约：写盘异常返回 null（与 resetFullConfig/writeDefaultMode 一致）。
+ * 字段级 merge 写盘（向后兼容接缝薄委托，统一由 FileSink 独占处理）
  */
 export function writeFullConfig(patch: Partial<FullConfigData>, profileDir?: string): FullConfigData | null {
-  try {
-    const configPath = getConfigPath(profileDir)
-    mkdirSync(dirname(configPath), { recursive: true })
-    let config: Record<string, unknown> = {}
-    try {
-      const raw = readConfigFileText(profileDir)
-      const parsed = raw === null ? null : (JSON.parse(raw) as unknown)
-      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) config = parsed as Record<string, unknown>
-    } catch {
-      // 文件损坏时按空对象处理（保留未知键的前提是不覆盖原文件）
-    }
-    if (patch.defaultMode !== undefined) {
-      const nm = normalizeMode(patch.defaultMode)
-      if (nm === null) return null
-      config['defaultMode'] = nm
-    }
-    if (patch.disabledSkills !== undefined) {
-      config['disabledSkills'] = patch.disabledSkills.filter((s: unknown) => typeof s === 'string')
-    }
-    writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf8')
-    return {
-      defaultMode: (normalizeMode(config['defaultMode'] as string) ?? DEFAULT_MODE) as RuntimeMode,
-      disabledSkills: Array.isArray(config['disabledSkills'])
-        ? config['disabledSkills'].filter((s: unknown): s is string => typeof s === 'string')
-        : [],
-    }
-  } catch {
-    return null
-  }
+  return writeDiskConfig(patch, profileDir)
 }
 
+/**
+ * 重置配置（向后兼容接缝薄委托）
+ */
 export function resetFullConfig(profileDir?: string): FullConfigData | null {
-  return writeFullConfig({
-    defaultMode: DEFAULT_MODE,
-    disabledSkills: [],
-  })
+  return resetDiskConfig(profileDir)
 }
 
+/**
+ * 写入默认档（向后兼容接缝薄委托，统一通过 FileSink 实现）
+ */
 export function writeDefaultMode(mode: string, profileDir?: string): RuntimeMode | null {
-  const normalized = normalizeMode(mode)
-  if (!normalized) return null
-  const written = writeFullConfig({ defaultMode: normalized }, profileDir)
-  if (written === null) return null
-  return normalized
+  return createFileSink(profileDir).writeDefaultMode(mode)
 }
 
 /**
