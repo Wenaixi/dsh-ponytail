@@ -422,6 +422,7 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
         envRaw,
         patchMode: readPatchMode(),
       }).effective,
+    sink: configSink,
     updateDefaultMode: (mode) => {
       patchOverride = mode
     },

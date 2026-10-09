@@ -2192,3 +2192,38 @@ test('C29 内存存储隔离: createMemoryStorage 支撑跨实例会话基线持
   const s2 = state2.getSession('sess-mem-1')
   assert.equal(s2.baselineMode, 'ultra', '新实例应通过 memoryStorage 纯内存适配器恢复基线 ultra，杜绝物理磁盘硬编码！')
 })
+
+test('C30 统一配置通道接缝: TurnCoordinator 经由 sink 统一持久化默认档且物理磁盘零触碰', async () => {
+  const { createTurnCoordinator } = await import('../lib/ponytail-commands.js')
+  const { createPonytailState, createMemoryStorage } = await import('../lib/ponytail-state.js')
+
+  let writtenMode = null
+  const mockSink = {
+    readDefaultMode: () => 'full',
+    writeDefaultMode: (mode) => {
+      writtenMode = mode
+      return mode
+    },
+    readDisabledSkills: () => [],
+    writeDisabledSkills: () => [],
+  }
+
+  const state = createPonytailState({ storage: createMemoryStorage() })
+  state.set('full')
+
+  const coordinator = createTurnCoordinator({
+    state,
+    sink: mockSink,
+    skillDir,
+    logger: { info: () => {}, warn: () => {}, debug: () => {} },
+  })
+
+  // 模拟收到 /ponytail default ultra 指令
+  const res = await coordinator.handlePreStep(
+    { messages: [{ content: '/ponytail default ultra' }] },
+    async () => ({ kind: 'enter' })
+  )
+
+  assert.equal(writtenMode, 'ultra', '必须通过注入的 sink.writeDefaultMode 写入默认档，杜绝裸写物理磁盘！')
+  assert.equal(state.get(), 'ultra', '状态机当前运行档位必须同步更新为 ultra')
+})

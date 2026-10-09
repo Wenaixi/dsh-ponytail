@@ -2,9 +2,9 @@ import { randomUUID } from 'node:crypto'
 import type { PonytailState } from './ponytail-state.js'
 import {
   getDefaultMode,
-  writeDefaultMode,
   type RuntimeMode,
 } from './ponytail-config.js'
+import type { PonytailConfigSink } from './ponytail-settings.js'
 import { renderModeUpdate } from './ponytail-instructions.js'
 
 /**
@@ -123,6 +123,8 @@ export interface CommandDispatcherLogger {
 export interface CommandDispatcherEnv {
   state: PonytailState
   logger: CommandDispatcherLogger
+  /** 官方配置持久化通道接缝（统一经此流转，遵守 profile 补丁与文件回退一致性） */
+  sink?: PonytailConfigSink
   getDefaultMode?: () => RuntimeMode
   writeDefaultMode?: (mode: string) => RuntimeMode | null
   /** 写盘成功后同步外部默认档判定源（如 apply 的 patchMode），使命令层/UI 即时反映用户意图 */
@@ -146,8 +148,11 @@ export interface CommandDispatcher {
  * 支持可选的 sessionId 会话作用域，实现多会话模式隔离与零缓存破坏调度
  */
 export function createCommandDispatcher(env: CommandDispatcherEnv): CommandDispatcher {
-  const getDef = env.getDefaultMode ?? getDefaultMode
-  const writeDef = env.writeDefaultMode ?? writeDefaultMode
+  // 读归优先级链（宿主注入的综合判定源优先，实时感知环境变量与易失引用），写归持久通道接缝（sink 优先）
+  const getDef = env.getDefaultMode ?? (env.sink ? (() => env.sink!.readDefaultMode()) : getDefaultMode)
+  const writeDef = env.sink
+    ? ((mode: string) => env.sink!.writeDefaultMode(mode))
+    : (env.writeDefaultMode ?? ((mode: string) => env.state.set(mode)))
 
   function dispatchText(rawText: string, sessionId?: string): CommandDispatchResult {
     const text = String(rawText ?? '').trim()
