@@ -1,5 +1,24 @@
 ## [Unreleased]
 
+## [5.5.0] - 2026-10-10
+
+### Added
+
+- 统一弹性存储自愈内核（ADR-0018）：
+  - 在 `src/ponytail-settings.ts` 提炼通用的 JSON 语法轻度清洗与未闭合括号对齐补全纯函数 `repairJsonSyntax`；
+  - 导出通用损坏现场留样备份器 `backupCorruptedFile`，支持按文件名留样轮转（最多保留 3 份历史案发现场）；
+  - `salvageConfig` 字典初始化升级为 `Object.create(null)`，彻底防范原型链继承假阳性与原型污染（对齐 `dsh-plugin-dev` §9.2 规范）。
+- 会话存储容灾接缝深化与全仓对齐（ADR-0018）：
+  - `src/ponytail-state.ts` 彻底移除 50+ 行手写重复的括号计数与正则抽取样板，单向复用统一自愈内核；
+  - 会话文件 `session-states.json` 接入损坏现场留样备份机制（`.corrupted.<timestamp>`），实现与配置文件同等的崩溃自愈能力。
+- 会话目标提取单一真源与依赖解环（ADR-0018）：
+  - 将多通道会话提取纯函数 `resolveSessionId` 下沉至基础无状态模块 `src/ponytail-config.ts`；
+  - `ponytail-instructions.ts` 统一消费单一真源，消减内联脏探针；
+  - `ponytail-commands.ts` 向前兼容重导出，完全消除跨模块循环依赖风险。
+- 自动化行为测试套件扩充至 **113 项全绿**：
+  - 新增 C35（拓扑解耦与会话提取多通道验证）回归锁；
+  - 在 C33 与 C34 中锁死原型安全（`Object.getPrototypeOf === null`）与会话损坏现场留样断言。
+
 ## [5.4.0] - 2026-10-09
 
 ### Added
