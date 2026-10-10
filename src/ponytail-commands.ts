@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import type { PonytailState } from './ponytail-state.js'
 import {
   getDefaultMode,
+  resolveSessionId,
   type RuntimeMode,
 } from './ponytail-config.js'
 import type { PonytailConfigSink } from './ponytail-settings.js'
@@ -222,15 +223,8 @@ export function createCommandDispatcher(env: CommandDispatcherEnv): CommandDispa
   }
 }
 
-/** 统一从多层级宿主上下文对象中安全提取会话 ID */
-export function resolveSessionId(target: unknown): string | undefined {
-  const t = target as {
-    agent?: { session?: { id?: string } }
-    scope?: { session?: { id?: string } }
-    session?: { id?: string }
-  } | undefined
-  return t?.agent?.session?.id ?? t?.scope?.session?.id ?? t?.session?.id
-}
+/** 统一从多层级宿主上下文对象中安全提取会话 ID（向前兼容重导出，单一真源归 ponytail-config） */
+export { resolveSessionId }
 
 export interface TurnCoordinatorEnv extends CommandDispatcherEnv {
   skillDir: string

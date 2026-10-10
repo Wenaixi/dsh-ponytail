@@ -61,6 +61,15 @@ export declare function createSettingsSink(ctx: {
  * 从物理底层杜绝掉电或中断导致的文件 0 字节与半截断破坏。
  */
 export declare function safeAtomicWriteFile(filePath: string, content: string): boolean;
+/**
+ * 损坏现场留样备份与历史轮转：
+ * 将损坏原文备份为 <file>.corrupted.<timestamp>，并仅保留最近 3 份历史留样，避免磁盘无限膨胀。
+ */
+export declare function backupCorruptedFile(filePath: string, content: string): string | null;
+/**
+ * 通用 JSON 语法轻度清洗与未闭合括号对齐补全（自愈第一阶纯函数，零 I/O）
+ */
+export declare function repairJsonSyntax(raw: string): string;
 export interface SalvageConfigResult {
     salvaged: boolean;
     data: FullConfigData;

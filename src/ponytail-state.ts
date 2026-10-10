@@ -18,7 +18,13 @@
 import { readFileSync, unlinkSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { normalizeMode, getConfigDir, type RuntimeMode } from './ponytail-config.js'
-import { createFileSink, safeAtomicWriteFile, type PonytailConfigSink } from './ponytail-settings.js'
+import {
+  createFileSink,
+  safeAtomicWriteFile,
+  backupCorruptedFile,
+  repairJsonSyntax,
+  type PonytailConfigSink,
+} from './ponytail-settings.js'
 
 /**
  * 状态持久化存储适配器契约（两个适配器证明切面价值：生产物理磁盘 + 测试内存隔离）
@@ -126,24 +132,22 @@ export function createDiskStorage(profileDir?: string): PonytailStorage {
         try {
           return JSON.parse(raw)
         } catch {
-          // 启发式抢救会话状态：先尝试语法闭合修复，未果则正则模式截断提取
-          let healed = raw.replace(/,\s*([}\]])/g, '$1')
-          const openCount = (healed.match(/\{/g) || []).length
-          const closeCount = (healed.match(/\}/g) || []).length
-          if (openCount > closeCount) {
-            healed += '}'.repeat(openCount - closeCount)
-          }
+          // 标准解析失败，原文件遭遇损坏：先现场留样备份损坏原文（最多保留 3 份历史轮转）
+          backupCorruptedFile(sessionStatesPath(), raw)
+
+          // 启发式抢救会话状态：先调用统一语法修补纯函数
           try {
+            const healed = repairJsonSyntax(raw)
             const parsed = JSON.parse(healed) as unknown
             if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
               safeAtomicWriteFile(sessionStatesPath(), JSON.stringify(parsed, null, 2))
               return parsed as Record<string, SessionModeState>
             }
           } catch {
-            // 语法修补未完全通过，进入正则深度抢救
+            // 语法修补未果，进入正则深度抢救
           }
 
-          const salvagedSessions: Record<string, SessionModeState> = {}
+          const salvagedSessions: Record<string, SessionModeState> = Object.create(null)
           const sessionBlockRegex = /"([^"]+)"\s*:\s*\{([^}]*(?:\}|$))/g
           let match: RegExpExecArray | null
           while ((match = sessionBlockRegex.exec(raw)) !== null) {

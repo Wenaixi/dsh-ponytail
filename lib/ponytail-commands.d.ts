@@ -1,5 +1,5 @@
 import type { PonytailState } from './ponytail-state.js';
-import { type RuntimeMode } from './ponytail-config.js';
+import { resolveSessionId, type RuntimeMode } from './ponytail-config.js';
 import type { PonytailConfigSink } from './ponytail-settings.js';
 /**
  * 仅当整句为该命令时失活，避免 "add a normal mode toggle" 误触发
@@ -63,8 +63,8 @@ export interface CommandDispatcher {
  * 支持可选的 sessionId 会话作用域，实现多会话模式隔离与零缓存破坏调度
  */
 export declare function createCommandDispatcher(env: CommandDispatcherEnv): CommandDispatcher;
-/** 统一从多层级宿主上下文对象中安全提取会话 ID */
-export declare function resolveSessionId(target: unknown): string | undefined;
+/** 统一从多层级宿主上下文对象中安全提取会话 ID（向前兼容重导出，单一真源归 ponytail-config） */
+export { resolveSessionId };
 export interface TurnCoordinatorEnv extends CommandDispatcherEnv {
     skillDir: string;
 }

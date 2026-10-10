@@ -1,7 +1,7 @@
 import type { PonytailState } from './ponytail-state.js'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { DEFAULT_MODE, normalizeMode } from './ponytail-config.js'
+import { DEFAULT_MODE, normalizeMode, resolveSessionId } from './ponytail-config.js'
 
 export function filterSkillBodyForMode(body: string, mode: string): string {
   const effectiveMode = normalizeMode(mode) ?? (DEFAULT_MODE as string)
@@ -105,13 +105,8 @@ export function renderPromptSection(
   }
   state.syncFromFile()
 
-  // 提取会话目标（支持 agent.session.id、scope.session.id 与直接 session.id 双通道）
-  const raw = context as {
-    agent?: { session?: { id?: string } }
-    scope?: { session?: { id?: string } }
-    session?: { id?: string }
-  } | undefined
-  const sessionId = raw?.agent?.session?.id ?? raw?.scope?.session?.id ?? raw?.session?.id
+  // 提取会话目标（单一真源接缝，消除跨模块重复探针）
+  const sessionId = resolveSessionId(context)
 
   if (sessionId && typeof state.getSession === 'function') {
     // 具名会话：锁定初始基线 baselineMode，绝不随切档变动，100% 保护会话前缀缓存（ADR-0012）

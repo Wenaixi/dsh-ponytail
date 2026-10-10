@@ -122,4 +122,9 @@ export declare function resolveSkillLang(raw: VolatileRef<'zh' | 'en'> | 'zh' | 
  * 否则同一字段在不同入口会给出不同结果。
  */
 export declare function readVolatile<T>(field: VolatileRef<T> | T | undefined): T | undefined;
+/**
+ * 统一从多层级宿主上下文对象中安全提取会话 ID（支持 agent.session.id、scope.session.id 与直接 session.id）
+ * 纯函数，零 I/O；下沉至基础配置模块作为单一真源，消除 instructions 与 commands 之间的潜在循环依赖。
+ */
+export declare function resolveSessionId(target: unknown): string | undefined;
 //# sourceMappingURL=ponytail-config.d.ts.map

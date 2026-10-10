@@ -205,7 +205,7 @@ const MAX_CORRUPTED_BACKUPS = 3
  * 损坏现场留样备份与历史轮转：
  * 将损坏原文备份为 <file>.corrupted.<timestamp>，并仅保留最近 3 份历史留样，避免磁盘无限膨胀。
  */
-function backupCorruptedFile(filePath: string, content: string): string | null {
+export function backupCorruptedFile(filePath: string, content: string): string | null {
   try {
     const dir = dirname(filePath)
     const base = basename(filePath)
@@ -238,6 +238,51 @@ function backupCorruptedFile(filePath: string, content: string): string | null {
   }
 }
 
+/**
+ * 通用 JSON 语法轻度清洗与未闭合括号对齐补全（自愈第一阶纯函数，零 I/O）
+ */
+export function repairJsonSyntax(raw: string): string {
+  const clean = String(raw ?? '').replace(/^\uFEFF/, '').trim()
+  if (!clean) return ''
+  // 清除尾部悬挂逗号：, } -> }  以及 , ] -> ]
+  let healed = clean.replace(/,\s*([}\]])/g, '$1')
+  let openBraces = 0
+  let closeBraces = 0
+  let openBrackets = 0
+  let closeBrackets = 0
+  let inString = false
+  let escaped = false
+  for (let i = 0; i < healed.length; i++) {
+    const char = healed[i]
+    if (escaped) {
+      escaped = false
+      continue
+    }
+    if (char === '\\') {
+      escaped = true
+      continue
+    }
+    if (char === '"') {
+      inString = !inString
+      continue
+    }
+    if (!inString) {
+      if (char === '{') openBraces++
+      else if (char === '}') closeBraces++
+      else if (char === '[') openBrackets++
+      else if (char === ']') closeBrackets++
+    }
+  }
+  // 补全缺失的括号
+  if (openBrackets > closeBrackets) {
+    healed += ']'.repeat(openBrackets - closeBrackets)
+  }
+  if (openBraces > closeBraces) {
+    healed += '}'.repeat(openBraces - closeBraces)
+  }
+  return healed
+}
+
 export interface SalvageConfigResult {
   salvaged: boolean
   data: FullConfigData
@@ -261,43 +306,7 @@ export function salvageConfig(raw: string): SalvageConfigResult {
 
   // 1. 第一阶：轻度语法清洗与括号补全修补
   try {
-    // 清除尾部悬挂逗号：, } -> }  以及 , ] -> ]
-    let healed = clean.replace(/,\s*([}\]])/g, '$1')
-    let openBraces = 0
-    let closeBraces = 0
-    let openBrackets = 0
-    let closeBrackets = 0
-    let inString = false
-    let escaped = false
-    for (let i = 0; i < healed.length; i++) {
-      const char = healed[i]
-      if (escaped) {
-        escaped = false
-        continue
-      }
-      if (char === '\\') {
-        escaped = true
-        continue
-      }
-      if (char === '"') {
-        inString = !inString
-        continue
-      }
-      if (!inString) {
-        if (char === '{') openBraces++
-        else if (char === '}') closeBraces++
-        else if (char === '[') openBrackets++
-        else if (char === ']') closeBrackets++
-      }
-    }
-    // 补全缺失的括号
-    if (openBrackets > closeBrackets) {
-      healed += ']'.repeat(openBrackets - closeBrackets)
-    }
-    if (openBraces > closeBraces) {
-      healed += '}'.repeat(openBraces - closeBraces)
-    }
-
+    const healed = repairJsonSyntax(clean)
     const parsed = JSON.parse(healed) as unknown
     if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
       const obj = parsed as Record<string, unknown>
@@ -315,8 +324,8 @@ export function salvageConfig(raw: string): SalvageConfigResult {
     // 语法修补未果，进入第二阶正则模式抢救
   }
 
-  // 2. 第二阶：字段级正则模式匹配提取
-  const recovered: Record<string, unknown> = {}
+  // 2. 第二阶：字段级正则模式匹配提取（字典使用 Object.create(null) 防范原型属性污染）
+  const recovered: Record<string, unknown> = Object.create(null)
 
   // 提取 defaultMode
   const modeMatch = clean.match(/"defaultMode"\s*:\s*"([a-zA-Z]+)"/i)

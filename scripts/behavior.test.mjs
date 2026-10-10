@@ -2325,6 +2325,7 @@ test('C33 配置韧性自愈引擎: config.json 破损时自动抢救配置、�
   assert.equal(salvaged.data.defaultMode, 'ultra', '准确抢救出 defaultMode=ultra')
   assert.deepEqual(salvaged.data.disabledSkills, ['ponytail-audit', 'ponytail-review'], '准确抢救出 disabledSkills 列表')
   assert.equal(salvaged.recoveredFields.customNote, 'salvage-me', '准确抢救出自定义标量键')
+  assert.equal(Object.getPrototypeOf(salvaged.recoveredFields), null, '抢救字典原型必须为 null，彻底杜绝原型链污染')
 
   // 2. 端到端实测：在磁盘写入严重破损的 config.json（语法破坏、截断）
   await writeFsp(cfgPath, truncatedJson, 'utf8')
@@ -2381,5 +2382,31 @@ test('C34 会话状态韧性自愈引擎: session-states.json 损坏时自动抢
   const repairedObj = JSON.parse(repairedRaw)
   assert.equal(repairedObj['sess-rescue-1'].baselineMode, 'ultra')
 
+  // 断言 C: session-states.json 损坏后必须生成以 .corrupted. 为后缀的现场留样备份文件
+  const files = await (await import('node:fs/promises')).readdir(cfgDir)
+  const backupFiles = files.filter(f => f.startsWith('session-states.json.corrupted.'))
+  assert.equal(backupFiles.length, 1, '会话状态损坏时必须生成 1 份现场留样备份文件')
+  const backupContent = await readFsp(path.join(cfgDir, backupFiles[0]), 'utf8')
+  assert.equal(backupContent, brokenSessJson.trim(), '会话留样备份内容必须完整保留原始现场')
+
   await rm(testProfile, { recursive: true, force: true })
+})
+
+test('C35 拓扑解耦与会话提取: resolveSessionId 多通道统一解析与单向依赖无环', async () => {
+  const { resolveSessionId } = await import('../lib/ponytail-config.js')
+  const { resolveSessionId: fromCommands } = await import('../lib/ponytail-commands.js')
+  
+  assert.equal(resolveSessionId, fromCommands, 'commands 导出的 resolveSessionId 必须重定向至 config 单一真源')
+
+  // 1. agent.session.id 通道
+  assert.equal(resolveSessionId({ agent: { session: { id: 'sess-agent-1' } } }), 'sess-agent-1')
+  // 2. scope.session.id 通道
+  assert.equal(resolveSessionId({ scope: { session: { id: 'sess-scope-2' } } }), 'sess-scope-2')
+  // 3. session.id 直接通道
+  assert.equal(resolveSessionId({ session: { id: 'sess-direct-3' } }), 'sess-direct-3')
+  // 4. 空值与脏值兜底
+  assert.equal(resolveSessionId(null), undefined)
+  assert.equal(resolveSessionId(undefined), undefined)
+  assert.equal(resolveSessionId({}), undefined)
+  assert.equal(resolveSessionId({ session: {} }), undefined)
 })
