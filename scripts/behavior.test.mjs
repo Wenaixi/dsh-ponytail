@@ -2309,3 +2309,77 @@ test('C32 双面客户端控制器深模块: CardController 纯 Node 脱机状�
     { op: 'unset', path: ['skillDescriptionLang'] },
   ], '重置操作必须平铺为单次原子 mutate ops，杜绝多次并发乐观锁撕裂')
 })
+
+test('C33 配置韧性自愈引擎: config.json 破损时自动抢救配置、留样备份并自动自愈重写为合法文件', async () => {
+  const { readDiskConfig, salvageConfig } = await import('../lib/ponytail-settings.js')
+  const { mkdtemp, rm, writeFile: writeFsp, readFile: readFsp, readdir: readDirFsp, mkdir } = await import('node:fs/promises')
+  const testProfile = await mkdtemp(path.join(os.tmpdir(), 'ponytail-corrupted-test-'))
+  const cfgDir = path.join(testProfile, 'ponytail')
+  await mkdir(cfgDir, { recursive: true })
+  const cfgPath = path.join(cfgDir, 'config.json')
+
+  // 1. 纯函数单测：salvageConfig 验证极端破损文本的字段抢救
+  const truncatedJson = '{\n  "defaultMode": "ultra",\n  "disabledSkills": ["ponytail-audit", "ponytail-review"],\n  "customNote": "salvage-me",\n  "syntaxError": '
+  const salvaged = salvageConfig(truncatedJson)
+  assert.equal(salvaged.salvaged, true, '应识别出语法破损并成功抢救')
+  assert.equal(salvaged.data.defaultMode, 'ultra', '准确抢救出 defaultMode=ultra')
+  assert.deepEqual(salvaged.data.disabledSkills, ['ponytail-audit', 'ponytail-review'], '准确抢救出 disabledSkills 列表')
+  assert.equal(salvaged.recoveredFields.customNote, 'salvage-me', '准确抢救出自定义标量键')
+
+  // 2. 端到端实测：在磁盘写入严重破损的 config.json（语法破坏、截断）
+  await writeFsp(cfgPath, truncatedJson, 'utf8')
+
+  // 3. 调用 readDiskConfig 读取配置
+  const result = readDiskConfig(testProfile)
+
+  // 断言 A: 即使文件破损，也成功抢救返回了原本配置的值
+  assert.equal(result.defaultMode, 'ultra')
+  assert.deepEqual(result.disabledSkills, ['ponytail-audit', 'ponytail-review'])
+
+  // 断言 B: 磁盘上的 config.json 必须已被自动自愈重写为合法的标准 JSON
+  const repairedRaw = await readFsp(cfgPath, 'utf8')
+  assert.doesNotThrow(() => JSON.parse(repairedRaw), '磁盘上的 config.json 必须已被自愈重写为合法的标准 JSON')
+  const repairedObj = JSON.parse(repairedRaw)
+  assert.equal(repairedObj.defaultMode, 'ultra')
+  assert.deepEqual(repairedObj.disabledSkills, ['ponytail-audit', 'ponytail-review'])
+  assert.equal(repairedObj.customNote, 'salvage-me')
+
+  // 断言 C: 必须生成以 .corrupted. 为后缀的现场留样备份文件
+  const files = await readDirFsp(cfgDir)
+  const backupFiles = files.filter(f => f.startsWith('config.json.corrupted.'))
+  assert.equal(backupFiles.length, 1, '必须生成 1 份现场留样备份文件')
+  const backupContent = await readFsp(path.join(cfgDir, backupFiles[0]), 'utf8')
+  assert.equal(backupContent, truncatedJson, '留样备份内容必须完整保留原始破坏现场')
+
+  await rm(testProfile, { recursive: true, force: true })
+})
+
+test('C34 会话状态韧性自愈引擎: session-states.json 损坏时自动抢救基线、留样备份并自愈重写', async () => {
+  const { createDiskStorage } = await import('../lib/ponytail-state.js')
+  const { mkdtemp, rm, writeFile: writeFsp, readFile: readFsp, mkdir } = await import('node:fs/promises')
+  const testProfile = await mkdtemp(path.join(os.tmpdir(), 'ponytail-sess-corrupted-test-'))
+  const cfgDir = path.join(testProfile, 'ponytail')
+  await mkdir(cfgDir, { recursive: true })
+  const sessPath = path.join(cfgDir, 'session-states.json')
+
+  // 构造损坏截断的 session-states.json（包含 2 个会话，尾部被意外截断缺失大括号）
+  const brokenSessJson = '{\n  "sess-rescue-1": {\n    "sessionId": "sess-rescue-1",\n    "baselineMode": "ultra",\n    "effectiveMode": "ultra",\n    "lastEmittedMode": "ultra",\n    "explicitlySet": true\n  },\n  "sess-rescue-2": {\n    "sessionId": "sess-rescue-2",\n    "baselineMode": "lite"\n  '
+  await writeFsp(sessPath, brokenSessJson, 'utf8')
+
+  const storage = createDiskStorage(testProfile)
+  const sessions = storage.readSessions()
+
+  // 断言 A: 抢救恢复了两个会话的基线状态
+  assert.ok(sessions['sess-rescue-1'], '应成功恢复 sess-rescue-1')
+  assert.equal(sessions['sess-rescue-1'].baselineMode, 'ultra')
+  assert.ok(sessions['sess-rescue-2'], '应成功恢复 sess-rescue-2')
+  assert.equal(sessions['sess-rescue-2'].baselineMode, 'lite')
+
+  // 断言 B: session-states.json 文件必须已被原地自愈重写为合法的标准 JSON
+  const repairedRaw = await readFsp(sessPath, 'utf8')
+  assert.doesNotThrow(() => JSON.parse(repairedRaw), 'session-states.json 应已被自愈重写为标准 JSON')
+  const repairedObj = JSON.parse(repairedRaw)
+  assert.equal(repairedObj['sess-rescue-1'].baselineMode, 'ultra')
+
+  await rm(testProfile, { recursive: true, force: true })
+})

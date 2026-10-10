@@ -107,7 +107,7 @@ pnpm typecheck              # tsc --noEmit
 pnpm build                  # tsc 出 lib/，再由 build-client.mjs 生成 lib/client.js
 node scripts/verify.mjs     # 静态门禁：产物、技能、零 tool、UI 落点、locale 键集
 node scripts/docs-verify.mjs # 版本策略与双语文档一致性
-node scripts/behavior.test.mjs  # 行为测试 (110 项全通)
+node scripts/behavior.test.mjs  # 行为测试 (112 项全通)
 
 dsh --profile web --patch ./cordis.patch.yml --dump-config  # 验证补丁解析
 pnpm dsh web --patch ./cordis.patch.yml   # 热重载联调

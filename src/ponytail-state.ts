@@ -15,10 +15,10 @@
  * 模块级单例会让旧状态跨实例存活，与 flag 文件双写竞争。
  */
 
-import { mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs'
+import { readFileSync, unlinkSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { normalizeMode, getConfigDir, type RuntimeMode } from './ponytail-config.js'
-import { createFileSink, type PonytailConfigSink } from './ponytail-settings.js'
+import { createFileSink, safeAtomicWriteFile, type PonytailConfigSink } from './ponytail-settings.js'
 
 /**
  * 状态持久化存储适配器契约（两个适配器证明切面价值：生产物理磁盘 + 测试内存隔离）
@@ -99,44 +99,85 @@ export interface PonytailState {
 const STATE_FILE = '.ponytail-active'
 
 export function createDiskStorage(profileDir?: string): PonytailStorage {
-  const statePath = (): string => join(getConfigDir(profileDir), STATE_FILE);
-  const sessionStatesPath = (): string => join(getConfigDir(profileDir), 'session-states.json');
+  const statePath = (): string => join(getConfigDir(profileDir), STATE_FILE)
+  const sessionStatesPath = (): string => join(getConfigDir(profileDir), 'session-states.json')
   return {
     read: () => {
       try {
-        return readFileSync(statePath(), 'utf8').trim() || null;
+        return readFileSync(statePath(), 'utf8').trim() || null
       } catch {
-        return null;
+        return null
       }
     },
     write: (mode) => {
-      mkdirSync(dirname(statePath()), { recursive: true });
-      writeFileSync(statePath(), mode, 'utf8');
+      safeAtomicWriteFile(statePath(), mode)
     },
     clear: () => {
       try {
-        unlinkSync(statePath());
+        unlinkSync(statePath())
       } catch {
         // ignore
       }
     },
     readSessions: () => {
       try {
-        const raw = readFileSync(sessionStatesPath(), 'utf8')
-        return JSON.parse(raw)
+        const raw = readFileSync(sessionStatesPath(), 'utf8').trim()
+        if (!raw) return {}
+        try {
+          return JSON.parse(raw)
+        } catch {
+          // 启发式抢救会话状态：先尝试语法闭合修复，未果则正则模式截断提取
+          let healed = raw.replace(/,\s*([}\]])/g, '$1')
+          const openCount = (healed.match(/\{/g) || []).length
+          const closeCount = (healed.match(/\}/g) || []).length
+          if (openCount > closeCount) {
+            healed += '}'.repeat(openCount - closeCount)
+          }
+          try {
+            const parsed = JSON.parse(healed) as unknown
+            if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+              safeAtomicWriteFile(sessionStatesPath(), JSON.stringify(parsed, null, 2))
+              return parsed as Record<string, SessionModeState>
+            }
+          } catch {
+            // 语法修补未完全通过，进入正则深度抢救
+          }
+
+          const salvagedSessions: Record<string, SessionModeState> = {}
+          const sessionBlockRegex = /"([^"]+)"\s*:\s*\{([^}]*(?:\}|$))/g
+          let match: RegExpExecArray | null
+          while ((match = sessionBlockRegex.exec(raw)) !== null) {
+            const key = match[1]
+            const block = match[2]
+            const baseMatch = block.match(/"baselineMode"\s*:\s*"([a-zA-Z]+)"/i)
+            const effMatch = block.match(/"effectiveMode"\s*:\s*(?:"([a-zA-Z]+)"|null)/i)
+            const lastMatch = block.match(/"lastEmittedMode"\s*:\s*(?:"([a-zA-Z]+)"|null)/i)
+            const explicitMatch = block.match(/"explicitlySet"\s*:\s*(true|false)/i)
+            if (key && baseMatch && baseMatch[1]) {
+              const base = normalizeMode(baseMatch[1]) ?? 'full'
+              salvagedSessions[key] = {
+                sessionId: key,
+                baselineMode: base,
+                effectiveMode: effMatch ? (effMatch[1] ? normalizeMode(effMatch[1]) : null) : base,
+                lastEmittedMode: lastMatch ? (lastMatch[1] ? normalizeMode(lastMatch[1]) : null) : base,
+                explicitlySet: explicitMatch ? explicitMatch[1] === 'true' : false,
+              }
+            }
+          }
+          if (Object.keys(salvagedSessions).length > 0) {
+            safeAtomicWriteFile(sessionStatesPath(), JSON.stringify(salvagedSessions, null, 2))
+            return salvagedSessions
+          }
+          return {}
+        }
       } catch {
         return {}
       }
     },
     writeSessions: (sessions) => {
-      try {
-        mkdirSync(dirname(sessionStatesPath()), { recursive: true })
-        writeFileSync(sessionStatesPath(), JSON.stringify(sessions, null, 2), 'utf8')
-      } catch {
-        // best-effort：文件写失败不阻断内存与会话
-      }
+      safeAtomicWriteFile(sessionStatesPath(), JSON.stringify(sessions, null, 2))
     },
-  };
+  }
 }
 
 /** 纯内存存储适配器（用于单测与沙箱隔离，物理零磁盘触碰） */

@@ -38,6 +38,14 @@
   客户端纯 JS 领域控制器深模块，封装所有档位计算、诊断灯映射与原子 `mutate` ops 拍平，无 DOM 依赖，支持纯 Node 环境脱机单测。
   *Avoid (严禁混用)*: UI Helper, Form Hook, View State, Client Logic
 
+- **Config Resilience & Self-Healing Engine（配置韧性与自愈防御系统）**:
+  当物理配置文件由于掉电截断、缺失闭合括号或乱码破坏导致标准 JSON 解析失败时，系统通过语法自动修补与模式正则多阶提取抢救配置，现场留样备份并原地自动重新生成合法标准 JSON 文件的深模块防御机制。
+  *Avoid (严禁混用)*: Config Fallback, Silent Reset, Auto Parser, Backup Tool
+
+- **Crash-Safe Atomic Write（崩溃安全原子写盘）**:
+  采用“同目录进程唯一临时文件写入 -> `renameSync` 原子重命名替换目标文件”的物理写盘范式（`safeAtomicWriteFile`），从物理底层彻底消灭掉电截断与 0 字节坏文件风险。
+  *Avoid (严禁混用)*: Temp Write, Overwrite File, Direct Dump
+
 ### 1.2 安全与容灾 (Security & Resilience)
 
 - **Shell Safe Path（Shell 安全路径）**:
@@ -98,7 +106,7 @@
 | `ponytail-state.ts` | 状态机管理与多会话隔离 | `createPonytailState`, `createDiskStorage`, `createMemoryStorage` | Flag 文件同步、双向纠偏、多会话基线锁定与增量追踪、状态跃迁原子事务消费、存储虚拟化 |
 | `ponytail-skills.ts` | 技能发现与元数据单一真源 | `PonytailProvider`, `readSkillMeta`, `readSkillDescriptions` | 技能发现、Frontmatter 校验、多语言短描述单一真源、物理隐藏过滤 |
 | `ponytail-config.ts` | 配置 Schema 与路径常量声明 | `Config`, `readVolatile`, `resolveDshHome`, `normalizeMode` | 纯无状态路径解析、枚举类型归一化、volatile 引用解包、向后兼容接缝薄委托 |
-| `ponytail-settings.ts` | 可持久化配置的读写深模块 | `PonytailConfigSink`, `createSettingsSink`, `createFileSink` | settings 通道与文件回退通道选择、config.json 物理读写与字段级 merge 独占内聚 |
+| `ponytail-settings.ts` | 可持久化配置的读写深模块与自愈引擎 | `PonytailConfigSink`, `createSettingsSink`, `createFileSink`, `salvageConfig`, `safeAtomicWriteFile` | settings 通道与文件回退通道选择、config.json 物理读写、字段级 merge、崩溃安全原子写盘、破损现场留样备份与自愈重写 |
 | `ponytail-priority.ts` | 优先级诊断纯函数 | `resolvePriority` | 三级诊断链组装、状态语义（hit/shadowed/problem） |
 | `ponytail-remote.ts` | 只读推导值的跨端下发 | `PonytailRemote` (TypertRemoteService), `readSkillMeta` | 命名空间与端点声明、技能 frontmatter 元数据读取 |
 | `ponytail.ts` | Cordis 插件生命周期编排 | `apply` | Waterfall 中间件流转、agent/created 钩子、section 注入、`loader/volatile-update` 收敛 |
