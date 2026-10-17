@@ -96,37 +96,4 @@ export declare function resetDiskConfig(profileDir?: string): FullConfigData | n
  * 完整内聚 config.json 读写、字段级 merge 与异常容错，对外提供统一的 PonytailConfigSink 契约。
  */
 export declare function createFileSink(profileDir?: string): PonytailConfigSink;
-export interface LegacyMigrationDeps {
-    /** 官方 settings 服务：用 describe 判断是否已设，用 update 写入 */
-    settings: {
-        describe(options?: {
-            redactSecrets?: boolean;
-        }): {
-            namespaces?: {
-                ns: string;
-                value?: unknown;
-            }[];
-        } | unknown[];
-        update(ns: string, patch: Record<string, unknown>, expectedRevision?: number): Promise<unknown>;
-    };
-    namespace: string;
-    /** 读取旧配置文件内容（由调用方提供，便于测试隔离） */
-    readLegacy: () => {
-        defaultMode: RuntimeMode;
-        disabledSkills: string[];
-    };
-    /** 把旧配置改名以标记已导入（对齐 dsh-settings 的 settings.yaml.imported 做法） */
-    renameLegacy: () => Promise<void>;
-    logger: {
-        info(msg: string): void;
-        warn(msg: string): void;
-    };
-}
-/**
- * 一次性把 config.json 的两个字段导入 profile 补丁，并改名旧文件使其幂等。
- *
- * 判据：旧配置「有内容」且 profile 侧该命名空间「还没设过」。两者同时成立才导入。
- * 导入失败只 warn，不阻断启动——老用户配置丢了可以手动再填，但插件不该起不来。
- */
-export declare function migrateLegacyConfig(deps: LegacyMigrationDeps): Promise<boolean>;
 //# sourceMappingURL=ponytail-settings.d.ts.map

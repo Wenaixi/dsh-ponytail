@@ -8,7 +8,6 @@
  * - 不注册任何 tool，全部能力经 Skill 暴露
  */
 
-import { rename } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { Context } from '@deepseek-ai/cordis'
@@ -19,10 +18,8 @@ import type {
 import Schema from '@deepseek-ai/schemastery'
 
 import {
-  getSharedConfigPath,
   isShellSafe,
   normalizeMode,
-  readFullConfig,
   readVolatile,
   resolveSkillLang,
   type PonytailConfig,
@@ -30,7 +27,6 @@ import {
 import {
   createFileSink,
   createSettingsSink,
-  migrateLegacyConfig,
   type PonytailConfigSink,
 } from './ponytail-settings.js'
 import { resolvePriority } from './ponytail-priority.js'
@@ -61,8 +57,7 @@ export const Config = Schema.object({
   // union 自身可以 volatile：schemastery 只禁止「volatile 字段嵌在 union 分支 / 数组元素 / dict 内」
   // （schemastery/lib/index.mjs:241-252），顶层固定对象路径上的 union 是允许的。
   defaultMode: Schema.union(['off', 'lite', 'full', 'ultra']).volatile(),
-  // 技能禁用列表此前只存在 config.json（HTTP 端点专属）。迁入 Config 后由官方表单承载，
-  // 获得 revision 冲突保护与跨页面同步；旧值由 ponytail-settings 的 migrateLegacyConfig 一次性导入。
+  // 技能禁用列表由官方配置表单承载，获得 revision 冲突保护与跨页面同步。
   disabledSkills: Schema.array(Schema.string()).volatile(),
   // 技能描述下发给模型目录与面板的语言。三态：显式 zh / 显式 en / 未配置。
   // 不给 Schema 默认值：默认值会让「未配置」与「显式选了 zh」不可区分，
@@ -244,30 +239,6 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
   }).effective
 
   const skillDir = resolveDefaultSkillDir(resolved.skillDir)
-
-  // 一次性把 config.json 的两个字段导入 profile 补丁，然后改名旧文件使其幂等。
-  // 官方做法同款：dsh-settings 导入退役的 settings.yaml 时先改名再逐 section 写入
-  // （dsh-settings/lib/index.js:346-363）。导入失败只 warn，不阻断启动。
-  if (settingsService !== undefined && settingsService !== null) {
-    void migrateLegacyConfig({
-      settings: settingsService as Parameters<typeof migrateLegacyConfig>[0]['settings'],
-      namespace: 'ponytail',
-      readLegacy: () => readFullConfig(profileDir),
-      renameLegacy: async () => {
-        try {
-          await rename(getSharedConfigPath(), `${getSharedConfigPath()}.imported`)
-        } catch {
-          // 旧文件不存在或改名失败：数据仍在 profile 侧，下个版本移除兼容读取时无需处理
-        }
-      },
-      logger: {
-        info: (msg: string) => ctx.logger.info(msg),
-        warn: (msg: string) => ctx.logger.warn(msg),
-      },
-    }).catch((err: unknown) => {
-      ctx.logger.warn(`[ponytail] 旧配置迁移失败（不影响启动）：${String(err)}`)
-    })
-  }
 
   // 等级状态唯一归属：get()/set()/syncFromFile() 三方法，闭包态随 HMR 重建
   const state = createPonytailState({ sink: configSink, storage: createDiskStorage(profileDir), profileDir })

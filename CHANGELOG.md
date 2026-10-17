@@ -1,5 +1,24 @@
 ## [Unreleased]
 
+### Changed
+
+- 全面适配最新 DSH 架构规范（0.2.0-rc.2），彻底移除旧版兼容包袱：
+  - `package.json` 中 `peerDependencies` 的 `@deepseek-ai/dsh-skill` 依赖从历史过渡范围收敛锁定为 `"0.2.0-rc.2"`；
+  - `src/ponytail-config.ts` 彻底移除旧版全局路径函数 `getSharedConfigPath()` 及跨层回退探测，直接定位当前 profile 目录配置文件；
+  - `src/ponytail-settings.ts` 彻底删除 `migrateLegacyConfig` 函数及 `LegacyMigrationDeps` 接口，消灭向 `.imported` 重命名的旧版迁移代码；
+  - `src/ponytail.ts` 移除启动阶段的 `void migrateLegacyConfig(...)` 异步迁移调用与死代码导入，大幅精简启动链路。
+
+### Fixed
+
+- 修复 `src/ponytail-state.ts` 中 `syncGlobalModeToSessions('off')` 的归一化边界：
+  - 当全局模式被补丁或配置设为 `'off'` 时，精准将内存 `current` 归一为 `null` 并触发 `storage.clear()` 彻底删除 `.ponytail-active` flag 文件；
+  - 同步将所有跟随型会话的 `effectiveMode` 归一为 `null`，严格捍卫单一关闭契约（Single-off Contract）。
+
+### Tested
+
+- 行为测试套件更新并新增 `C21.1`（单一关闭契约回归测试），全量 **112 项行为测试全部通过**，五道门禁（编译、类型检查、核心契约、文档一致性、行为测试）均通过；
+- 搭建全新专属隔离实例 `ponytail-isolated-verify`（独立端口 3099，严格规避日常端口 3080），通过 Windows Junction 直通联接完成冷装组合、运行时 flag 生成、热重载 HMR（`defaultMode: ultra` 实时响应）全流程端到端验收；验收后安全解绑联接并彻底清理临时沙盒。
+
 ## [5.5.0] - 2026-10-10
 
 ### Added

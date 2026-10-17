@@ -29,7 +29,6 @@ import { basename, dirname, join } from 'node:path'
 import {
   DEFAULT_MODE,
   getConfigPath,
-  getSharedConfigPath,
   normalizeMode,
   type FullConfigData,
   type RuntimeMode,
@@ -380,18 +379,14 @@ export function salvageConfig(raw: string): SalvageConfigResult {
 }
 
 /**
- * 读取本地配置文件文本（支持新 profile 路径与全局旧路径回退）
+ * 读取本地配置文件文本
  */
 function readConfigFileRaw(profileDir?: string): string | null {
-  const candidates = [getConfigPath(profileDir), getSharedConfigPath()]
-  for (const p of candidates) {
-    try {
-      return readFileSync(p, 'utf8').replace(/^\uFEFF/, '')
-    } catch {
-      // 忽略不可读
-    }
+  try {
+    return readFileSync(getConfigPath(profileDir), 'utf8').replace(/^\uFEFF/, '')
+  } catch {
+    return null
   }
-  return null
 }
 
 /**
@@ -513,52 +508,3 @@ export function createFileSink(profileDir?: string): PonytailConfigSink {
   }
 }
 
-export interface LegacyMigrationDeps {
-  /** 官方 settings 服务：用 describe 判断是否已设，用 update 写入 */
-  settings: {
-    describe(options?: { redactSecrets?: boolean }): { namespaces?: { ns: string; value?: unknown }[] } | unknown[]
-    update(ns: string, patch: Record<string, unknown>, expectedRevision?: number): Promise<unknown>
-  }
-  namespace: string
-  /** 读取旧配置文件内容（由调用方提供，便于测试隔离） */
-  readLegacy: () => { defaultMode: RuntimeMode; disabledSkills: string[] }
-  /** 把旧配置改名以标记已导入（对齐 dsh-settings 的 settings.yaml.imported 做法） */
-  renameLegacy: () => Promise<void>
-  logger: { info(msg: string): void; warn(msg: string): void }
-}
-
-/**
- * 一次性把 config.json 的两个字段导入 profile 补丁，并改名旧文件使其幂等。
- *
- * 判据：旧配置「有内容」且 profile 侧该命名空间「还没设过」。两者同时成立才导入。
- * 导入失败只 warn，不阻断启动——老用户配置丢了可以手动再填，但插件不该起不来。
- */
-export async function migrateLegacyConfig(deps: LegacyMigrationDeps): Promise<boolean> {
-  const legacy = deps.readLegacy()
-  const hasContent = legacy.disabledSkills.length > 0 || legacy.defaultMode !== DEFAULT_MODE
-  if (!hasContent) return false
-
-  let alreadySet = false
-  try {
-    const described = deps.settings.describe()
-    const namespaces = (Array.isArray(described) ? described : described.namespaces ?? []) as { ns?: string }[]
-    alreadySet = namespaces.some((item) => item?.ns === deps.namespace)
-  } catch (error) {
-    deps.logger.warn(`[ponytail] 读取 profile 命名空间失败，跳过旧配置导入：${String(error)}`)
-    return false
-  }
-  if (alreadySet) return false
-
-  try {
-    await deps.settings.update(deps.namespace, {
-      defaultMode: legacy.defaultMode,
-      disabledSkills: legacy.disabledSkills,
-    })
-  } catch (error) {
-    deps.logger.warn(`[ponytail] 旧配置导入 profile 补丁失败（可用 /ponytail default 重新设置）：${String(error)}`)
-    return false
-  }
-  await deps.renameLegacy()
-  deps.logger.info('[ponytail] 旧 config.json 已导入 profile 补丁并改名')
-  return true
-}

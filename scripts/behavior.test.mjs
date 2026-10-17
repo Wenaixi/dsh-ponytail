@@ -19,7 +19,6 @@ import {
   resolveDshHome,
   getConfigDir,
   getConfigPath,
-  getSharedConfigPath,
   readConfigFileText,
 } from '../lib/ponytail-config.js'
 
@@ -999,52 +998,6 @@ test('配置 sink: settings 写入被拒时不抛未处理拒绝，而是记 war
   await new Promise((r) => setTimeout(r, 5))
   assert.equal(warnings.length, 1, '拒绝必须被记录，不能静默')
   assert.match(warnings[0], /被拒/)
-})
-
-test('legacy 迁移: config.json 有值且 profile 未设时导入一次（第二次幂等跳过）', async () => {
-  const { migrateLegacyConfig } = await import('../lib/ponytail-settings.js')
-  const logs = []
-  const stored = { defaultMode: 'ultra', disabledSkills: ['ponytail-help'] }
-  let renamed = 0
-  let updates = 0
-
-  const makeSettings = () => ({
-    update: async (_ns, patch) => { updates++; Object.assign(stored, patch) },
-    // describe 反映 profile 侧的真实状态：第一次为空，导入后才有该命名空间
-    describe: () => ({ namespaces: updates === 0 ? [] : [{ ns: 'ponytail', value: {} }] }),
-  })
-
-  const deps = () => ({
-    settings: makeSettings(),
-    namespace: 'ponytail',
-    readLegacy: () => ({ defaultMode: 'ultra', disabledSkills: ['ponytail-help'] }),
-    renameLegacy: async () => { renamed++ },
-    logger: { info: (m) => logs.push(m), warn: (m) => logs.push(m) },
-  })
-
-  const first = await migrateLegacyConfig(deps())
-  assert.equal(first, true, '应执行一次迁移')
-  assert.equal(stored.defaultMode, 'ultra')
-  assert.deepEqual(stored.disabledSkills, ['ponytail-help'])
-  assert.equal(renamed, 1, '旧文件应被改名一次')
-  assert.equal(updates, 1, '只应写一次')
-
-  const second = await migrateLegacyConfig(deps())
-  assert.equal(second, false, 'profile 已设时不得重复迁移')
-  assert.equal(renamed, 1, '幂等路径不得再次改名')
-  assert.equal(updates, 1, '幂等路径不得再次写入')
-})
-
-test('legacy 迁移: config.json 无内容时不迁移', async () => {
-  const { migrateLegacyConfig } = await import('../lib/ponytail-settings.js')
-  const result = await migrateLegacyConfig({
-    settings: { update: async () => {}, describe: () => ({ namespaces: [] }) },
-    namespace: 'ponytail',
-    readLegacy: () => ({ defaultMode: 'full', disabledSkills: [] }),
-    renameLegacy: async () => {},
-    logger: { info: () => {}, warn: () => {} },
-  })
-  assert.equal(result, false)
 })
 
 test('C8 volatile: profile 补丁的 defaultMode 引用被改后，优先级链读到新值', async () => {
@@ -2043,6 +1996,29 @@ test('C23 意图守卫: 全局修改仅同步跟随型会话，不覆盖用户�
   assert.equal(state.getSession('sess-a').effectiveMode, 'ultra', '显式设置的会话必须受到意图保护')
   // 断言：Session B 跟随型会话同步到了 lite
   assert.equal(state.getSession('sess-b').effectiveMode, 'lite', '未显式设置的会话随全局更新')
+})
+
+test('C21.1 单一关闭契约: syncGlobalModeToSessions off 将 current 归一为 null 并调用 storage.clear()', async () => {
+  const { createPonytailState } = await import('../lib/ponytail-state.js')
+  let cleared = 0
+  let written = null
+  const state = createPonytailState({
+    storage: {
+      read: () => written,
+      write: (m) => { written = m },
+      clear: () => { cleared++; written = null },
+    },
+  })
+  state.set('full')
+  assert.equal(state.get(), 'full')
+
+  const sessFollow = state.getSession('sess-follow')
+  assert.equal(sessFollow.effectiveMode, 'full')
+
+  state.syncGlobalModeToSessions('off')
+  assert.equal(state.get(), null, 'off 必须归一为 null')
+  assert.equal(cleared, 1, '必须触发 storage.clear()')
+  assert.equal(state.getSession('sess-follow').effectiveMode, null, '跟随型会话也必须同步为 null')
 })
 
 test('C24 双通道识别: scope.session.id 兜底通道能正确识别会话并锁定基线', async () => {

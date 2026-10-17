@@ -410,13 +410,13 @@ export function createPonytailState(options?: PonytailStateOptions): PonytailSta
     syncGlobalModeToSessions(newDefaultMode: string): void {
       const normalized = normalizeMode(newDefaultMode)
       if (!normalized) return
-      current = normalized
+      current = normalized === 'off' ? null : normalized
       this.syncToFile()
       // 对已有会话：保持 baselineMode 绝对不变（保护前缀缓存）；
       // 仅同步那些从未显式设置过的跟随型会话，保护用户的明确意图
       for (const session of sessions.values()) {
         if (!session.explicitlySet) {
-          session.effectiveMode = normalized
+          session.effectiveMode = current
         }
       }
       savePersistedSessions(sessions)

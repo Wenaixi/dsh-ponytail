@@ -12,9 +12,7 @@
  * $DSH_HOME/ponytail（默认 ~/.dsh/ponytail），与 cordis 内置包
  * （.credentials.yaml / profiles/ / attachments/ 等）保持同一根，
  * 从而跨平台一致、跟随 DSH_HOME 覆盖。
- * 注意 resolveDshHome() 结构上不含 profile 维度：该目录下的文件被同机所有实例共享，
  * 配置与 flag 的 profile 隔离由 getConfigDir(profileDir) 单独承担（ADR-0009）。
- * 不再使用 XDG / APPDATA 等宿主平台约定（旧位置仅作一次性兼容读取）。
  */
 export declare const DEFAULT_MODE = "full";
 export declare const RUNTIME_MODES: readonly ["off", "lite", "full", "ultra"];
@@ -41,16 +39,8 @@ export declare function resolveDshHome(configured?: string, env?: Record<string,
 export declare function getConfigDir(profileDir?: string): string;
 export declare function getConfigPath(profileDir?: string): string;
 /**
- * 全局共享的旧配置路径（ADR-0005 时代的位置，被所有实例共享）。
- *
- * 只在迁移窗口内被读：实例在「全局文件存在且 profile 内尚未生成」时导入，
- * 导入后把全局文件改名标记为已迁，使后续实例从干净状态启动。
- * 正常读写一律经 getConfigDir()，此路径不参与优先级链。
- */
-export declare function getSharedConfigPath(): string;
-/**
- * 读取配置文件原文：新位置优先，缺失时一次性回退旧位置。
- * 返回 null 表示两处都不存在或均不可读。
+ * 读取配置文件原文。
+ * 返回 null 表示不存在或不可读。
  */
 export declare function readConfigFileText(profileDir?: string): string | null;
 export declare function getDefaultMode(profileDir?: string): RuntimeMode;
