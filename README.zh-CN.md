@@ -83,7 +83,7 @@ stop ponytail        同 off，整句匹配
 | `ctx.configForms.get('ponytail')` | 默认档、技能启用列表，写入自带 revision 冲突检测 | `profiles/<name>/cordis.patch.yml` |
 | `ctx.remote.ponytail.snapshot()` | 当前生效等级、三级诊断链，只读 | In-memory RPC |
 
-无 Profile 上下文的组合（headless、CLI）没有 Settings 服务，配置读写回退到 `profiles/<name>/ponytail/config.json`。从旧版本升级时，全局的 `$DSH_HOME/ponytail/config.json` 首次启动时一次性导入 Profile 补丁，旧文件随后被改名 `.imported`。
+无 Profile 上下文的组合（headless、CLI）没有 Settings 服务，配置读写自动回退到 `profiles/<name>/ponytail/config.json` 文件通道，全面对齐最新 DSH 纯净 Profile 架构。
 
 ## 上游映射
 

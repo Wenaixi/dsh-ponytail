@@ -85,7 +85,7 @@ Configuration reads and writes use two official DSH channels:
 | `ctx.configForms.get('ponytail')` | Default level & disabled skills with revision conflict checking | `profiles/<name>/cordis.patch.yml` |
 | `ctx.remote.ponytail.snapshot()` | Active runtime level & 3-tier diagnostic chain (read-only) | In-memory RPC |
 
-Profiles lacking a full UI service bundle (headless, CLI) fall back gracefully to `profiles/<name>/ponytail/config.json`. Legacy configurations from `$DSH_HOME/ponytail/config.json` are migrated once into profile patches upon initial boot and renamed to `.imported`.
+Profiles lacking a full UI service bundle (headless, CLI) fall back gracefully to `profiles/<name>/ponytail/config.json`, fully aligned with the latest DSH pure profile architecture.
 
 ## Upstream Mapping
 
