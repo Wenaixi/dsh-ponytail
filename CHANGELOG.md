@@ -4,8 +4,9 @@
 
 ### Changed
 
-- 全面适配最新 DSH 架构规范（0.2.0-rc.2），彻底移除旧版兼容包袱：
-  - `package.json` 中 `peerDependencies` 的 `@deepseek-ai/dsh-skill` 依赖从历史过渡范围收敛锁定为 `"0.2.0-rc.2"`；
+- 全面适配最新官方 DSH 架构规范（dsh-v0.2.1-rc.2），彻底移除旧版兼容包袱：
+  - `package.json` 引入官方 0.2.1-rc.2 新增的 `"engines.dsh": ">=0.2.1-rc.1"` 插件版本兼容性优先判断声明；
+  - `peerDependencies` 与 `devDependencies` 全面升级锁定为官方最新发布的 `"0.2.1-rc.2"` 体系（`@deepseek-ai/dsh-skill` 与 `@deepseek-ai/dsh-typert-protocol`）；
   - `src/ponytail-config.ts` 彻底移除旧版全局路径函数 `getSharedConfigPath()` 及跨层回退探测，直接定位当前 profile 目录配置文件；
   - `src/ponytail-settings.ts` 彻底删除 `migrateLegacyConfig` 函数及 `LegacyMigrationDeps` 接口，消灭向 `.imported` 重命名的旧版迁移代码；
   - `src/ponytail.ts` 移除启动阶段的 `void migrateLegacyConfig(...)` 异步迁移调用与死代码导入，大幅精简启动链路。
