@@ -1,5 +1,14 @@
 ## [Unreleased]
 
+## [5.6.1] - 2026-10-18
+
+### Fixed
+
+- 修复 npm 发布包的 `peerDependencies` 与 `engines.dsh` 版本范围，彻底解决 DSH 0.2.1-rc.2 宿主环境下的安装兼容性报错：
+  - 将 `peerDependencies` 中的 `@deepseek-ai/dsh-skill` 与 `@deepseek-ai/dsh-typert-protocol` 范围优化为 `">=0.2.0-rc.1 <=0.2.1-rc.2"`，彻底根治此前 5.6.0 不可变历史包锁死在 0.2.0-rc.2 导致的兼容性拒绝；
+  - 显式声明 `"engines.dsh": ">=0.2.0-rc.1 <=0.2.1-rc.2"`，支持 DSH 0.2.1-rc.2 宿主插件管理器优先依据该字段判定兼容性；
+  - 严格保持对 0.1.x 旧版历史包袱的拒绝（`0.1.7-rc.2` 明确判定不满足），坚守“不要兼容旧版”原则。
+
 ## [5.6.0] - 2026-10-17
 
 ### Changed
