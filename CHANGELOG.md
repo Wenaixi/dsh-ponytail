@@ -1,5 +1,14 @@
 ## [Unreleased]
 
+## [5.6.2] - 2026-10-24
+
+### Fixed
+
+- 放宽 `engines.dsh` 与 `peerDependencies` 版本范围，全面支持 DSH 0.2.1 全版本系列（包括 `0.2.1-rc.3` 等后续候选版本及正式版）：
+  - 将 `package.json` 中的 `"engines.dsh"` 调整为 `">=0.2.0-rc.1 <=0.2.1"`，在宿主预发布支持（`includePrerelease: true`）语义下彻底根治 DSH 0.2.1-rc.3 报不兼容被拦截问题；
+  - 同步放宽 `peerDependencies` 中 `@deepseek-ai/dsh-skill` 与 `@deepseek-ai/dsh-typert-protocol` 范围至 `">=0.2.0-rc.1 <=0.2.1"`，消除安装时的依赖冲突警告；
+  - 增加静态契约门禁（`scripts/verify.mjs`）与行为回归测试（`C36`），牢固锁定对 DSH 0.2.1 全版本的兼容性支持。
+
 ## [5.6.1] - 2026-10-18
 
 ### Fixed

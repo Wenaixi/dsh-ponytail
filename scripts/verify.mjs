@@ -254,6 +254,16 @@ if (failedOfficial.length > 0) {
   console.log('[verify] ✓ official plugin-config wiring (volatile Config + settings channel + profile entry)')
 }
 
+// 检查 package.json.engines.dsh 必须显式声明并覆盖 0.2.1 全版本 (<=0.2.1)
+const pkgData = JSON.parse(await readFile(resolve(dirname(fileURLToPath(import.meta.url)), '..', 'package.json'), 'utf8'))
+const enginesDsh = pkgData.engines?.dsh
+if (typeof enginesDsh !== 'string' || !enginesDsh.includes('<=0.2.1')) {
+  console.error('[verify] FAIL: package.json.engines.dsh 必须显式声明支持 0.2.1 全版本 (<=0.2.1)')
+  ok = false
+} else {
+  console.log(`[verify] ✓ package.json.engines.dsh declares "${enginesDsh}" (covers 0.2.1 full series)`)
+}
+
 // 检查 cordis.patch.yml 引用包名而非绝对路径
 const patch = await readFile(resolve(dirname(fileURLToPath(import.meta.url)), '..', 'cordis.patch.yml'), 'utf8')
 if (patch.includes('dsh-ponytail') && !patch.includes('/absolute')) console.log('[verify] ✓ cordis.patch.yml uses package name')
