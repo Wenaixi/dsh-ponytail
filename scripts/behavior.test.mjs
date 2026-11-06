@@ -2387,7 +2387,7 @@ test('C35 拓扑解耦与会话提取: resolveSessionId 多通道统一解析与
   assert.equal(resolveSessionId({ session: {} }), undefined)
 })
 
-test('C36 宿主版本兼容性判定: engines.dsh 与 peerDependencies 全面覆盖 DSH 0.2.1 全版本并严格设立上下边界', async () => {
+test('C36 宿主版本兼容性判定: engines.dsh 与 peerDependencies 全面覆盖 DSH 0.2.2 全版本并严格设立上下边界', async () => {
   const { readFile } = await import('node:fs/promises')
   const { resolve, dirname } = await import('node:path')
   const { fileURLToPath } = await import('node:url')
@@ -2398,7 +2398,7 @@ test('C36 宿主版本兼容性判定: engines.dsh 与 peerDependencies 全面�
   // 1. 验证 package.json 中关键字段存在
   assert.ok(pkg.engines?.dsh, 'package.json 必须显式声明 engines.dsh')
   const dshRange = pkg.engines.dsh
-  assert.equal(dshRange, '>=0.2.0-rc.1 <=0.2.1', 'engines.dsh 必须为 >=0.2.0-rc.1 <=0.2.1')
+  assert.equal(dshRange, '>=0.2.0-rc.1 <=0.2.2', 'engines.dsh 必须为 >=0.2.0-rc.1 <=0.2.2')
 
   // 2. 自包含 SemVer 2.0 规范解析与比较函数（对齐宿主 includePrerelease 判定语义）
   function parseSemVer(v) {
@@ -2446,17 +2446,23 @@ test('C36 宿主版本兼容性判定: engines.dsh 与 peerDependencies 全面�
     return compareSemVer(version, minVer) >= 0 && compareSemVer(version, maxVer) <= 0
   }
 
-  // 3. 必须通过兼容断言的目标版本集合（0.2.1 全版本族 + 0.2.0 基线）
+  // 3. 必须通过兼容断言的目标版本集合（0.2.2 全版本族 + 0.2.1 / 0.2.0 基线）
   const compatibleVersions = [
     '0.2.0-rc.1',
     '0.2.0-rc.2',
     '0.2.0',
     '0.2.1-rc.1',
     '0.2.1-rc.2',
-    '0.2.1-rc.3', // 本次用户报错的具体版本
+    '0.2.1-rc.3',
     '0.2.1-rc.4',
     '0.2.1-rc.99',
     '0.2.1', // 0.2.1 正式版
+    '0.2.2-alpha.2',
+    '0.2.2-alpha.3',
+    '0.2.2-rc.1', // 本次用户报错的具体版本（issue #4）
+    '0.2.2-rc.2',
+    '0.2.2-rc.99',
+    '0.2.2', // 0.2.2 正式版
   ]
 
   for (const v of compatibleVersions) {
@@ -2471,9 +2477,9 @@ test('C36 宿主版本兼容性判定: engines.dsh 与 peerDependencies 全面�
   const incompatibleVersions = [
     '0.1.7-rc.2', // 历史 0.1.x 旧版包袱
     '0.1.8',
-    '0.2.2-0',
-    '0.2.2-rc.1',
-    '0.2.2',
+    '0.2.3-0',
+    '0.2.3-rc.1',
+    '0.2.3', // 下一代 0.2.x：未经本版本验证，必须显式拒绝
     '0.3.0',
   ]
 
@@ -2485,12 +2491,15 @@ test('C36 宿主版本兼容性判定: engines.dsh 与 peerDependencies 全面�
     )
   }
 
-  // 5. 校验 peerDependencies 也协同放宽至 <=0.2.1
+  // 5. 校验 peerDependencies 也协同放宽至 <=0.2.2
   const peerSkill = pkg.peerDependencies?.['@deepseek-ai/dsh-skill']
   const peerProtocol = pkg.peerDependencies?.['@deepseek-ai/dsh-typert-protocol']
-  assert.equal(peerSkill, '>=0.2.0-rc.1 <=0.2.1')
-  assert.equal(peerProtocol, '>=0.2.0-rc.1 <=0.2.1')
+  assert.equal(peerSkill, '>=0.2.0-rc.1 <=0.2.2')
+  assert.equal(peerProtocol, '>=0.2.0-rc.1 <=0.2.2')
   assert.equal(hostSatisfiesRange('0.2.1-rc.3', peerSkill), true)
   assert.equal(hostSatisfiesRange('0.2.1', peerSkill), true)
+  assert.equal(hostSatisfiesRange('0.2.2-rc.1', peerSkill), true)
+  assert.equal(hostSatisfiesRange('0.2.2', peerProtocol), true)
+  assert.equal(hostSatisfiesRange('0.2.3', peerSkill), false)
 })
 
