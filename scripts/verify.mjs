@@ -4,6 +4,7 @@ import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { parse } from 'yaml'
+import { checkEngineRange } from './verify-engine.mjs'
 
 const skillDir = resolve(dirname(fileURLToPath(import.meta.url)), '..', 'skills')
 console.log(`[verify] skillDir: ${skillDir}`)
@@ -254,14 +255,15 @@ if (failedOfficial.length > 0) {
   console.log('[verify] ✓ official plugin-config wiring (volatile Config + settings channel + profile entry)')
 }
 
-// 检查 package.json.engines.dsh 必须显式声明并覆盖 0.2.1 全版本 (<=0.2.1)
+// 检查 engines.dsh 与 dsh 相关 peerDependencies 同代（判据见 verify-engine.mjs）
 const pkgData = JSON.parse(await readFile(resolve(dirname(fileURLToPath(import.meta.url)), '..', 'package.json'), 'utf8'))
-const enginesDsh = pkgData.engines?.dsh
-if (typeof enginesDsh !== 'string' || !enginesDsh.includes('<=0.2.1')) {
-  console.error('[verify] FAIL: package.json.engines.dsh 必须显式声明支持 0.2.1 全版本 (<=0.2.1)')
+const peerRanges = Object.values(pkgData.peerDependencies ?? {}).map((v) => String(v))
+const engineCheck = checkEngineRange(pkgData.engines?.dsh, peerRanges)
+if (!engineCheck.ok) {
+  console.error('[verify] FAIL: ' + engineCheck.message)
   ok = false
 } else {
-  console.log(`[verify] ✓ package.json.engines.dsh declares "${enginesDsh}" (covers 0.2.1 full series)`)
+  console.log('[verify] ✓ ' + engineCheck.message)
 }
 
 // 检查 cordis.patch.yml 引用包名而非绝对路径

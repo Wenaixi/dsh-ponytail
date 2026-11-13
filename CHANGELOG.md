@@ -6,6 +6,11 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- 修复 `scripts/verify.mjs` 的宿主版本门禁：旧实现用字符串 `includes('<=0.2.1')` 判断覆盖范围，在 `engines.dsh` 升级到 `>=0.2.2-rc.1` 后把发布门禁永久打成 FAIL（`prepublishOnly` 因此必断）。
+- 判据改为「`engines.dsh` 下界与 dsh 系 `peerDependencies` 同代」，抽成纯函数 `scripts/verify-engine.mjs` 并配 4 条测试，不再依赖写死的旧版本字符串。
+
 ## [5.6.2] - 2026-10-24
 
 ### Fixed
