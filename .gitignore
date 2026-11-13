@@ -78,3 +78,6 @@ coverage/
 .nyc_output/
 junit.xml
 reports/
+
+# OMC 运行时状态（操作性工件，不入库）
+.omc/
