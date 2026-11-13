@@ -390,7 +390,7 @@ function readConfigFileRaw(profileDir?: string): string | null {
 }
 
 /**
- * 供外部或向后兼容接缝调用的内部物理文件读取。
+ * 配置读写的底层读取实现（供 readFullConfig 等测试表面调用）。
  * 具备自愈防御引擎：若检测到磁盘文件破损，自动启动启发式提取、留样备份损坏现场、
  * 并原地安全原子重写一份合法的干净配置文件，使系统平稳运转且后续直读完全自愈。
  */
@@ -432,7 +432,7 @@ export function readDiskConfig(profileDir?: string): FullConfigData {
   return result.data
 }
 
-/** 供外部或向后兼容接缝调用的内部物理文件写入（字段级 merge，保留未知键，原子落盘） */
+/** 配置读写的底层写入实现（字段级 merge，保留未知键，原子落盘）。 */
 export function writeDiskConfig(patch: Partial<FullConfigData>, profileDir?: string): FullConfigData | null {
   try {
     const configPath = getConfigPath(profileDir)
@@ -476,7 +476,7 @@ export function writeDiskConfig(patch: Partial<FullConfigData>, profileDir?: str
   }
 }
 
-/** 供外部或向后兼容接缝调用的内部物理文件重置 */
+/** 配置读写的底层重置实现。 */
 export function resetDiskConfig(profileDir?: string): FullConfigData | null {
   return writeDiskConfig({ defaultMode: DEFAULT_MODE, disabledSkills: [] }, profileDir)
 }

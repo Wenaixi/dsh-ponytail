@@ -49,19 +49,23 @@ export interface FullConfigData {
     disabledSkills: string[];
 }
 /**
- * 读取完整配置（向后兼容接缝薄委托，统一经由 FileSink 底层深模块处理）
+ * 读取完整配置。
+ *
+ * 生产路径走 PonytailConfigSink（createFileSink / createSettingsSink），
+ * 这三个函数是配置读写的可测试表面：behavior.test.mjs 用它们验证落盘
+ * 形态、字段级 merge 与重置语义，底层与 sink 共用同一实现。
  */
 export declare function readFullConfig(profileDir?: string): FullConfigData;
 /**
- * 字段级 merge 写盘（向后兼容接缝薄委托，统一由 FileSink 独占处理）
+ * 字段级 merge 写盘（测试表面，见 readFullConfig 说明）。
  */
 export declare function writeFullConfig(patch: Partial<FullConfigData>, profileDir?: string): FullConfigData | null;
 /**
- * 重置配置（向后兼容接缝薄委托）
+ * 重置配置（测试表面，见 readFullConfig 说明）。
  */
 export declare function resetFullConfig(profileDir?: string): FullConfigData | null;
 /**
- * 写入默认档（向后兼容接缝薄委托，统一通过 FileSink 实现）
+ * 写入默认档（测试表面；生产代码用 sink.writeDefaultMode）。
  */
 export declare function writeDefaultMode(mode: string, profileDir?: string): RuntimeMode | null;
 /**
