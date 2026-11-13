@@ -152,7 +152,7 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
   // 配置通道：有 settings 服务走官方路径（写入落 profile 补丁，由官方表单承载）；
   // 无 settings 服务的组合（headless / CLI —— dsh-base 的 settings 行在无 profileContext 时禁用）
   // 静默回退 config.json 文件通道，不能因迁移而让这些组合失去配置能力。
-  const settingsService = readService(ctx, 'settings')
+  // 通道选择由 createSinkFor 内部完成（它自己 readService），此处不重复探测。
 
   // 宿主语言偏好：locale 命名空间的 volatile 字段 preference（dsh-client-locale）。
   // 只在用户于宿主设置里显式选过语言时落盘（浏览器 navigator.language 探测不落盘、
