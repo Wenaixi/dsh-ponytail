@@ -48,7 +48,16 @@ jobs:
         # --provenance 只能走 OIDC Trusted Publisher，用 token 时必须去掉该参数，否则 npm 返回 404
         run: |
           VERSION=$(node -p "require('./package.json').version")
-          if npm view @wenaixi/dsh-ponytail versions --json 2>/dev/null | grep -q "\"$VERSION\""; then
+          # 判据：先看 npm view 的退出码。原实现用 grep 匹配 versions 输出，
+          # npm view 失败时的错误文本同样可能命中，导致误判为已发布而跳过。
+          PUBLISHED=""
+          if LIST_JSON=$(npm view @wenaixi/dsh-ponytail versions --json 2>/dev/null); then
+            PUBLISHED=$(printf '%s' "$LIST_JSON" | node -e "
+              let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{
+                try{const v=JSON.parse(s);process.stdout.write(Array.isArray(v)?v[v.length-1]:'')}catch{}
+              })")
+          fi
+          if [ "$PUBLISHED" = "$VERSION" ]; then
             echo "Version $VERSION already published, skipping"
             echo "skipped=true" >> "$GITHUB_OUTPUT"
             exit 0
