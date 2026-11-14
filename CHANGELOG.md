@@ -6,10 +6,17 @@
 
 ## [Unreleased]
 
+## [5.6.3] - 2026-11-14
+
+### Changed
+
+- 删除 `apply` 里赋值后从未读取的 `settingsService` 变量。通道选择由 `createSinkFor` 内部的 `readService` 完成。
+
 ### Fixed
 
 - 修复 `scripts/verify.mjs` 的宿主版本门禁：旧实现用字符串 `includes('<=0.2.1')` 判断覆盖范围，在 `engines.dsh` 升级到 `>=0.2.2-rc.1` 后把发布门禁永久打成 FAIL（`prepublishOnly` 因此必断）。
 - 判据改为「`engines.dsh` 下界与 dsh 系 `peerDependencies` 同代」，抽成纯函数 `scripts/verify-engine.mjs` 并配 4 条测试，不再依赖写死的旧版本字符串。
+- 纠正 `ponytail-config.ts` 与 `ponytail-settings.ts` 里「向后兼容接缝」的注释。这些薄委托函数在生产代码里没有调用者，但行为测试用它们验证落盘形态、字段级 merge 与重置语义，是配置读写的可测试表面。
 
 ## [5.6.2] - 2026-10-24
 
