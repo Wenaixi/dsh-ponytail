@@ -44,8 +44,17 @@ if (SKILL_IDS_BUILD.length !== 6) {
   process.exit(1)
 }
 
+// ---- 构建期包名（双包名同源发布的唯一真源）----
+// 宿主按安装后的包名逐字校验客户端模块 id、RPC 命名空间与插槽 key，
+// 因此产物里的包名一律取自 package.json，不得硬编码。
+const PACKAGE_NAME = JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'package.json'), 'utf8')).name
+if (typeof PACKAGE_NAME !== 'string' || PACKAGE_NAME.length === 0) {
+  console.error('[build-client] FAIL: package.json 缺少 name')
+  process.exit(1)
+}
+
 const content = `window.__ModuleLoader__.load({
-  id: "@wenaixi/dsh-ponytail",
+  id: "${PACKAGE_NAME}",
   factory: (require) => {
     var module = { exports: {} };
     var exports = module.exports;
@@ -312,10 +321,10 @@ const content = `window.__ModuleLoader__.load({
      * 不必为此引入 zod。
      */
     var PONYTAIL_REMOTE = {
-      package: "@wenaixi/dsh-ponytail",
+      package: "${PACKAGE_NAME}",
       descriptors: [
         {
-          id: "@wenaixi/dsh-ponytail#ponytailRemote/snapshot",
+          id: "${PACKAGE_NAME}#ponytailRemote/snapshot",
           service: "ponytailRemote",
           namespace: "ponytail",
           method: "snapshot",
@@ -323,7 +332,7 @@ const content = `window.__ModuleLoader__.load({
           parameters: [],
           result: {
             mode: "strict",
-            typeSymbol: "@wenaixi/dsh-ponytail/types#PonytailSnapshot",
+            typeSymbol: "${PACKAGE_NAME}/types#PonytailSnapshot",
             create: function (value) { return value; },
           },
           sourceLocation: {
@@ -610,7 +619,7 @@ const content = `window.__ModuleLoader__.load({
         return ctx.configForms.whileServed(["ponytail"], function () {
           return ctx.slots.inject("plugins.bundle.config", function () {
             return ctx.slots.register(
-              { name: "plugins.bundle.config", key: "@wenaixi/dsh-ponytail", locale: NS, inject: face },
+              { name: "plugins.bundle.config", key: "${PACKAGE_NAME}", locale: NS, inject: face },
               PonytailConfigPanel
             );
           });

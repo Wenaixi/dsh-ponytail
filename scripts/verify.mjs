@@ -143,10 +143,15 @@ const clientSrc = await readFile(join(rootDir, 'scripts', 'build-client.mjs'), '
 const slotCalls = [...clientSrc.matchAll(/ctx\.slots\.inject\("([^"]+)"/g)].map((m) => m[1])
 const allowed = ['plugins.bundle.config']
 const extra = slotCalls.filter((s) => !allowed.includes(s))
+// 插槽 key 必须等于发布包名。双包名同源发布后包名不再是字面量，
+// 判据改为「要么是未插值的字面量包名，要么是构建期注入的 PACKAGE_NAME」，
+// 并额外确认脚本确实从 package.json 读取 name，防止出现自造常量。
+const keyByLiteral = clientSrc.includes('key: "@wenaixi/dsh-ponytail"')
+const keyByInterpolation = clientSrc.includes('key: "${PACKAGE_NAME}"') && /package\.json/.test(clientSrc)
 if (extra.length > 0) {
   console.error('[verify] FAIL: 出现多余 UI 落点 ' + extra.join(', ') + '（会让面板在多个位置重复出现）')
   ok = false
-} else if (!clientSrc.includes('key: "@wenaixi/dsh-ponytail"')) {
+} else if (!keyByLiteral && !keyByInterpolation) {
   console.error('[verify] FAIL: plugins.bundle.config 未以包名为 key 注册')
   ok = false
 } else {
