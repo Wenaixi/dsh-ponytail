@@ -116,7 +116,7 @@ test('render: 无效 skillDir 回退 fallback 指令而非抛错', () => {
 test('list/get: 传入已 abort 的 AbortSignal 立即抛 AbortError（settle promptly）', async () => {
   const ctx = {
     on: () => {},
-    effect: () => {},
+    effect: (fn) => { const d = fn(); return typeof d === "function" ? d : () => {} },
     logger: { info: () => {}, warn: () => {}, debug: () => {} },
     skills: {
       registerProvider: (factory) => {
@@ -292,7 +292,7 @@ test('list: 无 SKILL.md 的目录被跳过且不抛错（stat 删除后的失�
   await fsp.writeFile(path.join(tmp, 'good-skill', 'SKILL.md'),
     '---\nname: good-skill\ndescription: desc\n---\n# Good\n')
   const ctx = {
-    on: () => {}, effect: () => {}, logger: { info: () => {}, warn: () => {}, debug: () => {} },
+    on: () => {}, effect: (fn) => { const d = fn(); return typeof d === "function" ? d : () => {} }, logger: { info: () => {}, warn: () => {}, debug: () => {} },
     skills: { registerProvider: () => () => {} },
     systemPrompt: { section: () => () => {} },
   }
@@ -1735,7 +1735,7 @@ test('C16 宿主语言跟随: 未配置时按 settings.describe 的 locale.prefe
   const handlers = {}
   const ctx = {
     on: (ev, h) => { handlers[ev] = h },
-    effect: () => {},
+    effect: (fn) => { const d = fn(); return typeof d === "function" ? d : () => {} },
     logger: { info: () => {}, warn: () => {}, debug: () => {} },
     skills: { registerProvider: (factory) => { provider = factory({}); return () => {} } },
     systemPrompt: { section: () => () => {} },
@@ -1760,7 +1760,7 @@ test('C16 宿主语言跟随: 未配置时按 settings.describe 的 locale.prefe
   const lockedHandlers = {}
   const lockedCtx = {
     on: (ev, h) => { lockedHandlers[ev] = h },
-    effect: () => {},
+    effect: (fn) => { const d = fn(); return typeof d === "function" ? d : () => {} },
     logger: { info: () => {}, warn: () => {}, debug: () => {} },
     skills: { registerProvider: (factory) => { provider = factory({}); return () => {} } },
     systemPrompt: { section: () => () => {} },
