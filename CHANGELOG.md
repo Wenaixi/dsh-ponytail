@@ -6,6 +6,20 @@
 
 ## [Unreleased]
 
+## [5.6.6] - 2026-11-21
+
+### Fixed
+
+- **mutate 失败时面板永久点不动**：`applyOps` 的 `then` 分支只在成功路径复位 busy。
+  RPC 抛错时 busy 一直为 true，档位开关从此无法操作，并产生 unhandled rejection。
+  补 `catch` 分支。
+
+### Docs
+
+- 新增 `docs/compatibility.md`：`registerProvider` 的 disposer 持有契约、
+  `systemPrompt.section` 的 section 名唯一性、`loader/volatile-update` 的失效收敛、
+  以及测试桩 `effect` 必须真正执行回调的原因。
+
 ## [5.6.5] - 2026-11-21
 
 ### Fixed
