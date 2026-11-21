@@ -6,6 +6,25 @@
 
 ## [Unreleased]
 
+## [5.6.5] - 2026-11-21
+
+### Fixed
+
+- **SkillProvider disposer 未持有**：`skills.registerProvider` 返回的 cordis effect
+  disposer 此前被丢弃。语义上是「随 fiber 卸载自动注销」，但 HMR 重挂同一 fiber
+  期间旧 provider 会残留到 fiber 销毁为止，导致同一技能目录被多份快照重复服务
+  （技能列表出现重复项）。现在注册包在 `ctx.effect` 内并在卸载时显式注销与清空
+  `providerInstance`。
+- **移除多余的 `ctx.skills` 内联类型断言**：`@deepseek-ai/dsh-skill` 的 `.d.ts`
+  已声明 `Context.skills: SkillRegistry`，`(ctx as unknown as {...}).skills` 属
+  未经检查的形状断言，本无必要（`tsc --noEmit` 通过即为证）。
+
+### Changed
+
+- 测试桩中 4 处 `effect: () => {}` 改为真正执行回调。cordis 的 `ctx.effect(fn)`
+  会立即执行 `fn` 并登记其返回值；空实现会让注册路径在测试里完全不跑，
+  这正是上述 disposer 缺陷此前被掩盖的原因。
+
 ## [5.6.4] - 2026-11-15
 
 ### Added
