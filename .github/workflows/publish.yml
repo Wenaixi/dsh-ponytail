@@ -72,16 +72,26 @@ jobs:
             npm publish --provenance --access public
           fi
 
+      - name: Resolve release tag
+        id: tag
+        # github.ref_name 只在 tag 触发时是 v<version>；workflow_dispatch 手动触发时
+        # 它是分支名（如 main），直接拿去当 tag_name 会让 action-gh-release 报
+        # 「GitHub Releases requires a tag」。所以统一从 package.json 推导。
+        run: |
+          VERSION=$(node -p "require('./package.json').version" 2>/dev/null || jq -r .version package.json)
+          echo "name=v$VERSION" >> "$GITHUB_OUTPUT"
+
       - name: Create GitHub Release
         if: steps.publish.outputs.skipped != 'true'
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ steps.tag.outputs.name }}
           generate_release_notes: false
           body: |
-            完整更新内容见 [CHANGELOG.md](https://github.com/Wenaixi/dsh-ponytail/blob/${{ github.ref_name }}/CHANGELOG.md)
+            完整更新内容见 [CHANGELOG.md](https://github.com/Wenaixi/dsh-ponytail/blob/${{ steps.tag.outputs.name }}/CHANGELOG.md)
 
-            Local version: ${{ github.ref_name }}
+            Local version: ${{ steps.tag.outputs.name }}
             Upstream reference: DietrichGebert/ponytail 4.10.3 (reference snapshot)
             DSH 适配：零 tool 注册，常驻梯子七阶 + 6 个中文原生技能
 
-            Tag: `${{ github.ref_name }}`
+            Tag: `${{ steps.tag.outputs.name }}`
