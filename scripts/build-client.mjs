@@ -414,6 +414,11 @@ const content = `window.__ModuleLoader__.load({
           // 档位写入后重新拉一次服务端真值：当前生效等级可能随之改变，
           // 而它不在 configForms 快照里（那是持久化配置，不是运行时推导值）。
           if (landed && props.reloadRemote) props.reloadRemote();
+        }).catch(function (err) {
+          // RPC 抛错（宿主重启、连接断开）时必须解锁 UI：否则 busy 永不复位，
+          // 开关从此点不动。
+          setBusy(false);
+          setNote(t("error.rejected") + (err && err.message ? " (" + err.message + ")" : ""));
         });
       }, [props.mutate, snapshot.revision]);
 
