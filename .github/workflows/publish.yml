@@ -81,8 +81,22 @@ jobs:
           VERSION=$(node -p "require('./package.json').version" 2>/dev/null || jq -r .version package.json)
           echo "name=v$VERSION" >> "$GITHUB_OUTPUT"
 
+      - name: Check existing GitHub Release
+        id: release
+        # npm 已发布不等于 GitHub Release 已存在：两者是独立产物。此前把
+        # Release 步骤绑在 publish 的 skipped 输出上，导致「npm 已发、Release
+        # 缺失」时永远补不回来（本次 v5.6.5 就是这样丢的）。
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "${{ steps.tag.outputs.name }}" -R "${{ github.repository }}" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Create GitHub Release
-        if: steps.publish.outputs.skipped != 'true'
+        if: steps.release.outputs.exists != 'true'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.tag.outputs.name }}
