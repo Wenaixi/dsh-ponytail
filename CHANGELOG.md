@@ -10,10 +10,11 @@
 
 ### Changed
 
-- **cordis 4.2 兼容**：`@deepseek-ai/cordis` peer 区间由 `~4.1.0` 放宽为
-  `>=4.1.0 <5.0.0`。`~` 前缀不跨 minor，DSH 0.2.3 系列携带 cordis 4.2 时该声明
-  直接失效；新区间同时覆盖 4.1 与 4.2 两代。`@deepseek-ai/schemastery` 同步放宽为
-  `>=3.19.0 <4.0.0`。`engines.dsh` 保持无上界（本项目的既有契约：对宿主开放，不设天花板）。
+- **cordis 4.2 兼容**：`@deepseek-ai/cordis` peer 由 `~4.1.0` 改为 `^4.1.0`。
+  `~` 不跨 minor，DSH 0.2.3 系列携带 cordis 4.2.0-alpha.1 时该声明失效；`^4.1.0`
+  在不抬下界代的前提下同时接受 4.1 与 4.2，也满足本项目 peer 门禁的「同代」判定。
+  `@deepseek-ai/schemastery` 同步改为 `^3.19.0`。`engines.dsh` 保持无上界
+  （本项目既有契约：对宿主开放，不设天花板）。
 
 ## [5.6.6] - 2026-11-21
 
